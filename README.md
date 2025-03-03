@@ -52,7 +52,7 @@ Some functions (including Login to your account or auto update of *yt-dlp.exe*) 
 
 ## History
 
-- 2025-03-03 First published online
+- 2025-03-04 First published online
 
 
 
