@@ -8,7 +8,7 @@ It follows supported sites or services of **yt-dlp**.
 As for YouTube videos, PotPlayer can basically play them without this extension,  
 but it may be useful while YouTube restricts connections to external applications.  
 YouTube urges users to log in to YouTube account, but PotPlayer does not have means to log in.  
-In that respect, yt-dlp extension can treat web cookies and login to the service account for work-around.  
+In that respect, yt-dlp extension can treat web cookies and login so PotPlayer can get work-around.  
 
 
 
