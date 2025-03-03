@@ -3,12 +3,13 @@
 
 ## Overview
 This is a script for **PotPlayer** extension, which enables PotPlsyer to play streaming video/audio on various sites.  
-It follows supported sites or services of **yt-dlp**.  
+When opening url, PotPlayer would call ***yt-dlp.exe*** temporally and get a playable link from it.  
+Supported sites or services follow yt-dlp.  
 
 As for YouTube videos, PotPlayer can basically play them without this extension,  
 but it may be useful while YouTube restricts connections to external applications.  
-YouTube urges users to log in to YouTube account, but PotPlayer does not have means to log in.  
-In that respect, yt-dlp extension can treat web cookies and login so PotPlayer can get work-around.  
+YouTube urges users to log in to YouTube account, but PotPlayer does not have means to log in by itself.  
+yt-dlp extension can treat web cookies and login so PotPlayer could get around the restriction in some cases.  
 
 
 
@@ -23,31 +24,33 @@ In that respect, yt-dlp extension can treat web cookies and login so PotPlayer c
 ## Install
 
 1. Place all files of the archive to the following script folder;  
-	(PotPlayer's program folder)\Extension\Media\PlayParse\  
+	(PotPlayer's program folder)\Extension\Media\PlayParse\
+	***MediaPlayParse - yt-dlp.as*** and ***yt-dlp_default.ini*** are indispensable.  
 
-2. Place *yt-dlp.exe* to the following module folder;  
+3. Place *yt-dlp.exe* to the following module folder;  
 	(PotPlayer's program folder)\Module\  
+	If *yt-dlp.exe* is placed in another folder, the script won't call it. (for security reason)   
 
-3. Confirm that **yt-dlp** exists in the extension list of PotPlayer settings  
+4. Confirm that **yt-dlp** exists in the extension list of PotPlayer settings  
 	Preferences(F5) > Extensions >  Media Playlist/Playitem  
 
-4. Try to open urls of various streaming services with PotPlayer  
+5. Try to open urls of various streaming services with PotPlayer  
 
 
 
 ## Tune-up
 
 ### Extension priority
-If you have multiple extensions in the extension list, ones displayed higher take priority.  
+If you have multiple extensions in the extension list, one shown at upper position takes priority.  
 As for YouTube, if you want to give priority to PotPlayer's YouTube extension rather than this extension,   
-place **yt-dlp** below **YouTube** in the list of extension settings.  
-PotPlayer's YouTube extension starts YouTube playback faster than yt-dlp extension.  
+place **yt-dlp** below **YouTube** by using Up/Down buttons in the extension settings.  
+PotPlayer's YouTube extension can start YouTube playback more quickly than yt-dlp extension.  
 
 ### Configuration file
-You can custumize behavior by editing the configuration file *yt-dlp.ini*.  
+You can customize behavior by editing the configuration file *yt-dlp.ini*.  
 Open it by pushing **Config file** button in extension settings.  
-Some functions (including Login to your account or auto update of *yt-dlp.exe*) are available with it.  
-
+several functions (including login to your account or auto update of *yt-dlp.exe*) are available with it.  
+You have description of each settings in detail on the config file.
 
 
 ## History
