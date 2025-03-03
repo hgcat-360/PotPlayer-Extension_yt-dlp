@@ -22,7 +22,7 @@ In that respect, yt-dlp extension can treat web cookies and login to the service
 
 ## Install
 
-1. Place all files in the archive to the following script folder;  
+1. Place all files of the archive to the following script folder;  
 	(PotPlayer's program folder)\Extension\Media\PlayParse\  
 
 2. Place *yt-dlp.exe* to the following module folder;  
