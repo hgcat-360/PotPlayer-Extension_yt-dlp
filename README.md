@@ -50,7 +50,7 @@ PotPlayer's YouTube extension can start YouTube playback more quickly than yt-dl
 ### Configuration file
 You can customize behavior by editing the configuration file *yt-dlp.ini*.  
 Open it by pushing **Config file** button in extension settings.  
-several functions (including login to your account or auto update of *yt-dlp.exe*) are available with it.  
+Some functions (including login to your account or auto update of *yt-dlp.exe*) are available with it.  
 You have description of each settings in detail on the config file.
 
 
