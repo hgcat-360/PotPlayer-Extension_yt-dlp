@@ -2,7 +2,7 @@
 
 
 ## Overview
-This is a script for **PotPlayer** extension, which enables PotPlsyer to play streaming video/audio on various sites.  
+This is a script for **PotPlayer** extension, which enables PotPlayer to play streaming videos/audios on various sites.  
 When opening url, PotPlayer would call ***yt-dlp.exe*** temporally and get a playable link from it.  
 Supported sites or services follow yt-dlp.  
 
@@ -33,6 +33,7 @@ yt-dlp extension can treat web cookies and login so PotPlayer could get around t
 
 4. Confirm that **yt-dlp** exists in the extension list of PotPlayer settings  
 	Preferences(F5) > Extensions >  Media Playlist/Playitem  
+![2025-03-04_04h20_49](https://github.com/user-attachments/assets/e4bfe285-a625-48bb-a81a-a7b00bc1c0b5)
 
 5. Try to open urls of various streaming services with PotPlayer  
 
