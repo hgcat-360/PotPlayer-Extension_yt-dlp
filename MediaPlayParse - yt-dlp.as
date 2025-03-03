@@ -6,7 +6,7 @@
     Placed in \PotPlayer\Extension\Media\PlayParse\
 ***********************************************************/
 
-string SCRIPT_VERSION = "250303";
+string SCRIPT_VERSION = "250304";
 
 string YTDLP_EXE = "Module\\yt-dlp.exe";
 	//yt-dlp executable file; relative path to HostGetExecuteFolder(); (required)
@@ -1294,8 +1294,8 @@ string _GetJsonValueString(JsonValue json, string key)
 	string str = "";
 	if (!key.empty())
 	{
-		JsonValue j_value = json[key];
-		if (j_value.isString()) str = j_value.asString();
+		JsonValue jValue = json[key];
+		if (jValue.isString()) str = jValue.asString();
 	}
 	return str;
 }
@@ -1306,8 +1306,8 @@ float _GetJsonValueFloat(JsonValue json, string key)
 	float f = -10000;
 	if (!key.empty())
 	{
-		JsonValue j_value = json[key];
-		if (j_value.isFloat()) f = j_value.asFloat();
+		JsonValue jValue = json[key];
+		if (jValue.isFloat()) f = jValue.asFloat();
 	}
 	return f;
 }
@@ -1318,8 +1318,8 @@ int _GetJsonValueInt(JsonValue json, string key)
 	int i = -10000;
 	if (!key.empty())
 	{
-		JsonValue j_value = json[key];
-		if (j_value.isInt()) i = j_value.asInt();
+		JsonValue jValue = json[key];
+		if (jValue.isInt()) i = jValue.asInt();
 	}
 	return i;
 }
@@ -1330,8 +1330,8 @@ bool _GetJsonValueBool(JsonValue json, string key)
 	bool b = false;
 	if (!key.empty())
 	{
-		JsonValue j_value = json[key];
-		if (j_value.isBool()) b = j_value.asBool();
+		JsonValue jValue = json[key];
+		if (jValue.isBool()) b = jValue.asBool();
 	}
 	return b;
 }
@@ -1352,11 +1352,11 @@ string PlayitemParse(const string &in path, dictionary &MetaData, array<dictiona
 		if (cfg.console_out > 0) HostPrintUTF8("[yt-dlp] ERROR! Json data corrupted.\r\n");
 		return "";
 	}
-	JsonValue j_version = root["_version"];
-	if (!j_version.isObject()) {ytd.criticalError(); return "";}
+	JsonValue jVersion = root["_version"];
+	if (!jVersion.isObject()) {ytd.criticalError(); return "";}
 	else
 	{
-		string version = _GetJsonValueString(j_version, "version");
+		string version = _GetJsonValueString(jVersion, "version");
 		if (version.empty()) {ytd.criticalError(); return "";}
 		else
 		{
@@ -1509,8 +1509,8 @@ string PlayitemParse(const string &in path, dictionary &MetaData, array<dictiona
 	int likeCount = _GetJsonValueInt(root, "like_count");
 	if (likeCount > 0) MetaData["likeCount"] = formatInt(likeCount);
 	
-	JsonValue j_formats = root["formats"];
-	if (!j_formats.isArray() || j_formats.size() == 0)
+	JsonValue jFormats = root["formats"];
+	if (!jFormats.isArray() || jFormats.size() == 0)
 	{
 		//Don't treat it as an error.
 		//For getting uploader(website) or thumbnail or upload date.
@@ -1520,31 +1520,31 @@ string PlayitemParse(const string &in path, dictionary &MetaData, array<dictiona
 	uint vaCount = 0;
 	uint vCount = 0;
 	uint aCount = 0;
-	for (int i = j_formats.size() - 1; i >= 0 ; i--)
+	for (int i = jFormats.size() - 1; i >= 0 ; i--)
 	{
-		JsonValue j_format = j_formats[i];
+		JsonValue jFormat = jFormats[i];
 		
-		string protocol = _GetJsonValueString(j_format, "protocol");
+		string protocol = _GetJsonValueString(jFormat, "protocol");
 		if (protocol.empty()) continue;
 		if (protocol != "http" && protocol != "https" && protocol.Left(4) != "m3u8") continue;
 		
-		int qualityIdx = _GetJsonValueInt(j_format, "quality");
+		int qualityIdx = _GetJsonValueInt(jFormat, "quality");
 		
-		string fmtUrl = _GetJsonValueString(j_format, "url");
+		string fmtUrl = _GetJsonValueString(jFormat, "url");
 		if (fmtUrl.empty()) continue;
 		if (urlOut.empty()) urlOut = fmtUrl;
 		
 		if (@QualityList !is null)
 		{
-			string fmtExt = _GetJsonValueString(j_format, "ext");
-			string vExt = _GetJsonValueString(j_format, "video_ext");
-			string aExt = _GetJsonValueString(j_format, "audio_ext");
+			string fmtExt = _GetJsonValueString(jFormat, "ext");
+			string vExt = _GetJsonValueString(jFormat, "video_ext");
+			string aExt = _GetJsonValueString(jFormat, "audio_ext");
 			if (fmtExt.empty() || vExt.empty() || aExt.empty()) continue;
 			
-			string vcodec = _GetJsonValueString(j_format, "vcodec");
+			string vcodec = _GetJsonValueString(jFormat, "vcodec");
 			vcodec = _OmitStr(vcodec, ".", 1);
 			
-			string acodec = _GetJsonValueString(j_format, "acodec");
+			string acodec = _GetJsonValueString(jFormat, "acodec");
 			acodec = _OmitStr(acodec, ".", 1);
 			
 			string va;
@@ -1572,7 +1572,7 @@ string PlayitemParse(const string &in path, dictionary &MetaData, array<dictiona
 				}
 			}
 			
-			int width = _GetJsonValueInt(j_format, "width");
+			int width = _GetJsonValueInt(jFormat, "width");
 			if (width > 0 && cfg.reduce_low_quality == 1)
 			{
 				if (va == "v")
@@ -1587,7 +1587,7 @@ string PlayitemParse(const string &in path, dictionary &MetaData, array<dictiona
 				}
 			}
 			
-			int height = _GetJsonValueInt(j_format, "height");
+			int height = _GetJsonValueInt(jFormat, "height");
 			if (height > 0 && cfg.reduce_low_quality == 1)
 			{
 				if (va == "v")
@@ -1602,7 +1602,7 @@ string PlayitemParse(const string &in path, dictionary &MetaData, array<dictiona
 				}
 			}
 			
-			float abr = _GetJsonValueFloat(j_format, "abr");
+			float abr = _GetJsonValueFloat(jFormat, "abr");
 			if (abr > 0 && cfg.reduce_low_quality == 1)
 			{
 				if (va == "a")
@@ -1611,8 +1611,8 @@ string PlayitemParse(const string &in path, dictionary &MetaData, array<dictiona
 				}
 			}
 			
-			float vbr = _GetJsonValueFloat(j_format, "vbr");
-			float tbr = _GetJsonValueFloat(j_format, "tbr");
+			float vbr = _GetJsonValueFloat(jFormat, "vbr");
+			float tbr = _GetJsonValueFloat(jFormat, "tbr");
 			
 			string bitrate;
 			if (tbr > 0) bitrate = HostFormatBitrate(int(tbr * 1000));
@@ -1620,12 +1620,12 @@ string PlayitemParse(const string &in path, dictionary &MetaData, array<dictiona
 			else if (vbr > 0) bitrate = HostFormatBitrate(int(vbr * 1000));
 			else if (abr > 0) bitrate = HostFormatBitrate(int(abr * 1000));
 			
-			float fps = _GetJsonValueFloat(j_format, "fps");
+			float fps = _GetJsonValueFloat(jFormat, "fps");
 			
-			string dynamicRange = _GetJsonValueString(j_format, "dynamic_range");
+			string dynamicRange = _GetJsonValueString(jFormat, "dynamic_range");
 			if (dynamicRange.empty() && va != "a") dynamicRange = "SDR";
 			
-			int itag = _GetJsonValueInt(j_format, "format_id");
+			int itag = _GetJsonValueInt(jFormat, "format_id");
 			
 			string resolution = "";
 			if (width > 0 && height > 0)
@@ -1644,10 +1644,10 @@ string PlayitemParse(const string &in path, dictionary &MetaData, array<dictiona
 				if (bps <= 0) bps = 128;
 				quality = HostFormatBitrate(int(bps * 1000));
 				
-				language = _GetJsonValueString(j_format, "language");
+				language = _GetJsonValueString(jFormat, "language");
 				if (!language.empty())
 				{
-					note = _GetJsonValueString(j_format, "format_note");
+					note = _GetJsonValueString(jFormat, "format_note");
 					if (!note.empty())
 					{
 						note = _OmitStr(note, ",");
@@ -1711,10 +1711,10 @@ string PlayitemParse(const string &in path, dictionary &MetaData, array<dictiona
 			}
 			if (quality.empty())
 			{
-				quality = _GetJsonValueString(j_format, "format_id");
+				quality = _GetJsonValueString(jFormat, "format_id");
 				if (quality.empty())
 				{
-					quality = _GetJsonValueString(j_format, "format");
+					quality = _GetJsonValueString(jFormat, "format");
 					quality = _OmitStr(quality, " ");
 				}
 			}
@@ -1757,23 +1757,23 @@ string PlayitemParse(const string &in path, dictionary &MetaData, array<dictiona
 	if (@QualityList !is null)
 	{
 		array<dictionary> dicsSub;
-		JsonValue j_subtitles = root["requested_subtitles"];
-		if (j_subtitles.isObject())
+		JsonValue jSubtitles = root["requested_subtitles"];
+		if (jSubtitles.isObject())
 		{
-			array<string> subs = j_subtitles.getKeys();
+			array<string> subs = jSubtitles.getKeys();
 			for (uint i = 0; i < subs.size(); i++)
 			{
 				string langCode = subs[i];
-				JsonValue j_sub = j_subtitles[langCode];
-				if (j_sub.isObject())
+				JsonValue jSub = jSubtitles[langCode];
+				if (jSub.isObject())
 				{
-					string subUrl = _GetJsonValueString(j_sub, "url");
+					string subUrl = _GetJsonValueString(jSub, "url");
 					if (!subUrl.empty())
 					{
 						dictionary dic;
 						dic["langCode"] = langCode;
 						dic["url"] = subUrl;
-						string subName = _GetJsonValueString(j_sub, "name");
+						string subName = _GetJsonValueString(jSub, "name");
 						if (!subName.empty()) dic["name"] = subName;
 						
 						if (HostRegExpParse(langCode, "\\b[Aa]uto", {}))
@@ -1787,36 +1787,36 @@ string PlayitemParse(const string &in path, dictionary &MetaData, array<dictiona
 				}
 			}
 		}
-		j_subtitles = root["automatic_captions"];
-		if (j_subtitles.isObject())
+		jSubtitles = root["automatic_captions"];
+		if (jSubtitles.isObject())
 		{
-			array<string> subs = j_subtitles.getKeys();
+			array<string> subs = jSubtitles.getKeys();
 			for (uint i = 0; i < subs.size(); i++)
 			{
 				string langCode = subs[i];
 				if (_SelectAutoSub(langCode, dicsSub))
 				{
-					JsonValue j_subs = j_subtitles[langCode];
-					if (j_subs.isArray())
+					JsonValue jSubs = jSubtitles[langCode];
+					if (jSubs.isArray())
 					{
-						for (int j = j_subs.size() - 1; j >= 0; j--)
+						for (int j = jSubs.size() - 1; j >= 0; j--)
 						{
-							JsonValue j_ssub = j_subs[j];
-							if (j_ssub.isObject())
+							JsonValue jSsub = jSubs[j];
+							if (jSsub.isObject())
 							{
-								string subExt = _GetJsonValueString(j_ssub, "ext");
+								string subExt = _GetJsonValueString(jSsub, "ext");
 								if (!subExt.empty())
 								{
 									if (subExt.find("vtt") >= 0 || subExt.find("srv") >= 0)
 									{
-										string subUrl = _GetJsonValueString(j_ssub, "url");
+										string subUrl = _GetJsonValueString(jSsub, "url");
 										if (!subUrl.empty())
 										{
 											dictionary dic;
 											dic["kind"] = "asr";
 											dic["langCode"] = langCode;
 											dic["url"] = subUrl;
-											string subName = _GetJsonValueString(j_ssub, "name");
+											string subName = _GetJsonValueString(jSsub, "name");
 											if (!subName.empty())
 											{
 												if (subName.replace("(Original)", "(auto-generated)") == 0)
@@ -1839,18 +1839,18 @@ string PlayitemParse(const string &in path, dictionary &MetaData, array<dictiona
 		if (dicsSub.size() > 0) MetaData["subtitle"] = dicsSub;
 		
 		array<dictionary> dicsChapter;
-		JsonValue j_chapters = root["chapters"];
-		if (j_chapters.isArray())
+		JsonValue jChapters = root["chapters"];
+		if (jChapters.isArray())
 		{
-			for(int i = 0; i < j_chapters.size(); i++)
+			for(int i = 0; i < jChapters.size(); i++)
 			{
-				JsonValue j_chapter = j_chapters[i];
-				if (j_chapter.isObject())
+				JsonValue jChapter = jChapters[i];
+				if (jChapter.isObject())
 				{
-					string cptTitle = _GetJsonValueString(j_chapter, "title");
+					string cptTitle = _GetJsonValueString(jChapter, "title");
 					if (!cptTitle.empty())
 					{
-						float cTime = _GetJsonValueFloat(j_chapter, "start_time");
+						float cTime = _GetJsonValueFloat(jChapter, "start_time");
 						if (cTime >= 0)
 						{
 							dictionary dic;
@@ -1953,16 +1953,16 @@ dictionary _PlaylistParse(string json)
 			string thumbnail = _GetJsonValueString(root, "thumbnail");
 			if (thumbnail.empty())
 			{
-				JsonValue j_thumbs = root["thumbnails"];
-				if (j_thumbs.isArray())
+				JsonValue jThumbs = root["thumbnails"];
+				if (jThumbs.isArray())
 				{
-					int n = j_thumbs.size();
+					int n = jThumbs.size();
 					if (n > 0)
 					{
-						JsonValue j_thumbmax = j_thumbs[n - 1];
-						if (j_thumbmax.isObject())
+						JsonValue jThumbmax = jThumbs[n - 1];
+						if (jThumbmax.isObject())
 						{
-							thumbnail = _GetJsonValueString(j_thumbmax, "url");
+							thumbnail = _GetJsonValueString(jThumbmax, "url");
 						}
 					}
 				}
