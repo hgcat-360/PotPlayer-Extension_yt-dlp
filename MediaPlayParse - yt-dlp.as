@@ -1,4 +1,4 @@
-﻿/***************************************************
+/***************************************************
   Parse Streaming with yt-dlp
 ****************************************************
   Extension for PotPlayer 250226 or later versions
@@ -1270,7 +1270,6 @@ void ApplyConfigFile()
 
 string GetDesc()
 {
-cfg.setInt("YOUTUBE", "live_from_start", 1);
 	//called when opening info panel
 	if (cfg.getInt("MAINTENANCE", "update_ytdlp") == 2)
 	{
@@ -1286,7 +1285,7 @@ cfg.setInt("YOUTUBE", "live_from_start", 1);
 	const string SITE_DESC = "https://github.com/hgcat-360/PotPlayer-Extension-by-yt-dlp";
 	string info =
 		"<a href=\"" + SITE_DEV + "\">yt-dlp development (github)</a>\r\n"
-		"<a href=\"" + SITE_DESC + "\">Distribution of this extention (github)</a>\r\n"
+		"<a href=\"" + SITE_DESC + "\">PotPlayer-Extension_yt-dlp (github)</a>\r\n"
 		"\r\n";
 	
 	info += "yt-dlp.exe version: ";
