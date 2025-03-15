@@ -6,7 +6,7 @@
     Placed in \PotPlayer\Extension\Media\PlayParse\
 ***********************************************************/
 
-string SCRIPT_VERSION = "250304";
+string SCRIPT_VERSION = "250315";
 
 string YTDLP_EXE = "Module\\yt-dlp.exe";
 	//yt-dlp executable file; relative path to HostGetExecuteFolder(); (required)
@@ -23,56 +23,50 @@ string RADIO_IMAGE_2 = "yt-dlp_radio2.jpg";
 	//radio image files; placed in HostGetScriptFolder()
 
 
+class KeyData
+{
+	string section;
+	string key;
+	string areaStr;
+	string value;
+	int state = -1;
+	int keyTop = -1;
+	int valueTop = -1;
+	int areaTop = -1;
+	
+	KeyData(string _section, string _key)
+	{
+		section = _section;
+		key = _key;
+	}
+	
+	KeyData()
+	{
+	}
+	
+	void init()
+	{
+		areaStr = "";
+		value = "";
+		state = -1;
+		keyTop = -1;
+		valueTop = -1;
+		areaTop = -1;
+	}
+};
+
 class CFG
 {
-	array<string> sections = {
-		"Switch",
-		"Cookie",
-		"YouTube",
-		"Target",
-		"Format",
-		"Network",
-		"Maintenance"
-	};
+	string origCode;	//character code of the default config file
+	array<string> sectionNamesDef;	//default section names
+	array<string> sectionNamesCst;	//customize section order
+	dictionary keyNames;	//{section, {key}} dictionary with array
 	
-	//[Switch]
-	int stop;
+	dictionary kdsDef;	//default data
+	dictionary kdsCst;	//customized data
+		// {section, {key, KeyData}} dictionary with dictionary
 	
-	//[Cookie]
-	string cookie_file;
-	string browser_name;
-	int mark_watched;
-	
-	//[YouTube]
-	int enable_youtube;
-	int no_youtube_live;
-	string base_lang;
-	int live_from_start;	//hidden (not recommended)
-	string potoken_direct;
-	string potoken_bgutil_script;	//hidden
-	string potoken_bgutil_baseurl;	//hidden
-	
-	//[Target]
-	int website_playlist;
-	int hotlink_media_file;
-	int hotlink_playlist_file;
-	int radio_thumbnail;
-	
-	//[Format]
-	int reduce_low_quality;
-	int remove_duplicated_quality;
-	
-	//[Network]
-	string proxy;
-	int ipv;
-	int no_check_certificates;
-	
-	//[Maintenance]
-	int console_out;
-	int update_ytdlp;	//hidden if critical error
-	int critical_error;	//hidden if no critical error
-	string ytdlp_hash;
-	
+	int consoleOut = 0;
 	string baseLang;
 	
 	bool isAlert = false;
@@ -81,6 +75,35 @@ class CFG
 	
 	string BOM_UTF8 = "\xEF\xBB\xBF";
 	string BOM_UTF16LE = "\xFF\xFE";
+	
+	string _changeEolWin(string str)
+	{
+		int pos = 0;
+		int pos0;
+		do
+		{
+			pos0 = pos;
+			pos = str.find("\n", pos);
+			if (pos >= 0)
+			{
+				if (pos == 0)
+				{
+					str.insert(0, "\r");
+					pos += 2;
+				}
+				else if (str.substr(pos - 1, 1) != "\r")
+				{
+					str.insert(pos - 1, "\r");
+					pos += 2;
+				}
+				else
+				{
+					pos += 1;
+				}
+			}
+		} while (pos > pos0);
+		return str;
+	}
 	
 	string _changeToUtf8Basic(string str, string &out code)
 	{
@@ -99,8 +122,9 @@ class CFG
 		else
 		{
 			//consider codes only as utf8 or utf16le
-			code = "utf8";
+			code = "utf8_raw";
 		}
+		str = _changeEolWin(str);
 		return str;
 	}
 	
@@ -115,7 +139,9 @@ class CFG
 			str = HostUTF8ToUTF16(str);
 			str = BOM_UTF16LE + str;
 		}
-		else{
+		else
+		{
+			//code = "utf8_raw";
 			//consider codes only as utf8 or utf16le
 		}
 		return str;
@@ -151,7 +177,7 @@ class CFG
 		return 0;
 	}
 	
-	string _readFileDefault(string &out code)
+	string _readFileDefault()
 	{
 		string str;
 		string path = HostGetScriptFolder() + SCRIPT_CONFIG_DEFAULT;
@@ -161,7 +187,7 @@ class CFG
 			isDefaultError = false;
 			str = HostFileRead(fp, HostFileLength(fp));
 			HostFileClose(fp);
-			str = _changeToUtf8Basic(str, code);
+			str = _changeToUtf8Basic(str, origCode);
 		}
 		else
 		{
@@ -176,48 +202,33 @@ class CFG
 				+ SCRIPT_CONFIG_DEFAULT;
 				HostMessageBox(msg, "[yt-dlp] Default config file error", 0, 0);
 			}
-			code = "utf8_bom";
+			origCode = "utf8_bom";
 		}
 		return str;
 	}
 	
-	string _readFileDefault()
+	uintptr _openFile(string &out str)
 	{
-		string code;
-		return _readFileDefault(code);
-	}
-	
-	string _openFile(uintptr &out fp, string &out code)
-	{
-		string str;
-		fp = _createFolderFile(SCRIPT_CONFIG);
+		str = "";
+		uintptr fp = _createFolderFile(SCRIPT_CONFIG);
 		if (fp > 0)
 		{
 			str = HostFileRead(fp, HostFileLength(fp));
-			if (str.size() > 10)
-			{
-				str = _changeToUtf8Basic(str, code);
-			}
-			else
-			{
-				str = _readFileDefault(code);
-			}
+			string code;
+			str = _changeToUtf8Basic(str, code);
+			if (str.findFirstNotOf("\r\n") < 0) str = "";
 		}
-		else
-		{
-			str = _readFileDefault(code);
-		}
-		return str;
+		return fp;
 	}
 	
-	int _closeFile(uintptr fp, bool isWrite, string str, string code)
+	int _closeFile(uintptr fp, bool isWrite, string str)
 	{
 		int writeState = 0;
 		if (fp > 0)
 		{
 			if (isWrite)
 			{
-				str = _changeFromUtf8Basic(str, code);
+				str = _changeFromUtf8Basic(str, origCode);
 				if (HostFileSetLength(fp, 0) == 0)
 				{
 					if (uint(HostFileWrite(fp, str)) == str.size()) writeState = 2;
@@ -236,404 +247,553 @@ class CFG
 		return writeState;
 	}
 	
+	int _searchBlankLine(string str, int pos)
+	{
+		if (pos == -1) pos = str.size();
+		pos = str.findLastNotOf("\r\n", pos);
+		if (pos < 0) pos = 0;
+		int pos0;
+		do
+		{
+			pos0 = pos;
+			pos = str.find("\n", pos);
+			if (pos >= 0)
+			{
+				for (pos += 1; uint(pos) < str.size(); pos++)
+				{
+					string c = str.substr(pos, 1);
+					if (c == "\n") return pos + 1;
+					if (c != "\r") break;
+				}
+			}
+		} while (pos > pos0);
+		return -1;
+	}
+	
 	int _getLastPos(string str)
 	{
-		//get last position to edit (not end of string)
-		int pos = str.findLastNotOf("\r\n");
-		if (pos < 0) return str.size();
-		int lf = 0;
-		for (pos += 1; uint(pos) < str.size(); pos++)
-		{
-			if (str.substr(pos, 1) == "\n")
-			{
-				lf++;
-				if (lf > 2) break;
-			}
-		}
+		//last position here is not always end of string
+		int pos = -1;
+		pos = _searchBlankLine(str, pos);
+		if (pos < 0) pos = str.size();
 		return pos;
 	}
 	
-	int _searchSectionTop(string str, string section, int from = 0)
+	int _addBlank(string &inout str, int &inout pos)
+	{
+		int add = 0;
+		if (pos == -1) pos = str.size();
+		pos = str.findLastNotOf("\r\n", pos);
+		if (pos < 0) pos = 0;
+		else pos += 1;
+		if (uint(pos) == str.size() || str.substr(pos, 2) != "\r\n")
+		{
+			str.insert(pos, "\r\n\r\n");
+			add = 4;
+		}
+		else if (str.substr(pos, 4) != "\r\n\r\n")
+		{
+			str.insert(pos, "\r\n");
+			add = 2;
+		}
+		else
+		{
+			int pos2 = str.findFirstNotOf("\r\n", pos);
+			if (pos2 < 0) pos2 = str.size();
+			int pos1 = pos + 4;
+			if (pos2 > pos1)
+			{
+				str.erase(pos1, pos2 - pos1);
+				add = -(pos2 - pos1);
+			}
+		}
+		pos += 4;
+		return add;
+	}
+	
+	int _addBlankLast(string &inout str)
+	{
+		int pos = -1;
+		return _addBlank(str, pos);
+	}
+	
+	int _getSectionSeparator(string str, int from)
+	{
+		int pos = str.find("\n[", from);
+		if (pos >= 0) pos += 1; else pos = _getLastPos(str);
+		return pos;
+	}
+	
+	int _searchSectionTop(string str, string section)
 	{
 		int top = -1;
 		if (!str.empty())
 		{
-			section.MakeLower(); str.MakeLower();
 			section = "[" + section + "]";
-			if (from == 0 && str.Left(section.size()) == section) top = 0;
+			if (str.Left(section.size()) == section) top = 0;
 			else
 			{
-				if (from > 0) from -= 1;
-				top = str.find("\n" + section, from);
+				top = str.find("\n" + section);
 				if (top >= 0) top += 1;
 			}
 		}
 		return top;
 	}
 	
-	int _searchBlankLine(string str, int from = 0)
+	string _getSectionNext(string str, int &inout top)
 	{
-		if (!str.empty())
+		string section = "";
+		if (str.empty() || top < 0 || uint(top) >= str.size()) {top = -1; return "";}
+		string _str = str.substr(top);
+		array<dictionary> dicsMatch;
+		if (HostRegExpParse(_str, "^\\[([^\n\r\t\\]]*?)\\]", dicsMatch))
 		{
-			int n = 0;
-			for (uint pos = from; pos < str.size(); pos++)
-			{
-				string c = str.substr(pos, 1);
-				if (c == "\n")
-				{
-					n++;
-					if (n > 1) return pos + 1;
-				}
-				else if (c != "\r")
-				{
-					n = 0;
-				}
-			}
+			dicsMatch[1].get("first", section);
+			string s1, s2;
+			dicsMatch[0].get("first", s1);
+			dicsMatch[0].get("second", s2);
+			int _top = _str.size() - s2.size() - s1.size();
+			top += _top;
 		}
-		return -1;
-	}
-	
-	bool _deleteSectionArea(string &inout str, string section, int &inout topExcept)
-	{
-		bool isDel = false;
-		int top = 0;
-		int end;
-		while (true)
+		else
 		{
-			top = _searchSectionTop(str, section, top);
-			if (top < 0) break;
-			end = str.find("\n[", top);
-			if (end > 0) end += 1;
-			else end = _getLastPos(str);
-			int len = end - top;
-			if (top != topExcept)
-			{
-				str.erase(top, len);
-				if (topExcept > top + len) topExcept -= len;
-				else if (topExcept > top) topExcept = top;
-				isDel = true;
-			}
-			else top = end;
+			top = -1;
 		}
-		return isDel;
+		return section;
 	}
 	
-	bool _deleteSectionArea(string &inout str, string section)
-	{
-		int top = -1;
-		return _deleteSectionArea(str, section, top);
-	}
-	
-	string _getSectionArea(string &inout str, string section, int &out top)
+	string _getSectionAreaNext(string str, string &out section, int &inout top)
 	{
 		string sectArea;
-		top = _searchSectionTop(str, section);
+		section = _getSectionNext(str, top);
 		if (top >= 0)
 		{
-			int end = str.find("\n[", top);
-			if (end > 0) end += 1; else end = _getLastPos(str);
+			int end = _getSectionSeparator(str, top);
 			sectArea = str.substr(top, end - top);
 		}
 		return sectArea;
 	}
 	
-	void _setSections(string &inout str)
+	string _getKeyNext(string str, int &inout top)
 	{
-		int top1 = 0;
-		for (uint i = 0; i < sections.size(); i++ )
-		{
-			int top2 = top1;
-			string sectArea = _getSectionArea(str, sections[i], top2);
-			if (top2 >= 0)
-			{
-				if (top2 > top1)
-				{
-					str.insert(top1, sectArea);
-				}
-				
-				//delete duplicated section if exists
-				_deleteSectionArea(str, sections[i], top1);
-			}
-			else
-			{
-				//Add the missing section
-				top1 = _getLastPos(str);
-				sectArea = "[" + sections[i] + "]\r\n\r\n";
-				str.insert(top1, sectArea);
-			}
-			top1 += sectArea.size();
-		}
-		if (uint(top1) < str.size())
-		{
-			str.erase(top1);
-		}
-	}
-	
-	bool _deleteKeyArea(string &inout str, string key, int &inout topExcept)
-	{
-		//delete all areas of the key in spite of section
-		bool isDel = false;
-		string _str = str;
-		int top = 0;
+		string key = "";
+		if (str.empty() || top < 0 || uint(top) >= str.size()) {top = -1; return "";}
+		string _str = str.substr(top);
 		array<dictionary> dicsMatch;
-		while (HostRegExpParse(_str, "^[^\t\r\n]*\\b" + key + " *=", dicsMatch))
+		if (HostRegExpParse(_str, "^(#?\\w+)=", dicsMatch))
 		{
-			int _top, _end;
 			string s1, s2;
 			dicsMatch[0].get("first", s1);
 			dicsMatch[0].get("second", s2);
-			_top = _str.size() - s2.size() - s1.size();
-			_end = _searchBlankLine(_str, _top);
-			int sepa = _str.find("\n[", _top);
-			if (sepa > 0) sepa += 1; else sepa = _getLastPos(_str);
-			if (_end < 0 || _end > sepa) _end = sepa;
-			int len = _end - _top;
-			top += _top;
-			if (top != topExcept)
+			int _top = _str.size() - s2.size() - s1.size();
+			if (_top <= _getSectionSeparator(_str, 0))
 			{
-				str.erase(top, len);
-				if (topExcept > top + len) topExcept -= len;
-				else if (topExcept > top) topExcept = top;
-				isDel = true;
+				dicsMatch[1].get("first", key);
+				top += _top;
 			}
-			else
-			{
-				top += len;
-			}
-			_str = str.substr(top);
+			else top = -1;
 		}
-		return isDel;
+		else top = -1;
+		
+		return key;
 	}
 	
-	bool _deleteKeyArea(string &inout str, string key)
-	{
-		int top = -1;
-		return _deleteKeyArea(str, key, top);
-	}
-	
-	string _getKeyArea(string &inout str, string section, string key, int &out top, bool &inout isAddNew)
+	string _getKeyAreaNext(string str, string &out key, int &inout top)
 	{
 		string keyArea;
-		string sectArea = _getSectionArea(str, section, top);
-		if (!sectArea.empty())
+		key = _getKeyNext(str, top);
+		if (top >= 0)
 		{
-			array<dictionary> dicsMatch;
-			if (HostRegExpParse(sectArea, "^[^\t\r\n]*\\b" + key + " *=", dicsMatch))
-			{
-				string s1, s2;
-				dicsMatch[0].get("first", s1);
-				dicsMatch[0].get("second", s2);
-				int _top = sectArea.size() - s2.size() - s1.size();
-				int _end = _searchBlankLine(sectArea, _top);
-				if (_end < 0) _end = _getLastPos(sectArea);
-				int len = _end - _top;
-				keyArea = sectArea.substr(_top, len);
-				top += _top;
-				_deleteKeyArea(str, key, top);	//delete duplicated key area if exists
-				isAddNew = false;
-			}
-			else
-			{
-				if (isAddNew)
-				{
-					//Add the missing key area from the default config file
-					string strDef = _readFileDefault();
-					keyArea = _getKeyArea(strDef, section, key);
-					if (keyArea.empty()) keyArea = key + "=\r\n\r\n";
-					top += sectArea.size();
-					str.insert(top, keyArea);
-				}
-				else
-				{
-					top = -1;
-				}
-			}
-		}
-		else
-		{
-			top = -1;
-			isAddNew = false;
+			int end = _searchBlankLine(str, top);
+			int sepa = _getSectionSeparator(str, top);
+			if (end > sepa) end = sepa;
+			keyArea = str.substr(top, end - top);
 		}
 		return keyArea;
 	}
 	
-	string _getset(string &inout str, string section, string key, int opr, string valueSet = "")
+	int _searchKeyTop(string sectArea, string key)
 	{
-		//opr
-		//	0: get without adding a new section/key to str
-		//	1: get	2: set
-		
-		string valueOut;
-		array<string> patterns = {
-			"^[^\t\r\n]+\\b" + key + " *=",	//comment out
-			"^" + key + "=([ \t]*)",	//empty value
-			"^" + key + "=( *\\S[^\t\r\n]*)"	//specified value
-		};
-		int top;
-		bool isAddNew = opr > 0;
-		string keyArea = _getKeyArea(str, section, key, top, isAddNew);
-		if (!keyArea.empty())
+		int top = -1;
+		array<dictionary> dicsMatch;
+		if (HostRegExpParse(sectArea, "^[^\t\r\n]*\\b" + key + " *=", dicsMatch))
 		{
-			int topKey = top;
-			int state;
-			for (state = 2; state >= 1; state--)
+			string s1, s2;
+			dicsMatch[0].get("first", s1);
+			dicsMatch[0].get("second", s2);
+			top = sectArea.size() - s2.size() - s1.size();
+		}
+		return top;
+	}
+	
+	void _parseKeyDataDefault(KeyData &inout kd)
+	{
+		if (kd.section.empty() || kd.key.empty()) {kd.init(); return;}
+		if (kd.areaStr.empty()) {kd.init(); return;}
+		
+		array<dictionary> dicsMatch;
+		if (HostRegExpParse(kd.areaStr, "^" + kd.key + "=(\\S[^\t\r\n]*)", dicsMatch))
+		{
+			dicsMatch[1].get("first", kd.value);
+		}
+	}
+	
+	bool _loadDefault()
+	{
+		string str = _readFileDefault();
+		if (str.empty()) return false;
+		
+		kdsDef = {};
+		sectionNamesDef = {};
+		keyNames = {};
+		int top1 = 0;
+		int _top1;
+		do {
+			_top1 = top1;
+			string section;
+			string sectArea = _getSectionAreaNext(str, section, top1);
+			if (top1 >= 0 && !section.empty())
 			{
-				array<dictionary> dicsMatch;
-				if (HostRegExpParse(keyArea, patterns[state], dicsMatch))
-				{
-					dicsMatch[1].get("first", valueOut);
-					string s1, s2;
-					dicsMatch[0].get("first", s1);
-					dicsMatch[0].get("second", s2);
-					topKey += keyArea.size() - s2.size() - s1.size();
-					if (opr == 2)
+				sectionNamesDef.insertLast(section);
+				array<string> keys = {};
+				dictionary _kds;
+				int sepa = _getSectionSeparator(str, top1);
+				int top2 = top1;
+				int _top2;
+				do {
+					_top2 = top2;
+					string key;
+					string keyArea = _getKeyAreaNext(str, key, top2);
+					if (top2 >= 0 && top2 < sepa)
 					{
-						int endKey = topKey + s1.size();
-						str = str.Left(topKey) + key + "=" + valueSet + str.substr(endKey);
+						//if (key.Left(1) == "#") key = key.substr(1);	//hidden key
+						keys.insertLast(key);
+						KeyData kd(section, key);
+						kd.areaStr = keyArea;
+						_parseKeyDataDefault(kd);
+						_kds.set(key, kd);
+						top2 += keyArea.size();
 					}
+					else
+					{
+						break;
+					}
+				} while (top2 > _top2);
+				keyNames.set(section, keys);
+				kdsDef.set(section, _kds);
+			}
+			top1 += sectArea.size();
+		} while (top1 > _top1);
+		return true;
+	}
+	
+	void _keyCommentOut(KeyData &inout kd)
+	{
+		string str = kd.areaStr;
+		int pos = 0;
+		int pos0;
+		do {
+			pos0 = pos;
+			pos = str.findFirstNotOf("\r\n", pos);
+			if (pos < 0) break;
+			if (str.substr(pos, 2) != "//" && str.substr(pos, 1) != "\t")
+			{
+				if (pos != kd.keyTop)
+				{
+					str.insert(pos, "//");
+					if (kd.keyTop >= pos) kd.keyTop += 2;
+					if (kd.valueTop >= pos) kd.valueTop += 2;
+					pos += 2;
+				}
+			}
+			pos = str.find("\n", pos);
+			if (pos < 0) break;
+		} while (pos > pos0);
+		kd.areaStr = str;
+	}
+	
+	void _parseKeyData(KeyData &inout kd)
+	{
+		array<string> patterns = {
+			"^[^\t\r\n]*\\b" + kd.key + " *=",	//comment out
+			"^ *" + kd.key + " *= *",	//empty value
+			"^ *" + kd.key + " *= *(\\S[^\t\r\n]*)"	//specified value
+		};
+		
+		if (kd.section.empty() || kd.key.empty()) {kd.init(); return;}
+		string str = kd.areaStr;
+		if (str.empty()) {kd.init(); return;}
+		
+		string value;
+		int keyTop = -1;
+		int valueTop = -1;
+		int state;
+		for (state = 2; state >= 0; state--)
+		{
+			array<dictionary> dicsMatch;
+			if (HostRegExpParse(str, patterns[state], dicsMatch))
+			{
+				string s1, s2;
+				dicsMatch[0].get("first", s1);
+				dicsMatch[0].get("second", s2);
+				keyTop = str.size() - s2.size() - s1.size();
+				if (state > 0)
+				{
+					str.erase(keyTop, s1.size());
+					str.insert(keyTop, kd.key + "=");
+					valueTop = keyTop + kd.key.size() + 1;
+				}
+				if (state == 2)
+				{
+					dicsMatch[1].get("first", value);
+					value.Trim();
+					if (!value.empty())
+					{
+						str.insert(valueTop, value);
+						break;
+					}
+				}
+				else if (state == 1)
+				{
+					value = _getValue(kd.section, kd.key, 1);
+					if (!value.empty()) str.insert(valueTop, value);
+					break;
+				}
+				else if (state == 0)
+				{
+					if (str.substr(keyTop, 2) != "//" && str.substr(keyTop, 1) != "\t")
+					str.insert(keyTop, "//");
 					break;
 				}
 			}
-			if (opr == 2 && state == 0)
-			{
-				str.insert(topKey, key + "=" + valueSet);
-			}
-			{
-				//comment out duplicated keys if exists in key area
-				string _str = keyArea;
-				int _top = top;
-				array<dictionary> dicsMatch;
-				while (HostRegExpParse(_str, "^ *" + key + " *=", dicsMatch))
-				{
-					string s1, s2;
-					dicsMatch[0].get("first", s1);
-					dicsMatch[0].get("second", s2);
-					_top += _str.size() - s2.size() - s1.size();
-					if (_top != topKey || state == 0)
-					{
-						str.insert(_top, "//");
-						if (topKey >= _top) topKey += 2;
-						_top += 2;
-					}
-					_top += s1.size();
-					_str = s2;
-				}
-			}
 		}
-		valueOut.Trim();
-		if (valueOut.empty() && !isAddNew)
+		
+		kd.areaStr = str;
+		kd.value = value;
+		kd.state = state > 0 ? 1 : 0;
+		kd.keyTop = keyTop;
+		kd.valueTop = valueTop;
+		
+		_keyCommentOut(kd);
+	}
+	
+	void _loadKeys(string sectArea, string section)
+	{
+		if (sectArea.Left(section.size() + 2) != "[" + section + "]") return;
+		
+		dictionary _kds;
+		array<string> keys;
+		if (!keyNames.get(section, keys)) return;
+		
+		array<uint> tops;
+		for (uint i = 0; i < keys.size(); i++)
 		{
-			//default value is fetched from the default configuration file
-			string strDef = _readFileDefault();
-			keyArea = _getKeyArea(strDef, section, key);
-			if (!keyArea.empty())
+			string key = keys[i];
+			if (key.Left(1) == "#") key = key.substr(1);	//hidden key
+			KeyData kd(section, key);
+			int top = _searchKeyTop(sectArea, key);
+			if (top >= 0)
 			{
-				array<dictionary> dicsMatch;
-				if (HostRegExpParse(keyArea, patterns[2], dicsMatch))
+				kd.areaTop = top;
+				tops.insertLast(top);
+			}
+			_kds.set(key, kd);
+		}
+		tops.sortAsc();
+		
+		for (uint i = 0; i < keys.size(); i++)
+		{
+			KeyData kd;
+			string key = keys[i];
+			if (key.Left(1) == "#") key = key.substr(1);	//hidden key
+			if (_kds.get(key, kd))
+			{
+				if (kd.areaTop >= 0)
 				{
-					dicsMatch[1].get("first", valueOut);
-					valueOut.Trim();
+					int idx = tops.find(kd.areaTop);
+					if (idx < 0) continue;
+					idx++;
+					uint end = idx < tops.size() ? tops[idx] : sectArea.size();
+					int blk = _searchBlankLine(sectArea, kd.areaTop);
+					if (blk >= 0 && blk < end) end = blk;
+					string keyArea = sectArea.substr(kd.areaTop, end - kd.areaTop);
+					_addBlankLast(keyArea);
+					kd.areaStr = keyArea;
+					kd.areaTop = -1;
+				}
+				else
+				{
+					//Add the missing key
+					kd.areaStr = _getCfgStr(true, section, key);
+				}
+				_parseKeyData(kd);
+				_kds.set(key, kd);
+			}
+		}
+		kdsCst.set(section, _kds);
+	}
+	
+	void _loadSections(string str)
+	{
+		kdsCst = {};
+		sectionNamesCst = {};
+		array<string> sections = sectionNamesDef;
+		int top = 0;
+		uint size0;
+		do {
+			size0 = str.size();
+			string section;
+			string sectArea = _getSectionAreaNext(str, section, top);
+			if (top >= 0 && !sectArea.empty())
+			{
+				str.erase(top, sectArea.size());
+				int idx = sections.find(section);
+				if (idx >= 0)
+				{
+					sections.removeAt(idx);
+					sectionNamesCst.insertLast(section);
+					_loadKeys(sectArea, section);
+				}
+			}
+			else
+			{
+				break;
+			}
+		} while (str.size() < size0);
+		
+		if (sections.size() > 0)
+		{
+			//Add the missing section
+			for (uint i = 0; i < sections.size(); i++)
+			{
+				string sectAreaDef = _getCfgStr(true, sections[i]);
+				if (!sectAreaDef.empty())
+				{
+					sectionNamesCst.insertLast(sections[i]);
+					_loadKeys(sectAreaDef, sections[i]);
 				}
 			}
 		}
-		return valueOut;
 	}
 	
-	string _getString(string &inout str, string section, string key, bool isAdd = true)
+	string _getCfgStr(bool isDef)
 	{
-		string valueGet = _getset(str, section, key, isAdd ? 1 : 0);
-		return valueGet.Trim("\"");
+		dictionary kds;
+		array<string> sections;
+		if (isDef) {kds = kdsDef; sections = sectionNamesDef;}
+		else {kds = kdsCst; sections = sectionNamesCst;}
+		if (sections.size() == 0 || kds.size() == 0) return "";
+		
+		string str = "";
+		for (uint i = 0; i < sections.size(); i++)
+		{
+			string section = sections[i];
+			str += "[" + section + "]\r\n\r\n";
+			array<string> keys;
+			if (keyNames.get(section, keys))
+			{
+				for (uint j = 0; j < keys.size(); j++)
+				{
+					string key = keys[j];
+					if (key.Left(1) == "#")	//hidden key
+					{
+						if (isDef) continue;
+						else key = key.substr(1);
+					}
+					dictionary _kds;
+					if (kds.get(section, _kds))
+					{
+						KeyData kd;
+						if (_kds.get(key, kd))
+						{
+							str += kd.areaStr;
+						}
+					}
+				}
+			}
+		}
+		return str;
 	}
 	
-	int _getInt(string &inout str, string section, string key, bool isAdd = true)
+	string _getCfgStr(bool isDef, string section)
 	{
-		string valueGet = _getset(str, section, key, isAdd ? 1 : 0);
-		return parseInt(valueGet);
+		dictionary kds;
+		array<string> sections;
+		if (isDef) {kds = kdsDef; sections = sectionNamesDef;}
+		else {kds = kdsCst; sections = sectionNamesCst;}
+		if (sections.size() == 0 || kds.size() == 0) return "";
+		
+		string str = "";
+		str += "[" + section + "]\r\n\r\n";
+		array<string> keys;
+		if (keyNames.get(section, keys))
+		{
+			for (uint j = 0; j < keys.size(); j++)
+			{
+				string key = keys[j];
+				if (key.Left(1) == "#")	//hidden key
+				{
+					if (isDef) continue;
+					else key = key.substr(1);
+				}
+				dictionary _kds;
+				if (kds.get(section, _kds))
+				{
+					KeyData kd;
+					if (_kds.get(key, kd))
+					{
+						str += kd.areaStr;
+					}
+				}
+			}
+		}
+		return str;
 	}
 	
-	string _getKeyArea(string &inout str, string section, string key)
+	string _getCfgStr(bool isDef, string section, string key)
 	{
-		bool isAddNew = false;
-		return _getKeyArea(str, section, key, 0, isAddNew);
-	}
-	
-	string _setString(string &inout str, string section, string key, string valueSet)
-	{
-		string valuePrev = _getset(str, section, key, 2, valueSet);
-		return valuePrev.Trim("\"");
-	}
-	
-	int _setInt(string &inout str, string section, string key, int valueSet)
-	{
-		string valuePrev = _getset(str, section, key, 2, formatInt(valueSet));
-		return parseInt(valuePrev);
-	}
-	
-	bool setString(string section, string key, string valueSet)
-	{
-		uintptr fp; string code;
-		string str0 = _openFile(fp, code);
-		string str = str0;
-		_setString(str, section, key, valueSet);
-		int writeState = _closeFile(fp, str != str0, str, code);
-		return writeState > 0;
-	}
-	
-	bool setInt(string section, string key, int valueSet)
-	{
-		uintptr fp; string code;
-		string str0 = _openFile(fp, code);
-		string str = str0;
-		_setInt(str, section, key, valueSet);
-		int writeState = _closeFile(fp, str != str0, str, code);
-		return writeState > 0;
+		if (key.Left(1) == "#")	//hidden key
+		{
+			if (isDef) return "";
+			else key = key.substr(1);
+		}
+		
+		dictionary kds;
+		array<string> sections;
+		if (isDef) {kds = kdsDef; sections = sectionNamesDef;}
+		else {kds = kdsCst; sections = sectionNamesCst;}
+		if (sections.size() == 0 || kds.size() == 0) return "";
+		
+		string str = "";
+		dictionary _kds;
+		if (kds.get(section, _kds))
+		{
+			KeyData kd;
+			if (_kds.get(key, kd))
+			{
+				str = kd.areaStr;
+			}
+		}
+		return str;
 	}
 	
 	void loadFile()
 	{
-		uintptr fp; string code;
-		string str0 = _openFile(fp, code);
-		string str = str0;
+		_loadDefault();
 		
-		{
-			_setSections(str);
-			
-			stop = _getInt(str, "Switch", "stop");
-			cookie_file = _getString(str, "Cookie", "cookie_file");
-			browser_name = _getString(str, "Cookie", "browser_name");
-			mark_watched = _getInt(str, "Cookie", "mark_watched");
-			enable_youtube =_getInt(str, "YouTube", "enable_youtube");
-			no_youtube_live =_getInt(str, "YouTube", "no_youtube_live");
-			base_lang = _getString(str, "YouTube", "base_lang");
-			live_from_start =_getInt(str, "YouTube", "live_from_start", false);	//hidden
-			potoken_direct = _getString(str, "YouTube", "potoken_direct");
-			potoken_bgutil_script = _getString(str, "YouTube", "potoken_bgutil_script", false);	//hidden
-			potoken_bgutil_baseurl = _getString(str, "YouTube", "potoken_bgutil_baseurl", false);	//hidden
-			website_playlist =_getInt(str, "Target", "website_playlist");
-			hotlink_media_file =_getInt(str, "Target", "hotlink_media_file");
-			hotlink_playlist_file =_getInt(str, "Target", "hotlink_playlist_file");
-			radio_thumbnail =_getInt(str, "Target", "radio_thumbnail");
-			reduce_low_quality =_getInt(str, "Format", "reduce_low_quality");
-			remove_duplicated_quality =_getInt(str, "Format", "remove_duplicated_quality");
-			proxy = _getString(str, "Network", "proxy");
-			ipv =_getInt(str, "Network", "ipv");
-			no_check_certificates =_getInt(str, "Network", "no_check_certificates");
-			console_out =_getInt(str, "Maintenance", "console_out");
-			critical_error =_getInt(str, "Maintenance", "critical_error", false);	//hidden
-			if (critical_error == 0) _deleteKeyArea(str, "critical_error");
-			if (critical_error == 0 && ytd.error == 0)
-			{
-				update_ytdlp =_getInt(str, "Maintenance", "update_ytdlp");
-			}
-			else
-			{
-				update_ytdlp = 0;
-				_deleteKeyArea(str, "update_ytdlp");
-			}
-			if (fp > 0) ytdlp_hash =_getString(str, "Maintenance", "ytdlp_hash");
-		}
+		string str0;
+		uintptr fp = _openFile(str0);
+		string str = !str0.empty() ? str0 : _getCfgStr(true);
 		
-		if (_closeFile(fp, str != str0, str, code) < 1)
+		_loadSections(str);
+		int critical_error = getInt("MAINTENANCE", "critical_error");
+		if (critical_error == 0) deleteKey("MAINTENANCE", "critical_error");
+		if (critical_error != 0 || ytd.error != 0) deleteKey("MAINTENANCE", "update_ytdlp");
+		if (isSaveError) deleteKey("MAINTENANCE", "ytdlp_hash");
+		
+		str = _getCfgStr(false);
+		
+		if (_closeFile(fp, str != str0, str) < 1)
 		{
 			isSaveError = true;
 			if (isAlert)
@@ -651,9 +811,132 @@ class CFG
 			isSaveError = false;
 		}
 		
-		if (base_lang.size() > 1) baseLang = base_lang;
+		if (getStr("YOUTUBE", "base_lang").size() > 1) baseLang = getStr("YOUTUBE", "base_lang");
 		else baseLang = HostIso639LangName();
+		
+		consoleOut = getInt("MAINTENANCE", "console_out");
 	}
+	
+	int _saveFile()
+	{
+		string str0;
+		uintptr fp = _openFile(str0);
+		string str = _getCfgStr(false);
+		return _closeFile(fp, str != str0, str);
+	}
+	
+	bool deleteKey(string section, string key)
+	{
+		dictionary _kds;
+		if (kdsCst.get(section, _kds))
+		{
+			KeyData kd;
+			if (_kds.get(key, kd))
+			{
+				kd.init();
+				_kds.set(key, kd);
+				kdsCst.set(section, _kds);
+				_saveFile();
+				return true;
+			}
+		}
+		return false;
+	}
+	
+	string _getValue(string section, string key, int useDef)
+	{
+		//useDef 0: kdsCst / 1: kdsDef / 2: kdsDef if kdsCst is empty
+		dictionary kds = useDef == 1 ? kdsDef : kdsCst;
+		dictionary _kds;
+		if (kds.get(section, _kds))
+		{
+			KeyData kd;
+			if (_kds.get(key, kd))
+			{
+				if (useDef == 1 || kd.state == 1) return kd.value;
+			}
+			else
+			{
+				if (useDef == 1 && key.Left(1) != "#")
+				{
+					return _getValue(section, "#" + key, 1);
+				}
+			}
+		}
+		return useDef == 2 ? _getValue(section, key, 1) : "";
+	}
+	
+	string getStr(string section, string key)
+	{
+		return _getValue(section, key, 0).Trim("\"");
+	}
+	
+	int getInt(string section, string key)
+	{
+		return parseInt(_getValue(section, key, 0));
+	}
+	
+	string _setValue(string section, string key, string setValue)
+	{
+		dictionary _kds;
+		if (kdsCst.get(section, _kds))
+		{
+			string prevValue = "";
+			KeyData kd;
+			if (_kds.get(key, kd))
+			{
+				if (kd.areaStr.empty())
+				{
+					kd.section = section;
+					kd.key = key;
+					kd.areaStr = _getCfgStr(true, section, key);
+					_parseKeyData(kd);
+				}
+				
+				prevValue = kd.value;
+				setValue.Trim();
+				if (kd.state > 0)
+				{
+					if (kd.valueTop >= 0)
+					{
+						kd.areaStr.erase(kd.valueTop, prevValue.size());
+						kd.areaStr.insert(kd.valueTop, setValue);
+						kd.value = setValue;
+						kd.state = 1;
+					}
+				}
+				else
+				{
+					if (kd.keyTop >= 0)
+					{
+						kd.areaStr.insert(kd.keyTop, key + "=" + setValue + "\r\n");
+						kd.valueTop = kd.keyTop + key.size() + 1;
+						kd.value = setValue;
+						kd.state = 1;
+					}
+				}
+				
+				_kds.set(key, kd);
+				kdsCst.set(section, _kds);
+				_saveFile();
+				return prevValue;
+			}
+		}
+		return "";
+	}
+	
+	string setStr(string section, string key, string sValue)
+	{
+		string prevValue = _setValue(section, key, sValue);
+		return prevValue.Trim("\"");
+	}
+	
+	int setInt(string section, string key, int iValue)
+	{
+		string prevValue = _setValue(section, key, formatInt(iValue));
+		return parseInt(prevValue);
+	}
+	
 };
 
 CFG cfg;
@@ -728,14 +1011,13 @@ class YTDLP
 			}
 			else
 			{
-				if (cfg.ytdlp_hash.empty())
+				if (cfg.getStr("MAINTENANCE", "ytdlp_hash").empty())
 				{
 					string msg = "You are using newly placed [yt-dlp.exe].";
 					HostMessageBox(msg, "[yt-dlp]", 2, 0);
-					cfg.ytdlp_hash = hash;
-					cfg.setString("Maintenance", "ytdlp_hash", hash);
+					cfg.setStr("MAINTENANCE", "ytdlp_hash", hash);
 				}
-				else if (hash != cfg.ytdlp_hash)
+				else if (hash != cfg.getStr("MAINTENANCE", "ytdlp_hash"))
 				{
 					if (error >= 0)
 					{
@@ -746,8 +1028,7 @@ class YTDLP
 					}
 					else
 					{
-						cfg.ytdlp_hash = hash;
-						cfg.setString("Maintenance", "ytdlp_hash", hash);
+						cfg.setStr("MAINTENANCE", "ytdlp_hash", hash);
 					}
 				}
 			}
@@ -760,8 +1041,8 @@ class YTDLP
 	{
 		version = "";
 		error = 3;
-		cfg.critical_error = 1;
-		cfg.setInt("Maintenance", "critical_error", 1);
+		cfg.setInt("MAINTENANCE", "critical_error", 1);
+		cfg.deleteKey("MAINTENANCE", "update_ytdlp");
 		string msg = "Please confirm that your [yt-dlp.exe] is real.\r\n";
 		HostPrintUTF8("\r\n[yt-dlp] CRITICAL ERROR! " + msg);
 		msg += "It is in Module folder under PotPlsyer's folder.";
@@ -792,8 +1073,9 @@ class YTDLP
 		if (str.Left(1) == "{") top = 0;
 		else top = str.find("\n{", 0);
 		
-		while (top >= 0)
-		{
+		int top0;
+		do {
+			top0 = top;
 			if (top > 0) top += 1;
 			int end = str.find("}\n", top);
 			if (end < 0) break;
@@ -802,7 +1084,7 @@ class YTDLP
 			entries.insertLast(entry);
 			posLog = end + 1;
 			top = str.find("\n{", end);
-		}
+		} while (top > top0);
 		
 		return entries;
 	}
@@ -814,7 +1096,7 @@ class YTDLP
 		ytd.checkYtdlpInfo();
 		if (error != 0) return {};
 		
-		if (cfg.console_out > 0) HostOpenConsole();
+		if (cfg.consoleOut > 0) HostOpenConsole();
 		
 		string options = "";
 		
@@ -825,50 +1107,50 @@ class YTDLP
 			if (woi >= 0 )
 			{
 				waitOutputs.removeAt(woi);
-				if (cfg.console_out > 0) HostPrintUTF8("\r\n[yt-dlp] Unsupported - \"" + url +"\"\r\n");
+				if (cfg.consoleOut > 0) HostPrintUTF8("\r\n[yt-dlp] Unsupported - \"" + url +"\"\r\n");
 				return {};
 			}
 			
-			if (cfg.console_out > 0) HostPrintUTF8("\r\n[yt-dlp] Parsing... - \"" + url +"\"\r\n");
+			if (cfg.consoleOut > 0) HostPrintUTF8("\r\n[yt-dlp] Parsing... - \"" + url +"\"\r\n");
 			
 			options += " -I 1";
 			
 			//using cookie
 			bool isCookie = false;
-			if (cfg.cookie_file.size() > 3)
+			if (cfg.getStr("COOKIE", "cookie_file").size() > 3)
 			{
-				options = " --cookies \"" + cfg.cookie_file + "\"";
+				options = " --cookies \"" + cfg.getStr("COOKIE", "cookie_file") + "\"";
 				isCookie = true;
 			}
-			else if (cfg.browser_name.size() > 3)
+			else if (cfg.getStr("COOKIE", "browser_name").size() > 3)
 			{
-				options = " --cookies-from-browser \"" + cfg.browser_name + "\"";
+				options = " --cookies-from-browser \"" + cfg.getStr("COOKIE", "browser_name") + "\"";
 				isCookie = true;
 			}
 			if (isCookie)
 			{
-				if (cfg.potoken_bgutil_script.size() > 10)
+				if (cfg.getStr("YOUTUBE", "potoken_bgutil_script").size() > 10)
 				{
-					options += " --extractor-args \"youtube:getpot_bgutil_script=" + cfg.potoken_bgutil_script + "\"";
+					options += " --extractor-args \"youtube:getpot_bgutil_script=" + cfg.getStr("YOUTUBE", "potoken_bgutil_script") + "\"";
 				}
-				if (cfg.potoken_bgutil_baseurl.size() > 10)
+				if (cfg.getStr("YOUTUBE", "potoken_bgutil_baseurl").size() > 10)
 				{
-					options += " --extractor-args \"youtube:getpot_bgutil_baseurl=" + cfg.potoken_bgutil_baseurl + "\"";
+					options += " --extractor-args \"youtube:getpot_bgutil_baseurl=" + cfg.getStr("YOUTUBE", "potoken_bgutil_baseurl") + "\"";
 				}
-				if (cfg.potoken_direct.size() > 10)
+				if (cfg.getStr("YOUTUBE", "potoken_direct").size() > 10)
 				{
-					options += " --extractor-args \"youtube:po_token=web.gvs+" + cfg.potoken_direct + "\"";
+					options += " --extractor-args \"youtube:po_token=web.gvs+" + cfg.getStr("YOUTUBE", "potoken_direct") + "\"";
 				}
 			}
 			
-			if (cfg.mark_watched == 1) options += " --mark-watched";
-			if (cfg.live_from_start == 1) options += " --live-from-start";
+			if (cfg.getInt("COOKIE", "mark_watched") == 1) options += " --mark-watched";
+			if (cfg.getInt("YOUTUBE", "live_from_start") == 1) options += " --live-from-start";
 		}
 		else	//playlist
 		{
 			if (woi >= 0 ) return {};
 			
-			if (cfg.console_out > 0) HostPrintUTF8( "\r\n[yt-dlp] Extracting playlist entries... - \"" + url +"\"\r\n");
+			if (cfg.consoleOut > 0) HostPrintUTF8( "\r\n[yt-dlp] Extracting playlist entries... - \"" + url +"\"\r\n");
 			
 			if (_IsYoutubeUrl(url))
 			{
@@ -888,16 +1170,16 @@ class YTDLP
 		
 		options += " --retry-sleep exp=1:10";
 		
-		if (cfg.proxy.size() > 3) options += " --proxy \"" + cfg.proxy + "\"";
+		if (cfg.getStr("NETWORK", "proxy").size() > 3) options += " --proxy \"" + cfg.getStr("NETWORK", "proxy") + "\"";
 		
-		if (cfg.ipv == 4) options += " -4";
-		else if (cfg.ipv == 6) options += " -6";
+		if (cfg.getInt("NETWORK", "ip_version") == 4) options += " -4";
+		else if (cfg.getInt("NETWORK", "ip_version") == 6) options += " -6";
 		
-		if (cfg.no_check_certificates == 1) options += " --no-check-certificates";
+		if (cfg.getInt("NETWORK", "no_check_certificates") == 1) options += " --no-check-certificates";
 		
-		if (cfg.console_out > 1) options += " -v";	//Verbose log
+		if (cfg.consoleOut > 1) options += " -v";	//Verbose log
 		
-		if (cfg.update_ytdlp == 1) options += " -U";
+		if (cfg.getInt("MAINTENANCE", "update_ytdlp") == 1) options += " -U";
 		
 		options += " -j --no-playlist --all-subs -- \"" + url + "\"";
 			//Note: "-j" must be in lower case.
@@ -916,12 +1198,12 @@ class YTDLP
 		uint posLog;
 		array<string> entries = _getEntries(output, posLog);
 		
-		if (cfg.console_out == 1)
+		if (cfg.consoleOut == 1)
 		{
 			string log = output.substr(posLog).TrimLeft("\r\n");
 			if (!log.empty()) HostPrintUTF8(log);
 		}
-		else if (cfg.console_out == 2)
+		else if (cfg.consoleOut == 2)
 		{
 			HostPrintUTF8(output);
 		}
@@ -934,7 +1216,7 @@ class YTDLP
 			}
 			else
 			{
-				if (cfg.console_out > 0) HostPrintUTF8("[yt-dlp] Unsupported. - \"" + url +"\"\r\n");
+				if (cfg.consoleOut > 0) HostPrintUTF8("[yt-dlp] Unsupported. - \"" + url +"\"\r\n");
 			}
 		}
 		
@@ -949,6 +1231,7 @@ YTDLP ytd;
 
 void OnInitialize()
 {
+HostOpenConsole();
 	//called when loading script at first
 	cfg.loadFile();
 	ytd.checkYtdlpInfo();
@@ -959,11 +1242,11 @@ string GetTitle()
 {
 	//called when loading script and closing config panel with ok button
 	string scriptName = "yt-dlp " + SCRIPT_VERSION;
-	if (cfg.critical_error != 0) ytd.error = 3;
+	if (cfg.getInt("MAINTENANCE", "critical_error") != 0) ytd.error = 3;
 	if (ytd.error > 0) scriptName += " " + ytd.errors[ytd.error];
-	else if (cfg.stop == 1) scriptName += " (STOP)";
-	else if (cfg.cookie_file.size() > 3) scriptName += " (cookie file)";
-	else if (cfg.browser_name.size() > 3) scriptName += " (cookie " + cfg.browser_name + ")";
+	else if (cfg.getInt("SWITCH", "stop") == 1) scriptName += " (STOP)";
+	else if (cfg.getStr("COOKIE", "cookie_file").size() > 3) scriptName += " (cookie file)";
+	else if (cfg.getStr("COOKIE", "browser_name").size() > 3) scriptName += " (cookie " + cfg.getStr("COOKIE", "browser_name") + ")";
 	return scriptName;
 }
 
@@ -987,11 +1270,10 @@ void ApplyConfigFile()
 string GetDesc()
 {
 	//called when opening info panel
-	if (cfg.update_ytdlp == 2)
+	if (cfg.getInt("MAINTENANCE", "update_ytdlp") == 2)
 	{
 		ytd.updateVersion();
-		cfg.update_ytdlp = 0;
-		cfg.setInt("Maintenance", "update_ytdlp", 0);
+		cfg.setInt("MAINTENANCE", "update_ytdlp", 0);
 	}
 	else
 	{
@@ -999,10 +1281,10 @@ string GetDesc()
 	}
 	
 	const string SITE_DEV = "https://github.com/yt-dlp/yt-dlp";
-	//const string SITE_DESC = "https://";
+	const string SITE_DESC = "https://github.com/hgcat-360/PotPlayer-Extension-by-yt-dlp";
 	string info =
 		"<a href=\"" + SITE_DEV + "\">yt-dlp development (github)</a>\r\n"
-		//"<a href=\"" + SITE_DESC + "\">Description of this extention</a>\r\n"
+		"<a href=\"" + SITE_DESC + "\">Distribution of this extention (github)</a>\r\n"
 		"\r\n";
 	
 	info += "yt-dlp.exe version: ";
@@ -1110,8 +1392,8 @@ bool PlayitemCheck(const string &in path)
 {
 	//called when an item is being opened after PlaylistCheck or PlaylistParse
 	
-	if (cfg.critical_error != 0) ytd.error = 3;
-	if (ytd.error == 3 || cfg.stop == 1) return false;
+	if (cfg.getInt("MAINTENANCE", "critical_error") != 0) ytd.error = 3;
+	if (ytd.error == 3 || cfg.getInt("SWITCH", "stop") == 1) return false;
 	
 	path.MakeLower();
 	
@@ -1120,7 +1402,7 @@ bool PlayitemCheck(const string &in path)
 	if (HostRegExpParse(path, "//192\\.168\\.\\d+\\.\\d+\\b", {})) return false;
 		//Exclude LAN
 	
-	if (cfg.enable_youtube == 0 && _IsYoutubeUrl(path)) return false;
+	if (cfg.getInt("YOUTUBE", "enable_youtube") == 0 && _IsYoutubeUrl(path)) return false;
 		//Exclude youtube according to the setting
 	
 	if (HostRegExpParse(path, "//(?:[-\\w.]+\\.)?kakao\\.com(?:[/?#].*)?$", {})) return false;
@@ -1130,8 +1412,8 @@ bool PlayitemCheck(const string &in path)
 	if (!ext.empty())	//hot-link to a web file
 	{
 		int kind = 0x0;
-		if (cfg.hotlink_media_file < 1) kind |= 0x111;	//Exclude media files
-		if (cfg.hotlink_playlist_file < 1) kind |= 0x1000;	//Exclude playlist files
+		if (cfg.getInt("TARGET", "hotlink_media_file") < 1) kind |= 0x111;	//Exclude media files
+		if (cfg.getInt("TARGET", "hotlink_playlist_file") < 1) kind |= 0x1000;	//Exclude playlist files
 		kind |= 0x110000;	//Exclude compressed/subtitles files
 		if (_CheckExt(ext, kind)) return false;
 	}
@@ -1140,11 +1422,11 @@ bool PlayitemCheck(const string &in path)
 }
 
 
-string _OmitStr(string str, string search, int count = 1)
+string _OmitStr(string str, string search, int cnt = 1)
 {
-	if (count < 1) return str;
+	if (cnt < 1) return str;
 	int pos = 0;
-	for (int i = 0; i < count; i++)
+	for (int i = 0; i < cnt; i++)
 	{
 		pos = str.find(search, pos);
 		if (pos < 0) return str;
@@ -1349,7 +1631,7 @@ string PlayitemParse(const string &in path, dictionary &MetaData, array<dictiona
 	JsonValue root;
 	if (!reader.parse(json, root) || !root.isObject())
 	{
-		if (cfg.console_out > 0) HostPrintUTF8("[yt-dlp] ERROR! Json data corrupted.\r\n");
+		if (cfg.consoleOut > 0) HostPrintUTF8("[yt-dlp] ERROR! Json data corrupted.\r\n");
 		return "";
 	}
 	JsonValue jVersion = root["_version"];
@@ -1362,7 +1644,7 @@ string PlayitemParse(const string &in path, dictionary &MetaData, array<dictiona
 		{
 			if (version != ytd.version)
 			{
-				if (cfg.update_ytdlp == 1)
+				if (cfg.getInt("MAINTENANCE", "update_ytdlp") == 1)
 				{
 					string msg = "[yt-dlp.exe] is up to date.\r\nversion: " + version;
 					HostMessageBox(msg, "[yt-dlp]", 2, 0);
@@ -1380,13 +1662,13 @@ string PlayitemParse(const string &in path, dictionary &MetaData, array<dictiona
 	if (extractor.empty()) extractor = _GetJsonValueString(root, "extractor");
 	if (extractor.empty())
 	{
-		if (cfg.console_out > 0) HostPrintUTF8("[yt-dlp] ERROR! No extractor.\r\n");
+		if (cfg.consoleOut > 0) HostPrintUTF8("[yt-dlp] ERROR! No extractor.\r\n");
 		return "";
 	}
 	string webUrl = _GetJsonValueString(root, "webpage_url");
 	if (webUrl.empty())
 	{
-		if (cfg.console_out > 0) HostPrintUTF8("[yt-dlp] ERROR! No webpage url.\r\n");
+		if (cfg.consoleOut > 0) HostPrintUTF8("[yt-dlp] ERROR! No webpage url.\r\n");
 		return "";
 	}
 	
@@ -1394,13 +1676,13 @@ string PlayitemParse(const string &in path, dictionary &MetaData, array<dictiona
 	if (playlistIdx > 0 && path != webUrl)
 	{
 		//Exclude playlist url
-		if (cfg.console_out > 0) HostPrintUTF8("[yt-dlp] ERROR! This url is for playlist. You need to fetch url of each entry in it. - \"" + path +"\"\r\n");
+		if (cfg.consoleOut > 0) HostPrintUTF8("[yt-dlp] ERROR! This url is for playlist. You need to fetch url of each entry in it. - \"" + path +"\"\r\n");
 		return "";
 	}
 	bool isLive = _GetJsonValueBool(root, "is_live");
-	if (isLive && cfg.no_youtube_live == 1 && _IsYoutubeUrl(path))
+	if (isLive && cfg.getInt("YOUTUBE", "no_youtube_live") == 1 && _IsYoutubeUrl(path))
 	{
-		if (cfg.console_out > 0) HostPrintUTF8("[yt-dlp] YouTube live is passed through by \"no_youtube_live\". - \"" + path +"\"\r\n");
+		if (cfg.consoleOut > 0) HostPrintUTF8("[yt-dlp] YouTube live is passed through by \"no_youtube_live\". - \"" + path +"\"\r\n");
 		return "";
 	}
 	
@@ -1441,7 +1723,7 @@ string PlayitemParse(const string &in path, dictionary &MetaData, array<dictiona
 	string thumbnail = _GetJsonValueString(root, "thumbnail");
 	if (thumbnail.empty())
 	{
-		if (isAudioExt && cfg.radio_thumbnail == 1)
+		if (isAudioExt && cfg.getInt("TARGET", "radio_thumbnail") == 1)
 		{
 			thumbnail = _GetRadioThumbnail(isDirect);
 			if (!thumbnail.empty()) MetaData["thumbnail"] = thumbnail;
@@ -1514,7 +1796,7 @@ string PlayitemParse(const string &in path, dictionary &MetaData, array<dictiona
 	{
 		//Don't treat it as an error.
 		//For getting uploader(website) or thumbnail or upload date.
-		if (cfg.console_out > 0) HostPrintUTF8("[yt-dlp] No \"formats\" data...\r\n");
+		if (cfg.consoleOut > 0) HostPrintUTF8("[yt-dlp] No \"formats\" data...\r\n");
 	}
 	
 	uint vaCount = 0;
@@ -1573,7 +1855,7 @@ string PlayitemParse(const string &in path, dictionary &MetaData, array<dictiona
 			}
 			
 			int width = _GetJsonValueInt(jFormat, "width");
-			if (width > 0 && cfg.reduce_low_quality == 1)
+			if (width > 0 && cfg.getInt("FORMAT", "reduce_low_quality") == 1)
 			{
 				if (va == "v")
 				{
@@ -1588,7 +1870,7 @@ string PlayitemParse(const string &in path, dictionary &MetaData, array<dictiona
 			}
 			
 			int height = _GetJsonValueInt(jFormat, "height");
-			if (height > 0 && cfg.reduce_low_quality == 1)
+			if (height > 0 && cfg.getInt("FORMAT", "reduce_low_quality") == 1)
 			{
 				if (va == "v")
 				{
@@ -1603,7 +1885,7 @@ string PlayitemParse(const string &in path, dictionary &MetaData, array<dictiona
 			}
 			
 			float abr = _GetJsonValueFloat(jFormat, "abr");
-			if (abr > 0 && cfg.reduce_low_quality == 1)
+			if (abr > 0 && cfg.getInt("FORMAT", "reduce_low_quality") == 1)
 			{
 				if (va == "a")
 				{
@@ -1741,7 +2023,7 @@ string PlayitemParse(const string &in path, dictionary &MetaData, array<dictiona
 			HostSetITag(itag);
 			dic["itag"] = itag;
 			
-			if (cfg.remove_duplicated_quality == 1)
+			if (cfg.getInt("FORMAT", "remove_duplicated_quality") == 1)
 			{
 				if (_IsSameQuality(dic, QualityList)) continue;
 			}
@@ -1865,7 +2147,7 @@ string PlayitemParse(const string &in path, dictionary &MetaData, array<dictiona
 		if (dicsChapter.size() > 0) MetaData["chapter"] = dicsChapter;
 	}
 	
-	if (cfg.console_out > 0) HostPrintUTF8("[yt-dlp] Parsing completed by " + extractor + ". - \"" + path +"\"\r\n");
+	if (cfg.consoleOut > 0) HostPrintUTF8("[yt-dlp] Parsing completed by " + extractor + ". - \"" + path +"\"\r\n");
 	return urlOut;
 }
 
@@ -1879,11 +2161,11 @@ bool PlaylistCheck(const string &in path)
 	
 	if (_IsYoutubeUrl(path))
 	{
-		if (cfg.enable_youtube < 2) return false;
+		if (cfg.getInt("YOUTUBE", "enable_youtube") < 2) return false;
 	}
 	else
 	{
-		if (cfg.website_playlist < 1) return false;
+		if (cfg.getInt("TARGET", "website_playlist") < 1) return false;
 	}
 	
 	string ext = _GetUrlExtension(path);
@@ -1892,7 +2174,7 @@ bool PlaylistCheck(const string &in path)
 		if (_CheckExt(ext, 0x110111)) return false;
 		if (_CheckExt(ext, 0x1000))
 		{
-			if (cfg.hotlink_playlist_file < 2) return false;
+			if (cfg.getInt("TARGET", "hotlink_playlist_file") < 2) return false;
 		}
 	}
 	
@@ -1969,7 +2251,7 @@ dictionary _PlaylistParse(string json)
 			}
 			if (thumbnail.empty())
 			{
-				if (isAudioExt && cfg.radio_thumbnail == 1)
+				if (isAudioExt && cfg.getInt("TARGET", "radio_thumbnail") == 1)
 				{
 					thumbnail = _GetRadioThumbnail(isDirect);
 				}
@@ -2003,19 +2285,19 @@ array<dictionary> PlaylistParse(const string &in path)
 	if (entries.size() == 0) return {};
 	
 	array<dictionary> dicsEntry;
-	int count = 0;
+	int cnt = 0;
 	for (uint i = 0; i < entries.size(); i++)
 	{
 		dictionary dic = _PlaylistParse(entries[i]);
 		string urlEntry;
 		if (dic.get("url", urlEntry) && !urlEntry.empty())
 		{
-			int index = int(dic["playlistIdx"]);
-			if (index > 0)
+			int idx = int(dic["playlistIdx"]);
+			if (idx > 0)
 			{
-				if (cfg.console_out > 0)
+				if (cfg.consoleOut > 0)
 				{
-					if (count == 0)
+					if (cnt == 0)
 					{
 						string extractor;
 						if (dic.get("extractor", extractor) && !extractor.empty())
@@ -2023,15 +2305,15 @@ array<dictionary> PlaylistParse(const string &in path)
 							HostPrintUTF8("Extractor: " + extractor);
 						}
 					}
-					HostPrintUTF8("Url " + index + ": " + urlEntry);
+					HostPrintUTF8("Url " + idx + ": " + urlEntry);
 				}
 				dicsEntry.insertLast(dic);
-				count++;
+				cnt++;
 			}
 		}
 	}
 	
-	if (cfg.console_out > 0) HostPrintUTF8("[yt-dlp] Playlist entries: " + count + "    - \"" + path +"\"\r\n");
+	if (cfg.consoleOut > 0) HostPrintUTF8("[yt-dlp] Playlist entries: " + cnt + "    - \"" + path +"\"\r\n");
 	return dicsEntry;
 }
 
