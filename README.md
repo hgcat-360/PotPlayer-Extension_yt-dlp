@@ -2,7 +2,7 @@
 
 
 ## Overview
-This is a script for **PotPlayer** extension, which enables PotPlayer to play streaming videos/audios on various sites.  
+This is an extension for **PotPlayer** including an angel script file, which enables PotPlayer to play streaming videos/audios on various sites.  
 When opening url, PotPlayer would call ***yt-dlp.exe*** temporally and get a playable link from it.  
 Supported sites or services follow yt-dlp.  
 
@@ -27,16 +27,16 @@ This script does not work with PotPlayer older than the version below.
 ## Install
 
 1. Place all files of the archive to the following script folder;  
-	(PotPlayer's program folder)\Extension\Media\PlayParse\
-	***MediaPlayParse - yt-dlp.as*** and ***yt-dlp_default.ini*** are indispensable.  
+	`(PotPlayer's program folder)\Extension\Media\PlayParse\`
+	>***MediaPlayParse - yt-dlp.as*** and ***yt-dlp_default.ini*** are indispensable.  
 
 3. Place *yt-dlp.exe* to the following module folder;  
-	(PotPlayer's program folder)\Module\  
-	If *yt-dlp.exe* is placed in another folder, the script won't call it. (for security reason)   
+	`(PotPlayer's program folder)\Module\`  
+	>If *yt-dlp.exe* is placed in another folder, the script won't call it. (for security reason)   
 
 4. Confirm that **yt-dlp** exists in the extension list of PotPlayer settings  
-	Preferences(F5) > Extensions >  Media Playlist/Playitem  
-![2025-03-04_04h20_49](https://github.com/user-attachments/assets/e4bfe285-a625-48bb-a81a-a7b00bc1c0b5)
+	`Preferences(F5) > Extensions >  Media Playlist/Playitem`  
+	>![2025-03-04_04h20_49](https://github.com/user-attachments/assets/e4bfe285-a625-48bb-a81a-a7b00bc1c0b5)
 
 5. Try to open urls of various streaming services with PotPlayer  
 
@@ -49,6 +49,7 @@ If you have multiple extensions in the extension list, one shown at upper positi
 As for YouTube, if you want to give priority to PotPlayer's YouTube extension rather than this extension,   
 place **yt-dlp** below **YouTube** by using Up/Down buttons in the extension settings.  
 PotPlayer's YouTube extension can start YouTube playback more quickly than yt-dlp extension.  
+If the preferred extension fails to process the task, it will be handed over to a lower extension.  
 
 ### Configuration file
 You can customize behavior by editing the configuration file *yt-dlp.ini*.  
