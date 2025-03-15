@@ -10,12 +10,12 @@ string SCRIPT_VERSION = "250315";
 string YTDLP_EXE = "Module\\yt-dlp.exe";
 	//yt-dlp executable file; relative path to HostGetExecuteFolder(); (required)
 
+string SCRIPT_CONFIG_DEFAULT = "yt-dlp_default.ini";
+	//default configuration file; placed in HostGetScriptFolder(); (required)
+
 string SCRIPT_CONFIG = "Extension\\Media\\PlayParse\\yt-dlp.ini";
 	//configuration file; relative path to HostGetConfigFolder()
 	//created automatically by this script
-
-string SCRIPT_CONFIG_DEFAULT = "yt-dlp_default.ini";
-	//default configuration file; placed in HostGetScriptFolder(); (required)
 
 string RADIO_IMAGE_1 = "yt-dlp_radio1.jpg";
 string RADIO_IMAGE_2 = "yt-dlp_radio2.jpg";
