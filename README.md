@@ -32,15 +32,19 @@ This script does not work with PotPlayer older than the version below.
 
 3. Place *yt-dlp.exe* to the following module folder;  
 	`(PotPlayer's program folder)\Module\`  
-	>If *yt-dlp.exe* is placed in another folder, the script won't call it. (for security reason)   
+	>If ***yt-dlp.exe*** is placed in another folder, the script won't call it. (for security reason)   
 
 4. Confirm that **yt-dlp** exists in the extension list of PotPlayer settings  
-	`Preferences(F5) > Extensions >  Media Playlist/Playitem`  
-	>![2025-03-16_02h02_06](https://github.com/user-attachments/assets/be414285-e270-4a95-8418-30b12904fabd)
-	>![2025-03-16_02h06_39](https://github.com/user-attachments/assets/e6e31686-635b-4171-871f-cce4021e5ed5)
+	`Preferences(F5) > Extensions >  Media Playlist/Playitem`
+	>
+ 	>If you cannot see it, try to push **reload** button or reopen PotPlayer.
+	>![2025-03-16_02h02_06](https://github.com/user-attachments/assets/e4aa7177-7ba3-4f8a-8373-dbdd0d83f091)  
+	>
+ 	>Also confirm that the extension recognizes the version of "***yt-dlp.exe***" by opening **info** panel.  
+ 	>![2025-03-16_02h06_39](https://github.com/user-attachments/assets/fa517e1c-e837-4326-aff1-c4255994c96b)  
 
 
-5. Try to open urls of various streaming services with PotPlayer  
+6. Try to open urls of various streaming services with PotPlayer  
 
 
 
@@ -58,7 +62,7 @@ You can customize behavior by editing the configuration file *yt-dlp.ini*.
 Open it by pushing **Config file** button in extension settings.  
 Some functions (including login to your account or auto update of *yt-dlp.exe*) are available with it.  
 You have description of each settings in detail on the config file.  
-![2025-03-16_02h11_12](https://github.com/user-attachments/assets/265f0fd4-2ae0-4968-9ca7-7d973ce95644)
+![2025-03-16_02h11_12](https://github.com/user-attachments/assets/265f0fd4-2ae0-4968-9ca7-7d973ce95644)  
 
 
 
