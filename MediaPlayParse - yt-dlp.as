@@ -1,21 +1,21 @@
-/**********************************************************
-    Parse Streaming by yt-dlp
-***********************************************************
-    Extension for PotPlayer 250226 or later versions
-    Placed in \PotPlayer\Extension\Media\PlayParse\
-***********************************************************/
+﻿/***************************************************
+  Parse Streaming with yt-dlp
+****************************************************
+  Extension for PotPlayer 250226 or later versions
+  Placed in \PotPlayer\Extension\Media\PlayParse\
+***************************************************/
 
 string SCRIPT_VERSION = "250315";
 
 string YTDLP_EXE = "Module\\yt-dlp.exe";
 	//yt-dlp executable file; relative path to HostGetExecuteFolder(); (required)
 
-string SCRIPT_CONFIG_DEFAULT = "yt-dlp_default.ini";
-	//default configuration file; placed in HostGetScriptFolder(); (required)
-
 string SCRIPT_CONFIG = "Extension\\Media\\PlayParse\\yt-dlp.ini";
 	//configuration file; relative path to HostGetConfigFolder()
 	//created automatically by this script
+
+string SCRIPT_CONFIG_DEFAULT = "yt-dlp_default.ini";
+	//default configuration file; placed in HostGetScriptFolder(); (required)
 
 string RADIO_IMAGE_1 = "yt-dlp_radio1.jpg";
 string RADIO_IMAGE_2 = "yt-dlp_radio2.jpg";
@@ -79,8 +79,7 @@ class CFG
 	{
 		int pos = 0;
 		int pos0;
-		do
-		{
+		do {
 			pos0 = pos;
 			pos = str.find("\n", pos);
 			if (pos >= 0)
@@ -252,8 +251,7 @@ class CFG
 		pos = str.findLastNotOf("\r\n", pos);
 		if (pos < 0) pos = 0;
 		int pos0;
-		do
-		{
+		do {
 			pos0 = pos;
 			pos = str.find("\n", pos);
 			if (pos >= 0)
@@ -611,9 +609,9 @@ class CFG
 					int idx = tops.find(kd.areaTop);
 					if (idx < 0) continue;
 					idx++;
-					uint end = idx < tops.size() ? tops[idx] : sectArea.size();
+					uint end = uint(idx) < tops.size() ? tops[idx] : sectArea.size();
 					int blk = _searchBlankLine(sectArea, kd.areaTop);
-					if (blk >= 0 && blk < end) end = blk;
+					if (blk >= 0 && uint(blk) < end) end = blk;
 					string keyArea = sectArea.substr(kd.areaTop, end - kd.areaTop);
 					_addBlankLast(keyArea);
 					kd.areaStr = keyArea;
@@ -1235,7 +1233,6 @@ YTDLP ytd;
 
 void OnInitialize()
 {
-HostOpenConsole();
 	//called when loading script at first
 	cfg.loadFile();
 	ytd.checkYtdlpInfo();
