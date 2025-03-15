@@ -1,4 +1,4 @@
-# Parse Streaming by yt-dlp - PotPlayer Extension
+# Parse Streaming with yt-dlp - PotPlayer Extension
 
 
 ## Overview
@@ -14,6 +14,8 @@ yt-dlp extension can treat web cookies and login so PotPlayer could get around t
 
 
 ## Requirements
+This repository does not include the following softwares.
+Please take them separately.
 
 - [PotPlayer **250226 or later versions** on Windows](https://potplayer.tv/)
 
