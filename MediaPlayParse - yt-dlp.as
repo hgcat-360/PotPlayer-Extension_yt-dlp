@@ -466,7 +466,6 @@ class CFG
 					string keyArea = _getKeyAreaNext(str, key, top2);
 					if (top2 >= 0 && top2 < sepa)
 					{
-						//if (key.Left(1) == "#") key = key.substr(1);	//hidden key
 						keys.insertLast(key);
 						KeyData kd(section, key);
 						kd.areaStr = keyArea;
@@ -697,7 +696,7 @@ class CFG
 					string key = keys[j];
 					if (key.Left(1) == "#")	//hidden key
 					{
-						if (isDef) continue;
+						if ( isDef) continue;
 						else key = key.substr(1);
 					}
 					dictionary _kds;
@@ -733,7 +732,7 @@ class CFG
 				string key = keys[j];
 				if (key.Left(1) == "#")	//hidden key
 				{
-					if (isDef) continue;
+					if ( isDef) continue;
 					else key = key.substr(1);
 				}
 				dictionary _kds;
@@ -752,11 +751,7 @@ class CFG
 	
 	string _getCfgStr(bool isDef, string section, string key)
 	{
-		if (key.Left(1) == "#")	//hidden key
-		{
-			if (isDef) return "";
-			else key = key.substr(1);
-		}
+		if (key.Left(1) == "#" && !isDef) key = key.substr(1);	//hidden key
 		
 		dictionary kds;
 		array<string> sections;
@@ -783,15 +778,15 @@ class CFG
 		
 		string str0;
 		uintptr fp = _openFile(str0);
-		string str = !str0.empty() ? str0 : _getCfgStr(true);
+		if (str0.empty()) str0 = _getCfgStr(true);
 		
-		_loadSections(str);
+		_loadSections(str0);
 		int critical_error = getInt("MAINTENANCE", "critical_error");
 		if (critical_error == 0) deleteKey("MAINTENANCE", "critical_error");
 		if (critical_error != 0 || ytd.error != 0) deleteKey("MAINTENANCE", "update_ytdlp");
 		if (isSaveError) deleteKey("MAINTENANCE", "ytdlp_hash");
 		
-		str = _getCfgStr(false);
+		string str = _getCfgStr(false);
 		
 		if (_closeFile(fp, str != str0, str) < 1)
 		{
@@ -868,12 +863,12 @@ class CFG
 	
 	string getStr(string section, string key)
 	{
-		return _getValue(section, key, 0).Trim("\"");
+		return _getValue(section, key, 2).Trim("\"");
 	}
 	
 	int getInt(string section, string key)
 	{
-		return parseInt(_getValue(section, key, 0));
+		return parseInt(_getValue(section, key, 2));
 	}
 	
 	string _setValue(string section, string key, string setValue)
@@ -890,11 +885,17 @@ class CFG
 					kd.section = section;
 					kd.key = key;
 					kd.areaStr = _getCfgStr(true, section, key);
+					if (kd.areaStr.empty())
+					{
+						kd.areaStr = _getCfgStr(true, section, "#" + key);
+						if (kd.areaStr.Left(1) == "#") kd.areaStr = kd.areaStr.substr(1);
+					}
 					_parseKeyData(kd);
 				}
 				
 				prevValue = kd.value;
 				setValue.Trim();
+				if (setValue.empty()) setValue = _getValue(section, key, 1);
 				if (kd.state > 0)
 				{
 					if (kd.valueTop >= 0)
@@ -920,6 +921,10 @@ class CFG
 				kdsCst.set(section, _kds);
 				_saveFile();
 				return prevValue;
+			}
+			else
+			{
+HostPrintUTF8("no key: " + key);
 			}
 		}
 		return "";
@@ -1269,6 +1274,7 @@ void ApplyConfigFile()
 
 string GetDesc()
 {
+cfg.setInt("YOUTUBE", "live_from_start", 1);
 	//called when opening info panel
 	if (cfg.getInt("MAINTENANCE", "update_ytdlp") == 2)
 	{
