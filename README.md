@@ -16,6 +16,7 @@ yt-dlp extension can treat web cookies and login so PotPlayer could get around t
 ## Requirements
 This repository does not include the following softwares.  
 Please prepare them separately.  
+This script does not work with PotPlayer older than the version below.  
 
 - [PotPlayer **250226 or later versions** on Windows](https://potplayer.tv/)
 
