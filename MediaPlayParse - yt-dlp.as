@@ -1,7 +1,6 @@
 /**********************************************************
     Parse Streaming by yt-dlp
 ***********************************************************
-    
     Extension for PotPlayer 250226 or later versions
     Placed in \PotPlayer\Extension\Media\PlayParse\
 ***********************************************************/
