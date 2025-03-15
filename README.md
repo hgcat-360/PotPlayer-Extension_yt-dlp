@@ -36,7 +36,9 @@ This script does not work with PotPlayer older than the version below.
 
 4. Confirm that **yt-dlp** exists in the extension list of PotPlayer settings  
 	`Preferences(F5) > Extensions >  Media Playlist/Playitem`  
-	>![2025-03-04_04h20_49](https://github.com/user-attachments/assets/e4bfe285-a625-48bb-a81a-a7b00bc1c0b5)
+	>![2025-03-16_02h02_06](https://github.com/user-attachments/assets/be414285-e270-4a95-8418-30b12904fabd)
+	>![2025-03-16_02h06_39](https://github.com/user-attachments/assets/e6e31686-635b-4171-871f-cce4021e5ed5)
+
 
 5. Try to open urls of various streaming services with PotPlayer  
 
@@ -55,7 +57,9 @@ If the preferred extension fails to process the task, it will be handed over to 
 You can customize behavior by editing the configuration file *yt-dlp.ini*.  
 Open it by pushing **Config file** button in extension settings.  
 Some functions (including login to your account or auto update of *yt-dlp.exe*) are available with it.  
-You have description of each settings in detail on the config file.
+You have description of each settings in detail on the config file.  
+![2025-03-16_02h11_12](https://github.com/user-attachments/assets/265f0fd4-2ae0-4968-9ca7-7d973ce95644)
+
 
 
 ## History
