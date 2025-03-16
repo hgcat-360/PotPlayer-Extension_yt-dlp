@@ -196,7 +196,7 @@ class CFG
 			else if (!HostRegExpParse(str, "^\\w+=", {}))
 			{
 				msg =
-				"Cannot read this default config file.\r\n"
+				"The script cannot read this default config file.\r\n"
 				"Please use a proper file.\r\n"
 				"(Supported character code: UTF8 or UTF16 LE)\r\n\r\n";
 				defCode = "";
@@ -818,7 +818,7 @@ class CFG
 			{
 				isAlert = false;
 				string msg =
-				"Script can not create or save the config file.\r\n"
+				"The script cannot create or save the config file.\r\n"
 				"Please confirm that this folder is writable;\r\n\r\n"
 				+ HostGetConfigFolder() + "Extension\\";
 				HostMessageBox(msg, "[yt-dlp] File save error", 0, 0);
@@ -1286,7 +1286,7 @@ void ApplyConfigFile()
 	//called when closing config panel with ok button
 	if (!cfg.loadFile())
 	{
-		string msg = "Cannot apply the configuration.\r\n";
+		string msg = "The script cannot apply the configuration.\r\n";
 		HostMessageBox(msg, "[yt-dlp] Default config file error", 0, 0);
 	}
 }
