@@ -178,29 +178,52 @@ class CFG
 	string _readFileDefault()
 	{
 		string str;
+		string msg = "";
 		string path = HostGetScriptFolder() + SCRIPT_CONFIG_DEFAULT;
 		uintptr fp = HostFileOpen(path);
 		if (fp > 0)
 		{
-			isDefaultError = false;
 			str = HostFileRead(fp, HostFileLength(fp));
 			HostFileClose(fp);
 			str = _changeToUtf8Basic(str, defCode);
+			
+			if (str.empty())
+			{
+				msg =
+				"This default config file is empty.\r\n"
+				"Please use a proper file.\r\n\r\n";
+			}
+			else if (!HostRegExpParse(str, "^\\w+=", {}))
+			{
+				msg =
+				"Cannot read this default config file.\r\n"
+				"Please use a proper file.\r\n"
+				"(Supported character code: UTF8 or UTF16 LE)\r\n\r\n";
+				defCode = "";
+			}
+		}
+		else
+		{
+			msg =
+			"The following default config file is not found.\r\n"
+			"Please place it together with the script file.\r\n\r\n";
+			defCode = "";
+		}
+		
+		if (msg.empty())
+		{
+			isDefaultError = false;
 		}
 		else
 		{
 			isDefaultError = true;
+			str = "";
 			if (isAlert)
 			{
 				isAlert = false;
-				string msg =
-				"The following default config file is not found.\r\n"
-				"Please place it together with the script file;\r\n\r\n"
-				+ HostGetScriptFolder() + "\r\n"
-				+ SCRIPT_CONFIG_DEFAULT;
+				msg += HostGetScriptFolder() + "\r\n" + SCRIPT_CONFIG_DEFAULT;
 				HostMessageBox(msg, "[yt-dlp] Default config file error", 0, 0);
 			}
-			defCode = "utf8_bom";
 		}
 		return str;
 	}
@@ -769,9 +792,9 @@ class CFG
 		return str;
 	}
 	
-	void loadFile()
+	bool loadFile()
 	{
-		_loadDefault();
+		if (!_loadDefault()) return false;
 		
 		string str0;
 		uintptr fp = _openFile(str0);
@@ -784,7 +807,11 @@ class CFG
 		
 		string str = _getCfgStr(false);
 		
-		if (_closeFile(fp, str != str0, str) < 1)
+		if (_closeFile(fp, str != str0, str) > 0)
+		{
+			isSaveError = false;
+		}
+		else
 		{
 			isSaveError = true;
 			if (isAlert)
@@ -797,15 +824,13 @@ class CFG
 				HostMessageBox(msg, "[yt-dlp] File save error", 0, 0);
 			}
 		}
-		else
-		{
-			isSaveError = false;
-		}
 		
 		if (getStr("YOUTUBE", "base_lang").size() > 1) baseLang = getStr("YOUTUBE", "base_lang");
 		else baseLang = HostIso639LangName();
 		
 		consoleOut = getInt("MAINTENANCE", "console_out");
+		
+		return true;
 	}
 	
 	int _saveFile()
@@ -1000,7 +1025,7 @@ class YTDLP
 			}
 		}
 		
-		if (!cfg.isSaveError)
+		if (!cfg.isDefaultError && !cfg.isSaveError)
 		{
 			uintptr fp = HostFileOpen(fileExe);
 			string data = HostFileRead(fp, HostFileLength(fp));
@@ -1263,7 +1288,11 @@ string GetConfigFile()
 void ApplyConfigFile()
 {
 	//called when closing config panel with ok button
-	cfg.loadFile();
+	if (!cfg.loadFile())
+	{
+		string msg = "Cannot apply the configuration.\r\n";
+		HostMessageBox(msg, "[yt-dlp] Default config file error", 0, 0);
+	}
 }
 
 
