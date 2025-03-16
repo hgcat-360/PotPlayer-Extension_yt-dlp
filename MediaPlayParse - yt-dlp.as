@@ -1,4 +1,4 @@
-/***************************************************
+﻿/***************************************************
   Parse Streaming with yt-dlp
 ****************************************************
   Extension for PotPlayer 250226 or later versions
@@ -792,7 +792,7 @@ class CFG
 				isAlert = false;
 				string msg =
 				"Script can not create or save the config file.\r\n"
-				"Plase confirm that this folder is writable;\r\n\r\n"
+				"Please confirm that this folder is writable;\r\n\r\n"
 				+ HostGetConfigFolder() + "Extension\\";
 				HostMessageBox(msg, "[yt-dlp] File save error", 0, 0);
 			}
