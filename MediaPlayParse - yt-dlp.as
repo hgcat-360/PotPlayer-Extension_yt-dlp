@@ -5,7 +5,7 @@
   Placed in \PotPlayer\Extension\Media\PlayParse\
 ***************************************************/
 
-string SCRIPT_VERSION = "250316";
+string SCRIPT_VERSION = "250316-1";
 
 string YTDLP_EXE = "Module\\yt-dlp.exe";
 	//yt-dlp executable file; relative path to HostGetExecuteFolder(); (required)
@@ -942,10 +942,6 @@ class CFG
 				kdsCst.set(section, _kds);
 				_saveFile();
 				return prevValue;
-			}
-			else
-			{
-HostPrintUTF8("no key: " + key);
 			}
 		}
 		return "";
