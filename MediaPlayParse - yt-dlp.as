@@ -781,7 +781,6 @@ class CFG
 		int critical_error = getInt("MAINTENANCE", "critical_error");
 		if (critical_error == 0) deleteKey("MAINTENANCE", "critical_error");
 		if (critical_error != 0 || ytd.error != 0) deleteKey("MAINTENANCE", "update_ytdlp");
-		if (isSaveError) deleteKey("MAINTENANCE", "ytdlp_hash");
 		
 		string str = _getCfgStr(false);
 		
