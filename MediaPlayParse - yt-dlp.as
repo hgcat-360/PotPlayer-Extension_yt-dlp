@@ -1,11 +1,11 @@
-﻿/***************************************************
+/***************************************************
   Parse Streaming with yt-dlp
 ****************************************************
   Extension for PotPlayer 250226 or later versions
   Placed in \PotPlayer\Extension\Media\PlayParse\
 ***************************************************/
 
-string SCRIPT_VERSION = "250315";
+string SCRIPT_VERSION = "250316";
 
 string YTDLP_EXE = "Module\\yt-dlp.exe";
 	//yt-dlp executable file; relative path to HostGetExecuteFolder(); (required)
@@ -56,7 +56,7 @@ class KeyData
 
 class CFG
 {
-	string origCode;	//character code of the default config file
+	string defCode;	//character code of the default config file
 	array<string> sectionNamesDef;	//default section names
 	array<string> sectionNamesCst;	//customize section order
 	dictionary keyNames;	//{section, {key}} dictionary with array
@@ -185,7 +185,7 @@ class CFG
 			isDefaultError = false;
 			str = HostFileRead(fp, HostFileLength(fp));
 			HostFileClose(fp);
-			str = _changeToUtf8Basic(str, origCode);
+			str = _changeToUtf8Basic(str, defCode);
 		}
 		else
 		{
@@ -200,7 +200,7 @@ class CFG
 				+ SCRIPT_CONFIG_DEFAULT;
 				HostMessageBox(msg, "[yt-dlp] Default config file error", 0, 0);
 			}
-			origCode = "utf8_bom";
+			defCode = "utf8_bom";
 		}
 		return str;
 	}
@@ -226,7 +226,7 @@ class CFG
 		{
 			if (isWrite)
 			{
-				str = _changeFromUtf8Basic(str, origCode);
+				str = _changeFromUtf8Basic(str, defCode);
 				if (HostFileSetLength(fp, 0) == 0)
 				{
 					if (uint(HostFileWrite(fp, str)) == str.size()) writeState = 2;
@@ -1270,7 +1270,6 @@ void ApplyConfigFile()
 
 string GetDesc()
 {
-cfg.setInt("YOUTUBE", "live_from_start", 1);
 	//called when opening info panel
 	if (cfg.getInt("MAINTENANCE", "update_ytdlp") == 2)
 	{
@@ -1286,7 +1285,7 @@ cfg.setInt("YOUTUBE", "live_from_start", 1);
 	const string SITE_DESC = "https://github.com/hgcat-360/PotPlayer-Extension-by-yt-dlp";
 	string info =
 		"<a href=\"" + SITE_DEV + "\">yt-dlp development (github)</a>\r\n"
-		"<a href=\"" + SITE_DESC + "\">Distribution of this extention (github)</a>\r\n"
+		"<a href=\"" + SITE_DESC + "\">PotPlayer-Extension_yt-dlp (github)</a>\r\n"
 		"\r\n";
 	
 	info += "yt-dlp.exe version: ";

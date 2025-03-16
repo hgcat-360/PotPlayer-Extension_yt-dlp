@@ -2,8 +2,8 @@
 
 
 ## Overview
-This is a script for **PotPlayer** extension, which enables PotPlayer to play streaming videos/audios on various sites.  
-When opening url, PotPlayer would call ***yt-dlp.exe*** temporally and get a playable link from it.  
+This is an extension for **PotPlayer** including an angel script file, which enables PotPlayer to play streaming videos/audios on various sites.  
+When opening URL, PotPlayer would call ***yt-dlp.exe*** temporally and get a playable link from it.  
 Supported sites or services follow yt-dlp.  
 
 As for YouTube videos, PotPlayer can basically play them without this extension,  
@@ -15,7 +15,7 @@ yt-dlp extension can treat web cookies and login so PotPlayer could get around t
 
 ## Requirements
 This repository does not include the following softwares.  
-Please prepare them separately.  
+Please prepare them separately in advance.  
 This script does not work with PotPlayer older than the version below.  
 
 - [PotPlayer **250226 or later versions** on Windows](https://potplayer.tv/)
@@ -27,18 +27,30 @@ This script does not work with PotPlayer older than the version below.
 ## Install
 
 1. Place all files of the archive to the following script folder;  
-	(PotPlayer's program folder)\Extension\Media\PlayParse\
-	***MediaPlayParse - yt-dlp.as*** and ***yt-dlp_default.ini*** are indispensable.  
+	`(PotPlayer's program folder)\Extension\Media\PlayParse\`
+	>  
+	>***MediaPlayParse - yt-dlp.as*** and ***yt-dlp_default.ini*** are indispensable.  
+	>Change the icon of "MediaPlayParse - yt-dlp.as" if you like by renaming icon files (.ico).   
+	>![2025-03-16_10h29_04](https://github.com/user-attachments/assets/e3950518-e204-488f-a60c-36ba02e8c2fb)  
 
-3. Place *yt-dlp.exe* to the following module folder;  
-	(PotPlayer's program folder)\Module\  
-	If *yt-dlp.exe* is placed in another folder, the script won't call it. (for security reason)   
+2. Place *yt-dlp.exe* to the following module folder;  
+	`(PotPlayer's program folder)\Module\`  
+	>  
+	>If ***yt-dlp.exe*** is placed in another folder, the script won't call it. (for security reason)  
+	>![2025-03-16_12h03_34](https://github.com/user-attachments/assets/9d395cb4-797c-4258-87c0-2db420056d1e)
 
-4. Confirm that **yt-dlp** exists in the extension list of PotPlayer settings  
-	Preferences(F5) > Extensions >  Media Playlist/Playitem  
-![2025-03-04_04h20_49](https://github.com/user-attachments/assets/e4bfe285-a625-48bb-a81a-a7b00bc1c0b5)
+3. Confirm that **yt-dlp** exists in the extension list of PotPlayer settings  
+	`Preferences(F5) > Extensions >  Media Playlist/Playitem`
+	>  
+ 	>If you cannot see it, try to push **reload** button or reopen PotPlayer.
+	>![2025-03-16_02h02_06](https://github.com/user-attachments/assets/e4aa7177-7ba3-4f8a-8373-dbdd0d83f091)  
+	>  
+ 	>Also confirm that the extension recognizes the version of "***yt-dlp.exe***" by opening **info** panel.  
+ 	>![2025-03-16_02h06_39](https://github.com/user-attachments/assets/fa517e1c-e837-4326-aff1-c4255994c96b)  
 
-5. Try to open urls of various streaming services with PotPlayer  
+4. Try to open URLs of various streaming services with PotPlayer  
+	>  
+	>![2025-03-16_15h10_46](https://github.com/user-attachments/assets/9bfe5d03-fb40-424c-8e46-c4057f47d62e)  
 
 
 
@@ -49,16 +61,19 @@ If you have multiple extensions in the extension list, one shown at upper positi
 As for YouTube, if you want to give priority to PotPlayer's YouTube extension rather than this extension,   
 place **yt-dlp** below **YouTube** by using Up/Down buttons in the extension settings.  
 PotPlayer's YouTube extension can start YouTube playback more quickly than yt-dlp extension.  
+If the preferred extension fails to process the task, it will be handed over to a lower extension.  
 
 ### Configuration file
 You can customize behavior by editing the configuration file *yt-dlp.ini*.  
 Open it by pushing **Config file** button in extension settings.  
 Some functions (including login to your account or auto update of *yt-dlp.exe*) are available with it.  
-You have description of each settings in detail on the config file.
+You have description of each settings in detail on the config file.  
+![2025-03-16_02h11_12](https://github.com/user-attachments/assets/265f0fd4-2ae0-4968-9ca7-7d973ce95644)  
+
 
 
 ## History
 
-- 2025-03-15 Published.
+- 2025-03-16 Published.
 
 
