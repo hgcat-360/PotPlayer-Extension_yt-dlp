@@ -5,7 +5,7 @@
   Placed in \PotPlayer\Extension\Media\PlayParse\
 ***************************************************/
 
-string SCRIPT_VERSION = "250316-1";
+string SCRIPT_VERSION = "250316-2";
 
 string YTDLP_EXE = "Module\\yt-dlp.exe";
 	//yt-dlp executable file; relative path to HostGetExecuteFolder(); (required)
