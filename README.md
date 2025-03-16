@@ -72,6 +72,6 @@ You have description of each settings in detail on the config file.
 
 ## History
 
-- 2025-03-15 Published.
+- 2025-03-16 Published.
 
 
