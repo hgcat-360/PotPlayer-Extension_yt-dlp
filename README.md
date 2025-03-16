@@ -29,22 +29,26 @@ This script does not work with PotPlayer older than the version below.
 1. Place all files of the archive to the following script folder;  
 	`(PotPlayer's program folder)\Extension\Media\PlayParse\`
 	>***MediaPlayParse - yt-dlp.as*** and ***yt-dlp_default.ini*** are indispensable.  
+	>Change the icon of "MediaPlayParse - yt-dlp.as" if you like by renaming icon files (.ico).   
+	>  
+	>![2025-03-16_10h29_04](https://github.com/user-attachments/assets/e3950518-e204-488f-a60c-36ba02e8c2fb)  
 
-3. Place *yt-dlp.exe* to the following module folder;  
+2. Place *yt-dlp.exe* to the following module folder;  
 	`(PotPlayer's program folder)\Module\`  
-	>If ***yt-dlp.exe*** is placed in another folder, the script won't call it. (for security reason)   
+	>If ***yt-dlp.exe*** is placed in another folder, the script won't call it. (for security reason)  
+	>  
+	>![2025-03-16_12h03_34](https://github.com/user-attachments/assets/9d395cb4-797c-4258-87c0-2db420056d1e)
 
-4. Confirm that **yt-dlp** exists in the extension list of PotPlayer settings  
+3. Confirm that **yt-dlp** exists in the extension list of PotPlayer settings  
 	`Preferences(F5) > Extensions >  Media Playlist/Playitem`
-	>
+	>  
  	>If you cannot see it, try to push **reload** button or reopen PotPlayer.
 	>![2025-03-16_02h02_06](https://github.com/user-attachments/assets/e4aa7177-7ba3-4f8a-8373-dbdd0d83f091)  
-	>
+	>  
  	>Also confirm that the extension recognizes the version of "***yt-dlp.exe***" by opening **info** panel.  
  	>![2025-03-16_02h06_39](https://github.com/user-attachments/assets/fa517e1c-e837-4326-aff1-c4255994c96b)  
 
-
-6. Try to open urls of various streaming services with PotPlayer  
+4. Try to open urls of various streaming services with PotPlayer  
 
 
 
