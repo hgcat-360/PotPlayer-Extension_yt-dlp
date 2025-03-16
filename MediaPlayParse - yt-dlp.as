@@ -5,7 +5,7 @@
   Placed in \PotPlayer\Extension\Media\PlayParse\
 ***************************************************/
 
-string SCRIPT_VERSION = "250315";
+string SCRIPT_VERSION = "250316";
 
 string YTDLP_EXE = "Module\\yt-dlp.exe";
 	//yt-dlp executable file; relative path to HostGetExecuteFolder(); (required)
@@ -56,7 +56,7 @@ class KeyData
 
 class CFG
 {
-	string origCode;	//character code of the default config file
+	string defCode;	//character code of the default config file
 	array<string> sectionNamesDef;	//default section names
 	array<string> sectionNamesCst;	//customize section order
 	dictionary keyNames;	//{section, {key}} dictionary with array
@@ -185,7 +185,7 @@ class CFG
 			isDefaultError = false;
 			str = HostFileRead(fp, HostFileLength(fp));
 			HostFileClose(fp);
-			str = _changeToUtf8Basic(str, origCode);
+			str = _changeToUtf8Basic(str, defCode);
 		}
 		else
 		{
@@ -200,7 +200,7 @@ class CFG
 				+ SCRIPT_CONFIG_DEFAULT;
 				HostMessageBox(msg, "[yt-dlp] Default config file error", 0, 0);
 			}
-			origCode = "utf8_bom";
+			defCode = "utf8_bom";
 		}
 		return str;
 	}
@@ -226,7 +226,7 @@ class CFG
 		{
 			if (isWrite)
 			{
-				str = _changeFromUtf8Basic(str, origCode);
+				str = _changeFromUtf8Basic(str, defCode);
 				if (HostFileSetLength(fp, 0) == 0)
 				{
 					if (uint(HostFileWrite(fp, str)) == str.size()) writeState = 2;
