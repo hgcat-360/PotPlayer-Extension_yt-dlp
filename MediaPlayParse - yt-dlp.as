@@ -5,7 +5,7 @@
   Placed in \PotPlayer\Extension\Media\PlayParse\
 ***************************************************/
 
-string SCRIPT_VERSION = "250317";
+string SCRIPT_VERSION = "250317-1";
 
 string YTDLP_EXE = "Module\\yt-dlp.exe";
 	//yt-dlp executable file; relative path to HostGetExecuteFolder(); (required)
@@ -459,7 +459,7 @@ class CFG
 	
 	void _parseKeyDataDefault(KeyData &inout kd)
 	{
-		if (kd.section.empty() || kd.key.empty()) {kd.init(); return;}
+		if (kd.key.empty()) {kd.init(); return;}
 		if (kd.areaStr.empty()) {kd.init(); return;}
 		
 		array<dictionary> dicsMatch;
@@ -511,10 +511,13 @@ class CFG
 			top0 = top;
 			string section;
 			string sectArea = _getSectionAreaNext(str, section, top);
-			if (top >= 0 && !section.empty())
+			if (top >= 0)
 			{
-				sectionNamesDef.insertLast(section);
-				__loadDef(str, section, top);
+				if (!section.empty())
+				{
+					sectionNamesDef.insertLast(section);
+					__loadDef(str, section, top);
+				}
 				top += sectArea.size();
 			}
 			else
@@ -525,8 +528,8 @@ class CFG
 		
 		if (sectionNamesDef.size() == 0)
 		{
-			sectionNamesDef.insertLast("#");
-			__loadDef(str, "#", 0);
+			sectionNamesDef.insertLast("");
+			__loadDef(str, "", 0);
 		}
 		
 		return true;
@@ -681,11 +684,11 @@ class CFG
 		kdsCst = {};
 		sectionNamesCst = {};
 		array<string> sections = sectionNamesDef;
-		if (sections.size() == 1 && sections[0] == "#")
+		if (sections.size() == 1 && sections[0] == "")
 		{
-			sectionNamesCst.insertLast("#");
+			sectionNamesCst.insertLast("");
 			string sectArea = str.Left(_getSectionSeparator(str, 0, true));
-			__loadCst(sectArea, "#");
+			__loadCst(sectArea, "");
 		}
 		else
 		{
@@ -697,12 +700,15 @@ class CFG
 				string sectArea = _getSectionAreaNext(str, section, top);
 				if (top >= 0)
 				{
-					int idx = sections.find(section);
-					if (idx >= 0)
+					if (!section.empty())
 					{
-						sections.removeAt(idx);
-						sectionNamesCst.insertLast(section);
-						__loadCst(sectArea, section);
+						int idx = sections.find(section);
+						if (idx >= 0)
+						{
+							sections.removeAt(idx);
+							sectionNamesCst.insertLast(section);
+							__loadCst(sectArea, section);
+						}
 					}
 					top += sectArea.size();
 				}
@@ -740,7 +746,7 @@ class CFG
 		for (uint i = 0; i < sections.size(); i++)
 		{
 			string section = sections[i];
-			if (section != "#" || sections.size() != 1)
+			if (!section.empty())
 			{
 				str += "[" + section + "]\r\n\r\n";
 			}
@@ -779,7 +785,7 @@ class CFG
 		if (sections.size() == 0 || kds.size() == 0) return "";
 		
 		string str = "";
-		if (section != "#" || sections.size() != 1)
+		if (!section.empty())
 		{
 			str += "[" + section + "]\r\n\r\n";
 		}
@@ -928,9 +934,19 @@ class CFG
 		return _getValue(section, key, 2).Trim("\"");
 	}
 	
+	string getStr(string key)
+	{
+		return _getValue("", key, 2).Trim("\"");
+	}
+	
 	int getInt(string section, string key)
 	{
 		return parseInt(_getValue(section, key, 2));
+	}
+	
+	int getInt(string key)
+	{
+		return parseInt(_getValue("", key, 2));
 	}
 	
 	string _setValue(string section, string key, string setValue)
@@ -994,9 +1010,21 @@ class CFG
 		return prevValue.Trim("\"");
 	}
 	
+	string setStr(string key, string sValue)
+	{
+		string prevValue = _setValue("", key, sValue);
+		return prevValue.Trim("\"");
+	}
+	
 	int setInt(string section, string key, int iValue)
 	{
 		string prevValue = _setValue(section, key, formatInt(iValue));
+		return parseInt(prevValue);
+	}
+	
+	int setInt(string key, int iValue)
+	{
+		string prevValue = _setValue("", key, formatInt(iValue));
 		return parseInt(prevValue);
 	}
 	
@@ -1074,13 +1102,14 @@ class YTDLP
 			}
 			else
 			{
-				if (cfg.getStr("MAINTENANCE", "ytdlp_hash").empty())
+				string hash0 = cfg.getStr("MAINTENANCE", "ytdlp_hash");
+				if (hash0.empty())
 				{
 					string msg = "You are using newly placed [yt-dlp.exe].";
 					HostMessageBox(msg, "[yt-dlp]", 2, 0);
 					cfg.setStr("MAINTENANCE", "ytdlp_hash", hash);
 				}
-				else if (hash != cfg.getStr("MAINTENANCE", "ytdlp_hash"))
+				else if (hash != hash0)
 				{
 					if (error >= 0)
 					{
@@ -1294,6 +1323,7 @@ YTDLP ytd;
 
 void OnInitialize()
 {
+HostOpenConsole();
 	//called when loading script at first
 	cfg.loadFile();
 	ytd.checkYtdlpInfo();
