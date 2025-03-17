@@ -1,11 +1,13 @@
 ﻿/***************************************************
   Parse Streaming with yt-dlp
 ****************************************************
-  Extension for PotPlayer 250226 or later versions
+  Extension script for PotPlayer 250226 or later versions
   Placed in \PotPlayer\Extension\Media\PlayParse\
 ***************************************************/
 
+
 string SCRIPT_VERSION = "250318";
+
 
 string YTDLP_EXE = "Module\\yt-dlp.exe";
 	//yt-dlp executable file; relative path to HostGetExecuteFolder(); (required)

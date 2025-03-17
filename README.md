@@ -1,29 +1,29 @@
 ﻿# Parse Streaming with yt-dlp - PotPlayer Extension
-
-
+  
+  
 ## Overview
 This is an extension for **PotPlayer** including an angel script file, which enables PotPlayer to play streaming videos/audios on various sites.  
 When opening URL, PotPlayer would call ***yt-dlp.exe*** temporally and get a playable link from it.  
 Supported sites or services follow yt-dlp.  
-
+  
 As for YouTube videos, PotPlayer can basically play them without this extension,  
 but it may be useful while YouTube restricts connections to external applications.  
 YouTube urges users to log in to YouTube account, but PotPlayer does not have means to log in as is.  
 yt-dlp extension can treat web cookies and login so PotPlayer could get around the restriction in some cases with it.  
-
-
-
+  
+  
+  
 ## Requirements
 This repository does not include the following softwares.  
 Please prepare them separately in advance.  
 This script does not work with PotPlayer older than the version below.  
-
+  
 - [PotPlayer **250226 or later versions** on Windows](https://potplayer.tv/)
-
+  
 - [yt-dlp.exe](https://github.com/yt-dlp/yt-dlp/releases)
-
-
-
+  
+  
+  
 ## Install
 
 1. Place all files of the archive to the following script folder;  
@@ -51,29 +51,29 @@ This script does not work with PotPlayer older than the version below.
 4. Try to open URLs of various streaming services with PotPlayer  
 	>  
 	>![2025-03-16_15h10_46](https://github.com/user-attachments/assets/9bfe5d03-fb40-424c-8e46-c4057f47d62e)  
-
-
-
+  
+  
+  
 ## Tune-up
-
+  
 ### Extension priority
 If you have multiple extensions in the extension list, one shown at upper position takes priority.  
 As for YouTube, if you want to give priority to PotPlayer's YouTube extension rather than this extension,   
 place **yt-dlp** below **YouTube** by using Up/Down buttons in the extension settings.  
 PotPlayer's YouTube extension can start YouTube playback more quickly than yt-dlp extension.  
 If the preferred extension fails to process the task, it will be handed over to a lower extension.  
-
+  
+  
 ### Configuration file
 You can customize behavior by editing the configuration file *yt-dlp.ini*.  
 Open it by pushing **Config file** button in extension settings.  
 Some functions (including login to your account or auto update of *yt-dlp.exe*) are available with it.  
 You have description of each settings in detail on the config file.  
 ![2025-03-16_02h11_12](https://github.com/user-attachments/assets/265f0fd4-2ae0-4968-9ca7-7d973ce95644)  
-
-
-
+  
+  
 ## History
-
+  
 - 2025-03-16 Published.
-
-
+  
+  
