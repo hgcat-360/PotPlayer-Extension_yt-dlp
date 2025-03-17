@@ -5,7 +5,7 @@
   Placed in \PotPlayer\Extension\Media\PlayParse\
 ***************************************************/
 
-string SCRIPT_VERSION = "250316-2";
+string SCRIPT_VERSION = "250317";
 
 string YTDLP_EXE = "Module\\yt-dlp.exe";
 	//yt-dlp executable file; relative path to HostGetExecuteFolder(); (required)
@@ -252,7 +252,10 @@ class CFG
 				str = _changeFromUtf8Basic(str, defCode);
 				if (HostFileSetLength(fp, 0) == 0)
 				{
-					if (uint(HostFileWrite(fp, str)) == str.size()) writeState = 2;
+					if (HostFileWrite(fp, str) == int(str.size()))
+					{
+						writeState = 2;
+					}
 				}
 			}
 			else
@@ -337,10 +340,18 @@ class CFG
 		return _addBlank(str, pos);
 	}
 	
-	int _getSectionSeparator(string str, int from)
+	int _getSectionSeparator(string str, int from, bool isIncludeFrom = false)
 	{
-		int pos = str.find("\n[", from);
-		if (pos >= 0) pos += 1; else pos = _getLastPos(str);
+		int pos;
+		if (isIncludeFrom && str.substr(from, 1) == "[")
+		{
+			pos = from;
+		}
+		else
+		{
+			pos = str.find("\n[", from);
+			if (pos >= 0) pos += 1; else pos = _getLastPos(str);
+		}
 		return pos;
 	}
 	
@@ -458,7 +469,35 @@ class CFG
 		}
 	}
 	
-	bool _loadDefault()
+	void __loadDef(string str, string section, int top)
+	{
+		array<string> keys = {};
+		dictionary _kds;
+		int sepa = _getSectionSeparator(str, top);
+		int top0;
+		do {
+			top0 = top;
+			string key;
+			string keyArea = _getKeyAreaNext(str, key, top);
+			if (top >= 0 && top < sepa)
+			{
+				keys.insertLast(key);
+				KeyData kd(section, key);
+				kd.areaStr = keyArea;
+				_parseKeyDataDefault(kd);
+				_kds.set(key, kd);
+				top += keyArea.size();
+			}
+			else
+			{
+				break;
+			}
+		} while (top > top0);
+		keyNames.set(section, keys);
+		kdsDef.set(section, _kds);
+	}
+	
+	bool _loadDef()
 	{
 		string str = _readFileDefault();
 		if (str.empty()) return false;
@@ -466,43 +505,30 @@ class CFG
 		kdsDef = {};
 		sectionNamesDef = {};
 		keyNames = {};
-		int top1 = 0;
-		int _top1;
+		int top = 0;
+		int top0;
 		do {
-			_top1 = top1;
+			top0 = top;
 			string section;
-			string sectArea = _getSectionAreaNext(str, section, top1);
-			if (top1 >= 0 && !section.empty())
+			string sectArea = _getSectionAreaNext(str, section, top);
+			if (top >= 0 && !section.empty())
 			{
 				sectionNamesDef.insertLast(section);
-				array<string> keys = {};
-				dictionary _kds;
-				int sepa = _getSectionSeparator(str, top1);
-				int top2 = top1;
-				int _top2;
-				do {
-					_top2 = top2;
-					string key;
-					string keyArea = _getKeyAreaNext(str, key, top2);
-					if (top2 >= 0 && top2 < sepa)
-					{
-						keys.insertLast(key);
-						KeyData kd(section, key);
-						kd.areaStr = keyArea;
-						_parseKeyDataDefault(kd);
-						_kds.set(key, kd);
-						top2 += keyArea.size();
-					}
-					else
-					{
-						break;
-					}
-				} while (top2 > _top2);
-				keyNames.set(section, keys);
-				kdsDef.set(section, _kds);
+				__loadDef(str, section, top);
+				top += sectArea.size();
 			}
-			top1 += sectArea.size();
-		} while (top1 > _top1);
+			else
+			{
+				break;
+			}
+		} while (top > top0);
+		
+		if (sectionNamesDef.size() == 0)
+		{
+			sectionNamesDef.insertLast("#");
+			__loadDef(str, "#", 0);
+		}
+		
 		return true;
 	}
 	
@@ -539,7 +565,7 @@ class CFG
 			"^ *" + kd.key + " *= *(\\S[^\t\r\n]*)"	//specified value
 		};
 		
-		if (kd.section.empty() || kd.key.empty()) {kd.init(); return;}
+		if (kd.key.empty()) {kd.init(); return;}
 		string str = kd.areaStr;
 		if (str.empty()) {kd.init(); return;}
 		
@@ -596,10 +622,8 @@ class CFG
 		_keyCommentOut(kd);
 	}
 	
-	void _loadKeys(string sectArea, string section)
+	void __loadCst(string sectArea, string section)
 	{
-		if (sectArea.Left(section.size() + 2) != "[" + section + "]") return;
-		
 		dictionary _kds;
 		array<string> keys;
 		if (!keyNames.get(section, keys)) return;
@@ -652,44 +676,53 @@ class CFG
 		kdsCst.set(section, _kds);
 	}
 	
-	void _loadSections(string str)
+	void _loadCst(string str)
 	{
 		kdsCst = {};
 		sectionNamesCst = {};
 		array<string> sections = sectionNamesDef;
-		int top = 0;
-		uint size0;
-		do {
-			size0 = str.size();
-			string section;
-			string sectArea = _getSectionAreaNext(str, section, top);
-			if (top >= 0 && !sectArea.empty())
-			{
-				str.erase(top, sectArea.size());
-				int idx = sections.find(section);
-				if (idx >= 0)
-				{
-					sections.removeAt(idx);
-					sectionNamesCst.insertLast(section);
-					_loadKeys(sectArea, section);
-				}
-			}
-			else
-			{
-				break;
-			}
-		} while (str.size() < size0);
-		
-		if (sections.size() > 0)
+		if (sections.size() == 1 && sections[0] == "#")
 		{
-			//Add the missing section
-			for (uint i = 0; i < sections.size(); i++)
-			{
-				string sectAreaDef = _getCfgStr(true, sections[i]);
-				if (!sectAreaDef.empty())
+			sectionNamesCst.insertLast("#");
+			string sectArea = str.Left(_getSectionSeparator(str, 0, true));
+			__loadCst(sectArea, "#");
+		}
+		else
+		{
+			int top = 0;
+			int top0;
+			do {
+				top0 = top;
+				string section;
+				string sectArea = _getSectionAreaNext(str, section, top);
+				if (top >= 0)
 				{
-					sectionNamesCst.insertLast(sections[i]);
-					_loadKeys(sectAreaDef, sections[i]);
+					int idx = sections.find(section);
+					if (idx >= 0)
+					{
+						sections.removeAt(idx);
+						sectionNamesCst.insertLast(section);
+						__loadCst(sectArea, section);
+					}
+					top += sectArea.size();
+				}
+				else
+				{
+					break;
+				}
+			} while (top > top0);
+			
+			if (sections.size() > 0)
+			{
+				//Add the missing section
+				for (uint i = 0; i < sections.size(); i++)
+				{
+					string sectAreaDef = _getCfgStr(true, sections[i]);
+					if (!sectAreaDef.empty())
+					{
+						sectionNamesCst.insertLast(sections[i]);
+						__loadCst(sectAreaDef, sections[i]);
+					}
 				}
 			}
 		}
@@ -707,7 +740,10 @@ class CFG
 		for (uint i = 0; i < sections.size(); i++)
 		{
 			string section = sections[i];
-			str += "[" + section + "]\r\n\r\n";
+			if (section != "#" || sections.size() != 1)
+			{
+				str += "[" + section + "]\r\n\r\n";
+			}
 			array<string> keys;
 			if (keyNames.get(section, keys))
 			{
@@ -743,7 +779,10 @@ class CFG
 		if (sections.size() == 0 || kds.size() == 0) return "";
 		
 		string str = "";
-		str += "[" + section + "]\r\n\r\n";
+		if (section != "#" || sections.size() != 1)
+		{
+			str += "[" + section + "]\r\n\r\n";
+		}
 		array<string> keys;
 		if (keyNames.get(section, keys))
 		{
@@ -794,20 +833,22 @@ class CFG
 	
 	bool loadFile()
 	{
-		if (!_loadDefault()) return false;
+		if (!_loadDef()) return false;
 		
 		string str0;
 		uintptr fp = _openFile(str0);
-		if (str0.empty()) str0 = _getCfgStr(true);
 		
-		_loadSections(str0);
+		string str1 = str0;
+		if (str1.empty()) str1 = _getCfgStr(true);
+		_loadCst(str1);
+		
 		int critical_error = getInt("MAINTENANCE", "critical_error");
 		if (critical_error == 0) deleteKey("MAINTENANCE", "critical_error");
 		if (critical_error != 0 || ytd.error != 0) deleteKey("MAINTENANCE", "update_ytdlp");
 		
-		string str = _getCfgStr(false);
+		string str2 = _getCfgStr(false);
 		
-		if (_closeFile(fp, str != str0, str) > 0)
+		if (_closeFile(fp, str2 != str0, str2) > 0)
 		{
 			isSaveError = false;
 		}
@@ -837,8 +878,8 @@ class CFG
 	{
 		string str0;
 		uintptr fp = _openFile(str0);
-		string str = _getCfgStr(false);
-		return _closeFile(fp, str != str0, str);
+		string str1 = _getCfgStr(false);
+		return _closeFile(fp, str1 != str0, str1);
 	}
 	
 	bool deleteKey(string section, string key)
