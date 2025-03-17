@@ -1,4 +1,4 @@
-# Parse Streaming with yt-dlp - PotPlayer Extension
+﻿# Parse Streaming with yt-dlp - PotPlayer Extension
 
 
 ## Overview
