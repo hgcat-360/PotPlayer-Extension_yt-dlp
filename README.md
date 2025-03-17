@@ -48,7 +48,7 @@ This script does not work with PotPlayer older than the version below.
  	>Also confirm that the extension recognizes the version of "***yt-dlp.exe***" by opening **info** panel.  
  	>![2025-03-16_02h06_39](https://github.com/user-attachments/assets/fa517e1c-e837-4326-aff1-c4255994c96b)  
 
-4. Try to open URLs of various streaming services with PotPlayer  
+4. Try to open URLs of various online video/audio sharing services with PotPlayer  
 	>  
 	>![2025-03-16_15h10_46](https://github.com/user-attachments/assets/9bfe5d03-fb40-424c-8e46-c4057f47d62e)  
   
