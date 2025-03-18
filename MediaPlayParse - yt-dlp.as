@@ -6,7 +6,7 @@
 ***************************************************/
 
 
-string SCRIPT_VERSION = "250318";
+string SCRIPT_VERSION = "250318-1";
 
 
 string YTDLP_EXE = "Module\\yt-dlp.exe";
@@ -910,7 +910,11 @@ class CFG
 	
 	string _getValue(string section, string key, int useDef)
 	{
-		//useDef 0: kdsCst / 1: kdsDef / 2: kdsDef if kdsCst is empty
+		//useDef
+		// 0: kdsCst (with kdsDef if kdsCst is empty)
+		// 1: kdsDef 
+		// -1: kdsCst only
+		
 		dictionary kds = useDef == 1 ? kdsDef : kdsCst;
 		dictionary _kds;
 		if (kds.get(section, _kds))
@@ -918,7 +922,7 @@ class CFG
 			KeyData kd;
 			if (_kds.get(key, kd))
 			{
-				if (useDef == 1 || kd.state == 1) return kd.value;
+				if (useDef != 0 || kd.state == 1) return kd.value;
 			}
 			else
 			{
@@ -928,27 +932,27 @@ class CFG
 				}
 			}
 		}
-		return useDef == 2 ? _getValue(section, key, 1) : "";
+		return useDef == 0 ? _getValue(section, key, 1) : "";
 	}
 	
 	string getStr(string section, string key)
 	{
-		return _getValue(section, key, 2).Trim("\"");
+		return _getValue(section, key, 0).Trim("\"");
 	}
 	
 	string getStr(string key)
 	{
-		return _getValue("", key, 2).Trim("\"");
+		return _getValue("", key, 0).Trim("\"");
 	}
 	
 	int getInt(string section, string key)
 	{
-		return parseInt(_getValue(section, key, 2));
+		return parseInt(_getValue(section, key, 0));
 	}
 	
 	int getInt(string key)
 	{
-		return parseInt(_getValue("", key, 2));
+		return parseInt(_getValue("", key, 0));
 	}
 	
 	string _setValue(string section, string key, string setValue)
@@ -1325,7 +1329,7 @@ YTDLP ytd;
 
 void OnInitialize()
 {
-HostOpenConsole();
+//HostOpenConsole();
 	//called when loading script at first
 	cfg.loadFile();
 	ytd.checkYtdlpInfo();
