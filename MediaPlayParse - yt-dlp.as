@@ -6,7 +6,7 @@
 *************************************************************/
 
 
-string SCRIPT_VERSION = "250318-1";
+string SCRIPT_VERSION = "250318-2";
 
 
 string YTDLP_EXE = "Module\\yt-dlp.exe";
@@ -76,9 +76,12 @@ class CFG
 	
 	string BOM_UTF8 = "\xEF\xBB\xBF";
 	string BOM_UTF16LE = "\xFF\xFE";
+	//string BOM_UTF16BE = "\xFE\xFF";
 	
 	string _changeEolWin(string str)
 	{
+		//LF -> CRLF
+		//Not available if EOL is only CR
 		int pos = 0;
 		int pos0;
 		do {
@@ -187,7 +190,6 @@ class CFG
 		{
 			str = HostFileRead(fp, HostFileLength(fp));
 			HostFileClose(fp);
-			str = _changeToUtf8Basic(str, defCode);
 			
 			if (str.empty())
 			{
@@ -195,13 +197,24 @@ class CFG
 				"This default config file is empty.\r\n"
 				"Please use a proper file.\r\n\r\n";
 			}
-			else if (!HostRegExpParse(str, "^\\w+=", {}))
+			else if (str.find("\n") < 0)
 			{
 				msg =
-				"The script cannot read this default config file.\r\n"
+				"This default config file is not available.\r\n"
 				"Please use a proper file.\r\n"
-				"(Supported character code: UTF8 or UTF16 LE)\r\n\r\n";
-				defCode = "";
+				"(Supported EOL code: CRLF or LF)\r\n\r\n";
+			}
+			else
+			{
+				str = _changeToUtf8Basic(str, defCode);
+				if (!HostRegExpParse(str, "^\\w+=", {}))
+				{
+					msg =
+					"The script cannot read this default config file.\r\n"
+					"Please use a proper file.\r\n"
+					"(Supported character code: UTF8(bom) or UTF16 LE)\r\n\r\n";
+					defCode = "";
+				}
 			}
 		}
 		else
@@ -1329,8 +1342,8 @@ YTDLP ytd;
 
 void OnInitialize()
 {
-//HostOpenConsole();
 	//called when loading script at first
+	if (cfg.consoleOut == 10) HostOpenConsole();
 	cfg.loadFile();
 	ytd.checkYtdlpInfo();
 }
