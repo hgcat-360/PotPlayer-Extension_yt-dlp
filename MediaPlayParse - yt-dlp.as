@@ -6,8 +6,7 @@
 *************************************************************/
 
 
-string SCRIPT_VERSION = "250318-2";
-
+string SCRIPT_VERSION = "250320";
 
 string YTDLP_EXE = "Module\\yt-dlp.exe";
 	//yt-dlp executable file; relative path to HostGetExecuteFolder(); (required)
@@ -237,7 +236,7 @@ class CFG
 			{
 				isAlert = false;
 				msg += HostGetScriptFolder() + "\r\n" + SCRIPT_CONFIG_DEFAULT;
-				HostMessageBox(msg, "[yt-dlp] Default config file error", 0, 0);
+				HostMessageBox(msg, "[yt-dlp] ERROR: Default config file", 0, 0);
 			}
 		}
 		return str;
@@ -391,13 +390,13 @@ class CFG
 		string section = "";
 		if (str.empty() || top < 0 || uint(top) >= str.size()) {top = -1; return "";}
 		string _str = str.substr(top);
-		array<dictionary> dicsMatch;
-		if (HostRegExpParse(_str, "^\\[([^\n\r\t\\]]*?)\\]", dicsMatch))
+		array<dictionary> match;
+		if (HostRegExpParse(_str, "^\\[([^\n\r\t\\]]*?)\\]", match))
 		{
-			dicsMatch[1].get("first", section);
+			match[1].get("first", section);
 			string s1, s2;
-			dicsMatch[0].get("first", s1);
-			dicsMatch[0].get("second", s2);
+			match[0].get("first", s1);
+			match[0].get("second", s2);
 			int _top = _str.size() - s2.size() - s1.size();
 			top += _top;
 		}
@@ -425,16 +424,16 @@ class CFG
 		string key = "";
 		if (str.empty() || top < 0 || uint(top) >= str.size()) {top = -1; return "";}
 		string _str = str.substr(top);
-		array<dictionary> dicsMatch;
-		if (HostRegExpParse(_str, "^(#?\\w+)=", dicsMatch))
+		array<dictionary> match;
+		if (HostRegExpParse(_str, "^(#?\\w+)=", match))
 		{
 			string s1, s2;
-			dicsMatch[0].get("first", s1);
-			dicsMatch[0].get("second", s2);
+			match[0].get("first", s1);
+			match[0].get("second", s2);
 			int _top = _str.size() - s2.size() - s1.size();
 			if (_top <= _getSectionSeparator(_str, 0))
 			{
-				dicsMatch[1].get("first", key);
+				match[1].get("first", key);
 				top += _top;
 			}
 			else top = -1;
@@ -461,12 +460,12 @@ class CFG
 	int _searchKeyTop(string sectArea, string key)
 	{
 		int top = -1;
-		array<dictionary> dicsMatch;
-		if (HostRegExpParse(sectArea, "^[^\t\r\n]*\\b" + key + " *=", dicsMatch))
+		array<dictionary> match;
+		if (HostRegExpParse(sectArea, "^[^\t\r\n]*\\b" + key + " *=", match))
 		{
 			string s1, s2;
-			dicsMatch[0].get("first", s1);
-			dicsMatch[0].get("second", s2);
+			match[0].get("first", s1);
+			match[0].get("second", s2);
 			top = sectArea.size() - s2.size() - s1.size();
 		}
 		return top;
@@ -477,10 +476,10 @@ class CFG
 		if (kd.key.empty()) {kd.init(); return;}
 		if (kd.areaStr.empty()) {kd.init(); return;}
 		
-		array<dictionary> dicsMatch;
-		if (HostRegExpParse(kd.areaStr, "^" + kd.key + "=(\\S[^\t\r\n]*)", dicsMatch))
+		array<dictionary> match;
+		if (HostRegExpParse(kd.areaStr, "^" + kd.key + "=(\\S[^\t\r\n]*)", match))
 		{
-			dicsMatch[1].get("first", kd.value);
+			match[1].get("first", kd.value);
 		}
 	}
 	
@@ -593,12 +592,12 @@ class CFG
 		int state;
 		for (state = 2; state >= 0; state--)
 		{
-			array<dictionary> dicsMatch;
-			if (HostRegExpParse(str, patterns[state], dicsMatch))
+			array<dictionary> match;
+			if (HostRegExpParse(str, patterns[state], match))
 			{
 				string s1, s2;
-				dicsMatch[0].get("first", s1);
-				dicsMatch[0].get("second", s2);
+				match[0].get("first", s1);
+				match[0].get("second", s2);
 				keyTop = str.size() - s2.size() - s1.size();
 				if (state > 0)
 				{
@@ -608,7 +607,7 @@ class CFG
 				}
 				if (state == 2)
 				{
-					dicsMatch[1].get("first", value);
+					match[1].get("first", value);
 					value.Trim();
 					if (!value.empty())
 					{
@@ -883,7 +882,7 @@ class CFG
 				"The script cannot create or save the config file.\r\n"
 				"Please confirm that this folder is writable;\r\n\r\n"
 				+ HostGetConfigFolder() + "Extension\\";
-				HostMessageBox(msg, "[yt-dlp] File save error", 0, 0);
+				HostMessageBox(msg, "[yt-dlp] ERROR: File save", 0, 0);
 			}
 		}
 		
@@ -1124,17 +1123,21 @@ class YTDLP
 				string hash0 = cfg.getStr("MAINTENANCE", "ytdlp_hash");
 				if (hash0.empty())
 				{
-					string msg = "You are using newly placed [yt-dlp.exe].";
-					HostMessageBox(msg, "[yt-dlp]", 2, 0);
+					string msg = "You are using a newly placed [yt-dlp.exe].";
+					HostMessageBox(msg, "[yt-dlp] INFO", 2, 0);
 					cfg.setStr("MAINTENANCE", "ytdlp_hash", hash);
 				}
 				else if (hash != hash0)
 				{
 					if (error >= 0)
 					{
-						string msg =
-						"Your [yt-dlp.exe] is different from before.";
+						string msg = "Your [yt-dlp.exe] is different from before.";
+						if (cfg.getInt("MAINTENANCE", "update_ytdlp") > 0)
+						{
+							msg += "\r\n\r\nThe setting of [update_ytdlp] is reset.";
+						}
 						HostMessageBox(msg, "[yt-dlp] ALERT", 0, 0);
+						cfg.deleteKey("MAINTENANCE", "update_ytdlp");
 						error = -1; return error;
 					}
 					else
@@ -1170,9 +1173,83 @@ class YTDLP
 			int pos = output.findLastNotOf("\r\n");
 			if (pos >= 0) output = output.Left(pos + 1);
 		}
-		HostMessageBox(output, "[yt-dlp] Update yt-dlp.exe", 2, 1);
+		HostMessageBox(output, "[yt-dlp] INFO: Update yt-dlp.exe", 2, 1);
 		error = -1;
 		ytd.checkYtdlpInfo();
+	}
+	
+	void _printImportant(string log)
+	{
+		if (log.empty()) return;
+		string strOut = "";
+		string str = log;
+		string str0;
+		do {
+			str0 = str;
+			array<dictionary> match;
+			if (HostRegExpParse(str, "^(?:ERROR|WARNING):", match))
+			{
+				string s1, s2;
+				match[0].get("first", s1);
+				match[0].get("second", s2);
+				int pos1 = str.size() - s2.size() - s1.size();
+				int pos2 = str.find("\n", pos1);
+				if (pos2 >= 0) pos2 += 1; else pos2 = str.size();
+				strOut += str.substr(pos1, pos2 - pos1);
+				str = str.substr(pos2);
+			}
+		} while (str.size() < str0.size());
+		HostPrintUTF8(strOut);
+	}
+	
+	int _checkAutoUpdate(string output)
+	{
+		if (cfg.getInt("MAINTENANCE", "update_ytdlp") == 1)
+		{
+			int pos1 = output.find("\n[debug] Downloading yt-dlp.exe ");
+			if (pos1 >= 0)
+			{
+				pos1 = output.find("\n", pos1 + 1);
+				if (pos1 >= 0)
+				{
+					pos1 += 1;
+					string msg;
+					if (output.substr(pos1, 7) == "ERROR: ")
+					{
+						msg = "A newer version of [yt-dlp.exe] is found on the website, but...\r\n\r\n";
+						pos1 += 7;
+						if (output.find("Unable to write", pos1) == pos1)
+						{
+							msg +=
+							"Unable to overwrite [yt-dlp.exe] here.\r\n"
+							+ fileExe + "\r\n\r\n"
+							"Replace it manually or try to run PotPlayer with administrator privileges.\r\n";
+						}
+						else
+						{
+							int pos2 = output.find("\n", pos1);
+							if (pos2 >= 0) pos2 += 1; else pos2 = output.size();
+							msg += output.substr(pos1, pos2 - pos1);
+						}
+						msg += "\r\nThe setting of [update_ytdlp] is reset.";
+						HostMessageBox(msg, "[yt-dlp] ERROR: Auto update", 0, 0);
+						cfg.setInt("MAINTENANCE", "update_ytdlp", 0);
+						return -1;
+					}
+					else
+					{
+						int pos2 = output.find("\n", pos1);
+						if (pos2 >= 0) pos2 += 1; else pos2 = output.size();
+						msg = output.substr(pos1, pos2 - pos1);
+						HostMessageBox(msg, "[yt-dlp] INFO: Auto update", 2, 0);
+						ytd.error = -1;
+						ytd.checkYtdlpInfo();
+						return 1;
+					}
+				}
+			}
+		}
+		return 0;
 	}
 	
 	array<string> _getEntries(const string str, uint &out posLog)
@@ -1288,11 +1365,9 @@ class YTDLP
 		
 		if (cfg.getInt("NETWORK", "no_check_certificates") == 1) options += " --no-check-certificates";
 		
-		if (cfg.consoleOut > 1) options += " -v";	//Verbose log
-		
 		if (cfg.getInt("MAINTENANCE", "update_ytdlp") == 1) options += " -U";
 		
-		options += " -j --no-playlist --all-subs -- \"" + url + "\"";
+		options += " -j -v --no-playlist --all-subs -- \"" + url + "\"";
 			//Note: "-j" must be in lower case.
 		
 		if (waitOutputs.find(url) < 0)
@@ -1308,18 +1383,20 @@ class YTDLP
 		
 		uint posLog;
 		array<string> entries = _getEntries(output, posLog);
+		string log = output.substr(posLog).TrimLeft("\r\n");
 		
 		if (cfg.consoleOut == 1)
 		{
-			string log = output.substr(posLog).TrimLeft("\r\n");
-			if (!log.empty()) HostPrintUTF8(log);
+			_printImportant(log);
 		}
 		else if (cfg.consoleOut == 2)
 		{
 			HostPrintUTF8(output);
 		}
-		if (entries.size() == 0)
 		
+		_checkAutoUpdate(log);
+		
+		if (entries.size() == 0)
 		{
 			if (output.find("ERROR:") < 0 && output.find("WARNING:") < 0)
 			{
@@ -1343,7 +1420,7 @@ YTDLP ytd;
 void OnInitialize()
 {
 	//called when loading script at first
-	if (cfg.consoleOut == 10) HostOpenConsole();
+	if (SCRIPT_VERSION.Right(1) == "#") HostOpenConsole();	//debug version
 	cfg.loadFile();
 	ytd.checkYtdlpInfo();
 }
@@ -1377,7 +1454,7 @@ void ApplyConfigFile()
 	if (!cfg.loadFile())
 	{
 		string msg = "The script cannot apply the configuration.\r\n";
-		HostMessageBox(msg, "[yt-dlp] Default config file error", 0, 0);
+		HostMessageBox(msg, "[yt-dlp] ERROR: Default config file", 0, 0);
 	}
 }
 
@@ -1446,11 +1523,11 @@ bool _IsYoutubeUrl(string url)
 string _GetUrlExtension(string url)
 {
 	url.MakeLower();
-	array<dictionary> dicsMatch;
-	if (HostRegExpParse(url, "^https?://[^\\?#]+/[^\\/?#]+\\.(\\w+)(?:[?#].+)?$", dicsMatch))
+	array<dictionary> match;
+	if (HostRegExpParse(url, "^https?://[^\\?#]+/[^\\/?#]+\\.(\\w+)(?:[?#].+)?$", match))
 	{
 		string ext;
-		dicsMatch[1].get("first", ext);
+		match[1].get("first", ext);
 		return ext;
 	}
 	return "";
@@ -1750,27 +1827,16 @@ string PlayitemParse(const string &in path, dictionary &MetaData, array<dictiona
 		return "";
 	}
 	JsonValue jVersion = root["_version"];
-	if (!jVersion.isObject()) {ytd.criticalError(); return "";}
+	if (!jVersion.isObject())
+	{
+		ytd.criticalError(); return "";
+	}
 	else
 	{
 		string version = _GetJsonValueString(jVersion, "version");
-		if (version.empty()) {ytd.criticalError(); return "";}
-		else
+		if (version.empty())
 		{
-			if (version != ytd.version)
-			{
-				if (cfg.getInt("MAINTENANCE", "update_ytdlp") == 1)
-				{
-					string msg = "[yt-dlp.exe] is up to date.\r\nversion: " + version;
-					HostMessageBox(msg, "[yt-dlp]", 2, 0);
-					ytd.error = -1;
-					ytd.checkYtdlpInfo();
-				}
-				else
-				{
-					ytd.criticalError(); return "";
-				}
-			}
+			ytd.criticalError(); return "";
 		}
 	}
 	string extractor = _GetJsonValueString(root, "extractor_key");
@@ -1958,7 +2024,7 @@ string PlayitemParse(const string &in path, dictionary &MetaData, array<dictiona
 			}
 			else
 			{
-				if (qualityIdx == -1) continue;	//audio for non-merged in youtube
+				if (qualityIdx == -1 && !isLive) continue;	//audio for non-merged in youtube
 				if (aExt != "none" || acodec != "none")
 				{
 					va = "a";	//audio only
