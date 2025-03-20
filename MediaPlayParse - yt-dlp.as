@@ -5,8 +5,8 @@
   Placed in \PotPlayer\Extension\Media\PlayParse\
 *************************************************************/
 
+string SCRIPT_VERSION = "250321";
 
-string SCRIPT_VERSION = "250320-1";
 
 string YTDLP_EXE = "Module\\yt-dlp.exe";
 	//yt-dlp executable file; relative path to HostGetExecuteFolder(); (required)
@@ -14,7 +14,7 @@ string YTDLP_EXE = "Module\\yt-dlp.exe";
 string SCRIPT_CONFIG_DEFAULT = "yt-dlp_default.ini";
 	//default configuration file; placed in HostGetScriptFolder(); (required)
 
-string SCRIPT_CONFIG = "Extension\\Media\\PlayParse\\yt-dlp.ini";
+string SCRIPT_CONFIG_CUSTOM = "Extension\\Media\\PlayParse\\yt-dlp.ini";
 	//configuration file; relative path to HostGetConfigFolder()
 	//created automatically by this script
 
@@ -26,7 +26,10 @@ string RADIO_IMAGE_2 = "yt-dlp_radio2.jpg";
 class FileConfig
 {
 	string codeDef;	//character code of the default config file
+	
+	bool isAlert = false;
 	bool isDefaultError = false;
+	bool isSaveError = false;
 	
 	string BOM_UTF8 = "\xEF\xBB\xBF";
 	string BOM_UTF16LE = "\xFF\xFE";
@@ -99,7 +102,7 @@ class FileConfig
 		return str;
 	}
 	
-	string readFileDef(bool &inout isAlert)
+	string readFileDef()
 	{
 		string str;
 		string msg = "";
@@ -195,7 +198,7 @@ class FileConfig
 	uintptr openFileCst(string &out str)
 	{
 		str = "";
-		uintptr fp = _createFolderFile(SCRIPT_CONFIG);
+		uintptr fp = _createFolderFile(SCRIPT_CONFIG_CUSTOM);
 		if (fp > 0)
 		{
 			str = HostFileRead(fp, HostFileLength(fp));
@@ -231,6 +234,24 @@ class FileConfig
 		else
 		{
 			writeState = -1;
+		}
+		
+		if (writeState > 0)
+		{
+			isSaveError = false;
+		}
+		else
+		{
+			isSaveError = true;
+			if (isAlert)
+			{
+				isAlert = false;
+				string msg =
+				"The script cannot create or save the config file.\r\n"
+				"Please confirm that this file is writable;\r\n\r\n"
+				+ HostGetConfigFolder() + SCRIPT_CONFIG_CUSTOM;
+				HostMessageBox(msg, "[yt-dlp] ERROR: File save", 0, 0);
+			}
 		}
 		return writeState;
 	}
@@ -287,10 +308,9 @@ class CFG
 	dictionary kdsCst;	//customized data
 		// {section, {key, KeyData}} dictionary with dictionary
 	
+	//specific properties of each script
 	int consoleOut = 0;
-	
-	bool isAlert = false;
-	bool isSaveError = false;
+	string baseLang;
 	
 	int _searchBlankLine(string str, int pos)
 	{
@@ -496,7 +516,7 @@ class CFG
 	
 	bool _loadDef()
 	{
-		string str = fc.readFileDef(isAlert);
+		string str = fc.readFileDef();
 		if (str.empty()) return false;
 		
 		kdsDef = {};
@@ -667,7 +687,7 @@ class CFG
 				else
 				{
 					//Add the missing key
-					kd.areaStr = _getCfgStr(true, section, key);
+					kd.areaStr = _getCfgStrDef(section, key);
 				}
 				_parseKeyDataCst(kd);
 				_kds.set(key, kd);
@@ -728,7 +748,7 @@ class CFG
 				//Add the missing section
 				for (uint i = 0; i < sections.size(); i++)
 				{
-					string sectAreaDef = _getCfgStr(true, sections[i]);
+					string sectAreaDef = _getCfgStrDef(sections[i]);
 					if (!sectAreaDef.empty())
 					{
 						sectionNamesCst.insertLast(sections[i]);
@@ -781,6 +801,16 @@ class CFG
 		return str;
 	}
 	
+	string _getCfgStrDef()
+	{
+		return _getCfgStr(true);
+	}
+	
+	string _getCfgStrCst()
+	{
+		return _getCfgStr(false);
+	}
+	
 	string _getCfgStr(bool isDef, string section)
 	{
 		dictionary kds;
@@ -819,6 +849,16 @@ class CFG
 		return str;
 	}
 	
+	string _getCfgStrDef(string section)
+	{
+		return _getCfgStr(true, section);
+	}
+	
+	string _getCfgStrCst(string section)
+	{
+		return _getCfgStr(false, section);
+	}
+	
 	string _getCfgStr(bool isDef, string section, string key)
 	{
 		if (key.Left(1) == "#" && !isDef) key = key.substr(1);	//hidden key
@@ -842,6 +882,16 @@ class CFG
 		return str;
 	}
 	
+	string _getCfgStrDef(string section, string key)
+	{
+		return _getCfgStr(true, section, key);
+	}
+	
+	string _getCfgStrCst(string section, string key)
+	{
+		return _getCfgStr(false, section, key);
+	}
+	
 	bool loadFile()
 	{
 		if (!_loadDef()) return false;
@@ -850,47 +900,45 @@ class CFG
 		uintptr fp = fc.openFileCst(str0);
 		
 		string str1 = str0;
-		if (str1.empty()) str1 = _getCfgStr(true);
+		if (str1.empty()) str1 = _getCfgStrDef();
 		_loadCst(str1);
 		
-		int critical_error = getInt("MAINTENANCE", "critical_error");
-		if (critical_error == 0) deleteKey("MAINTENANCE", "critical_error");
-		if (critical_error != 0 || ytd.error != 0) deleteKey("MAINTENANCE", "update_ytdlp");
-		
-		string str2 = _getCfgStr(false);
-		
-		if (fc.closeFileCst(fp, str2 != str0, str2) > 0)
 		{
-			isSaveError = false;
-		}
-		else
-		{
-			isSaveError = true;
-			if (isAlert)
+			//specific processes of each script
+			int criticalError = getInt("MAINTENANCE", "critical_error");
+			if (criticalError == 0)
 			{
-				isAlert = false;
-				string msg =
-				"The script cannot create or save the config file.\r\n"
-				"Please confirm that this folder is writable;\r\n\r\n"
-				+ HostGetConfigFolder() + "Extension\\";
-				HostMessageBox(msg, "[yt-dlp] ERROR: File save", 0, 0);
+				deleteKey("MAINTENANCE", "critical_error", false);
+			}
+			if (criticalError != 0 || ytd.error != 0)
+			{
+				deleteKey("MAINTENANCE", "update_ytdlp", false);
 			}
 		}
 		
-		consoleOut = getInt("MAINTENANCE", "console_out");
+		string str2 = _getCfgStrCst();
+		
+		fc.closeFileCst(fp, str2 != str0, str2);
+		
+		{
+			//specific properties of each script
+			consoleOut = getInt("MAINTENANCE", "console_out");
+			baseLang = cfg.getStr("YOUTUBE", "base_lang");
+			if (baseLang.size() < 2) baseLang = HostIso639LangName();
+		}
 		
 		return true;
 	}
 	
-	int _saveFile()
+	int saveFile()
 	{
 		string str0;
 		uintptr fp = fc.openFileCst(str0);
-		string str1 = _getCfgStr(false);
+		string str1 = _getCfgStrCst();
 		return fc.closeFileCst(fp, str1 != str0, str1);
 	}
 	
-	bool deleteKey(string section, string key)
+	bool deleteKey(string section, string key, bool isSave = true)
 	{
 		dictionary _kds;
 		if (kdsCst.get(section, _kds))
@@ -901,11 +949,16 @@ class CFG
 				kd.init();
 				_kds.set(key, kd);
 				kdsCst.set(section, _kds);
-				_saveFile();
+				if (isSave) saveFile();
 				return true;
 			}
 		}
 		return false;
+	}
+	
+	bool deleteKey(string key, bool isSave = true)
+	{
+		return deleteKey("", key, isSave);
 	}
 	
 	string _getValue(string section, string key, int useDef)
@@ -955,7 +1008,7 @@ class CFG
 		return parseInt(_getValue("", key, 0));
 	}
 	
-	string _setValue(string section, string key, string setValue)
+	string _setValue(string section, string key, string setValue, bool isSave)
 	{
 		dictionary _kds;
 		if (kdsCst.get(section, _kds))
@@ -968,10 +1021,10 @@ class CFG
 				{
 					kd.section = section;
 					kd.key = key;
-					kd.areaStr = _getCfgStr(true, section, key);
+					kd.areaStr = _getCfgStrDef(section, key);
 					if (kd.areaStr.empty())
 					{
-						kd.areaStr = _getCfgStr(true, section, "#" + key);
+						kd.areaStr = _getCfgStrDef(section, "#" + key);
 						if (kd.areaStr.Left(1) == "#") kd.areaStr = kd.areaStr.substr(1);
 					}
 					_parseKeyDataCst(kd);
@@ -1003,34 +1056,34 @@ class CFG
 				
 				_kds.set(key, kd);
 				kdsCst.set(section, _kds);
-				_saveFile();
+				if (isSave) saveFile();
 				return prevValue;
 			}
 		}
 		return "";
 	}
 	
-	string setStr(string section, string key, string sValue)
+	string setStr(string section, string key, string sValue, bool isSave = true)
 	{
-		string prevValue = _setValue(section, key, sValue);
+		string prevValue = _setValue(section, key, sValue, isSave);
 		return prevValue.Trim("\"");
 	}
 	
-	string setStr(string key, string sValue)
+	string setStr(string key, string sValue, bool isSave = true)
 	{
-		string prevValue = _setValue("", key, sValue);
+		string prevValue = _setValue("", key, sValue, isSave);
 		return prevValue.Trim("\"");
 	}
 	
-	int setInt(string section, string key, int iValue)
+	int setInt(string section, string key, int iValue, bool isSave = true)
 	{
-		string prevValue = _setValue(section, key, formatInt(iValue));
+		string prevValue = _setValue(section, key, formatInt(iValue), isSave);
 		return parseInt(prevValue);
 	}
 	
-	int setInt(string key, int iValue)
+	int setInt(string key, int iValue, bool isSave = true)
 	{
-		string prevValue = _setValue("", key, formatInt(iValue));
+		string prevValue = _setValue("", key, formatInt(iValue), isSave);
 		return parseInt(prevValue);
 	}
 	
@@ -1048,55 +1101,58 @@ class YTDLP
 	array<string> errors = {"(OK)", "(NOT FOUND)", "(LOOKS_DUMMY)", "(CRITICAL ERROR!)"};
 	int error = 0;
 	
-	int checkYtdlpInfo()
+	int _checkYtdlpInfo()
 	{
-		if (error == 3)
+		if (cfg.getInt("MAINTENANCE", "critical_error") != 0)
 		{
-			version = ""; return error;
+			return 3;
 		}
 		if (!HostFileExist(fileExe))
 		{
-			version = ""; error = 1; return error;
+			return 1;
 		}
 		
 		FileVersion verInfo;
 		if (!verInfo.Open(fileExe))
 		{
-			version = ""; error = 2; return error;
+			return 2;
 		}
 		else
 		{
-			bool isCheck = false;
+			bool isDoubt = false;
 			if (verInfo.GetProductName() != "yt-dlp" || verInfo.GetInternalName() != "yt-dlp")
 			{
-				isCheck = true;
+				isDoubt = true;
 			}
-			if (verInfo.GetOriginalFilename() != "yt-dlp.exe")
+			else if (verInfo.GetOriginalFilename() != "yt-dlp.exe")
 			{
-				isCheck = true;
+				isDoubt = true;
 			}
-			if (verInfo.GetCompanyName() != "https://github.com/yt-dlp")
+			else if (verInfo.GetCompanyName() != "https://github.com/yt-dlp")
 			{
-				isCheck = true;
+				isDoubt = true;
 			}
-			if (verInfo.GetLegalCopyright().find("UNLICENSE") < 0 || verInfo.GetProductVersion().find("Python") < 0)
+			else if (verInfo.GetLegalCopyright().find("UNLICENSE") < 0 || verInfo.GetProductVersion().find("Python") < 0)
 			{
-				isCheck = true;
+				isDoubt = true;
 			}
-			version = verInfo.GetFileVersion();	//get version
-			if (version.empty())
+			else
 			{
-				isCheck = true;
+				version = verInfo.GetFileVersion();	//get version
+				if (version.empty())
+				{
+					isDoubt = true;
+				}
 			}
 			
 			verInfo.Close();
-			if (isCheck)
+			if (isDoubt)
 			{
-				version = ""; error = 2; return error;
+				return 2;
 			}
 		}
 		
-		if (!fc.isDefaultError && !cfg.isSaveError)
+		if (!fc.isDefaultError && !fc.isSaveError)
 		{
 			uintptr fp = HostFileOpen(fileExe);
 			string data = HostFileRead(fp, HostFileLength(fp));
@@ -1104,14 +1160,15 @@ class YTDLP
 			string hash = HostHashSHA256(data);
 			if (hash.empty())
 			{
-				version = ""; error = 2; return error;
+				return 2;
 			}
 			else
 			{
 				string hash0 = cfg.getStr("MAINTENANCE", "ytdlp_hash");
 				if (hash0.empty())
 				{
-					string msg = "You are using a newly placed [yt-dlp.exe].";
+					string msg = "You are using a newly placed [yt-dlp.exe].\r\n\r\n";
+					msg += "current version: " + version;
 					HostMessageBox(msg, "[yt-dlp] INFO", 2, 0);
 					cfg.setStr("MAINTENANCE", "ytdlp_hash", hash);
 				}
@@ -1119,14 +1176,15 @@ class YTDLP
 				{
 					if (error >= 0)
 					{
-						string msg = "Your [yt-dlp.exe] is different from before.";
+						string msg = "Your [yt-dlp.exe] is different from before.\r\n\r\n";
+						msg += "current version: " + version;
+						msg += "\r\n\r\nContinue playing if you replaced it by yourself.";
 						if (cfg.getInt("MAINTENANCE", "update_ytdlp") > 0)
 						{
-							msg += "\r\n\r\nThe setting of [update_ytdlp] is reset.";
+							msg += "\r\nThe setting of [update_ytdlp] is reset.";
 						}
 						HostMessageBox(msg, "[yt-dlp] ALERT", 0, 0);
-						cfg.deleteKey("MAINTENANCE", "update_ytdlp");
-						error = -1; return error;
+						return -1;
 					}
 					else
 					{
@@ -1135,15 +1193,25 @@ class YTDLP
 				}
 			}
 		}
-		
-		error = 0; return error;
+		return 0;
+	}
+	
+	int checkYtdlpInfo()
+	{
+		error = _checkYtdlpInfo();
+		if (error != 0)
+		{
+			cfg.deleteKey("MAINTENANCE", "update_ytdlp");
+			if (error > 0) version = "";
+		}
+		return error;
 	}
 	
 	void criticalError()
 	{
 		version = "";
 		error = 3;
-		cfg.setInt("MAINTENANCE", "critical_error", 1);
+		cfg.setInt("MAINTENANCE", "critical_error", 1, false);
 		cfg.deleteKey("MAINTENANCE", "update_ytdlp");
 		string msg = "Please confirm that your [yt-dlp.exe] is real.\r\n";
 		HostPrintUTF8("\r\n[yt-dlp] CRITICAL ERROR! " + msg);
@@ -1166,9 +1234,74 @@ class YTDLP
 		ytd.checkYtdlpInfo();
 	}
 	
-	void _printImportant(string log)
+	bool _checkVersionLog(string log)
 	{
-		if (log.empty()) return;
+		int pos1 = log.find("\n[debug] yt-dlp version");
+		if (pos1 >= 0)
+		{
+			pos1 += 1;
+			int pos2 = log.find("\n", pos1);
+			if (pos2 >= 0) pos2 += 1; else pos2 = log.size();
+			string str = log.substr(pos1, pos2 - pos1);
+			if (str.find(version) >= 0) return true;
+		}
+		return false;
+	}
+	
+	int _checkAutoUpdate(string log)
+	{
+		if (cfg.getInt("MAINTENANCE", "update_ytdlp") == 1)
+		{
+			int pos1 = log.find("\n[debug] Downloading yt-dlp.exe ");
+			if (pos1 >= 0)
+			{
+				pos1 = log.find("\n", pos1 + 1);
+				if (pos1 >= 0)
+				{
+					pos1 += 1;
+					string msg;
+					if (log.substr(pos1, 7) == "ERROR: ")
+					{
+						msg =
+						"A newer version of [yt-dlp.exe] is found on the website,\r\n"
+						"but automatic update failed.\r\n\r\n";
+						pos1 += 7;
+						if (log.find("Unable to write", pos1) == pos1)
+						{
+							msg +=
+							"Unable to overwrite [yt-dlp.exe] here.\r\n"
+							+ fileExe + "\r\n\r\n"
+							"Replace it manually or try to run PotPlayer with administrator privileges.\r\n";
+						}
+						else
+						{
+							int pos2 = log.find("\n", pos1);
+							if (pos2 >= 0) pos2 += 1; else pos2 = log.size();
+							msg += log.substr(pos1, pos2 - pos1);
+						}
+						msg += "\r\nThe setting of [update_ytdlp] is reset.";
+						HostMessageBox(msg, "[yt-dlp] ERROR: Auto update", 0, 0);
+						cfg.setInt("MAINTENANCE", "update_ytdlp", 0);
+						return -1;
+					}
+					else
+					{
+						int pos2 = log.find("\n", pos1);
+						if (pos2 >= 0) pos2 += 1; else pos2 = log.size();
+						msg = log.substr(pos1, pos2 - pos1);
+						HostMessageBox(msg, "[yt-dlp] INFO: Auto update", 2, 0);
+						ytd.error = -1;
+						ytd.checkYtdlpInfo();
+						return 1;
+					}
+				}
+			}
+		}
+		return 0;
+	}
+	
+	string _extractLines(string log)
+	{
 		string strOut = "";
 		string str = log;
 		string str0;
@@ -1187,57 +1320,8 @@ class YTDLP
 				str = str.substr(pos2);
 			}
 		} while (str.size() < str0.size());
-		HostPrintUTF8(strOut);
-	}
-	
-	int _checkAutoUpdate(string output)
-	{
-		if (cfg.getInt("MAINTENANCE", "update_ytdlp") == 1)
-		{
-			int pos1 = output.find("\n[debug] Downloading yt-dlp.exe ");
-			if (pos1 >= 0)
-			{
-				pos1 = output.find("\n", pos1 + 1);
-				if (pos1 >= 0)
-				{
-					pos1 += 1;
-					string msg;
-					if (output.substr(pos1, 7) == "ERROR: ")
-					{
-						msg = "A newer version of [yt-dlp.exe] is found on the website, but...\r\n\r\n";
-						pos1 += 7;
-						if (output.find("Unable to write", pos1) == pos1)
-						{
-							msg +=
-							"Unable to overwrite [yt-dlp.exe] here.\r\n"
-							+ fileExe + "\r\n\r\n"
-							"Replace it manually or try to run PotPlayer with administrator privileges.\r\n";
-						}
-						else
-						{
-							int pos2 = output.find("\n", pos1);
-							if (pos2 >= 0) pos2 += 1; else pos2 = output.size();
-							msg += output.substr(pos1, pos2 - pos1);
-						}
-						msg += "\r\nThe setting of [update_ytdlp] is reset.";
-						HostMessageBox(msg, "[yt-dlp] ERROR: Auto update", 0, 0);
-						cfg.setInt("MAINTENANCE", "update_ytdlp", 0);
-						return -1;
-					}
-					else
-					{
-						int pos2 = output.find("\n", pos1);
-						if (pos2 >= 0) pos2 += 1; else pos2 = output.size();
-						msg = output.substr(pos1, pos2 - pos1);
-						HostMessageBox(msg, "[yt-dlp] INFO: Auto update", 2, 0);
-						ytd.error = -1;
-						ytd.checkYtdlpInfo();
-						return 1;
-					}
-				}
-			}
-		}
-		return 0;
+		
+		return strOut;
 	}
 	
 	array<string> _getEntries(const string str, uint &out posLog)
@@ -1375,11 +1459,17 @@ class YTDLP
 		
 		if (cfg.consoleOut == 1)
 		{
-			_printImportant(log);
+			HostPrintUTF8(_extractLines(log));
 		}
 		else if (cfg.consoleOut == 2)
 		{
 			HostPrintUTF8(output);
+		}
+		
+		if (!_checkVersionLog(log))
+		{
+			criticalError();
+			return {};
 		}
 		
 		_checkAutoUpdate(log);
@@ -1418,11 +1508,22 @@ string GetTitle()
 {
 	//called when loading script and closing config panel with ok button
 	string scriptName = "yt-dlp " + SCRIPT_VERSION;
-	if (cfg.getInt("MAINTENANCE", "critical_error") != 0) ytd.error = 3;
-	if (ytd.error > 0) scriptName += " " + ytd.errors[ytd.error];
-	else if (cfg.getInt("SWITCH", "stop") == 1) scriptName += " (STOP)";
-	else if (cfg.getStr("COOKIE", "cookie_file").size() > 3) scriptName += " (cookie file)";
-	else if (cfg.getStr("COOKIE", "browser_name").size() > 3) scriptName += " (cookie " + cfg.getStr("COOKIE", "browser_name") + ")";
+	if (ytd.error > 0)
+	{
+		scriptName += " " + ytd.errors[ytd.error];
+	}
+	else if (cfg.getInt("SWITCH", "stop") == 1)
+	{
+		scriptName += " (STOP)";
+	}
+	else if (cfg.getStr("COOKIE", "cookie_file").size() > 3)
+	{
+		scriptName += " (cookie file)";
+	}
+	else if (cfg.getStr("COOKIE", "browser_name").size() > 3)
+	{
+		scriptName += " (cookie " + cfg.getStr("COOKIE", "browser_name") + ")";
+	}
 	return scriptName;
 }
 
@@ -1430,9 +1531,9 @@ string GetTitle()
 string GetConfigFile()
 {
 	//called when opening config panel
-	cfg.isAlert = true;
+	fc.isAlert = true;
 	cfg.loadFile();
-	return SCRIPT_CONFIG;
+	return SCRIPT_CONFIG_CUSTOM;
 }
 
 
@@ -1452,8 +1553,8 @@ string GetDesc()
 	//called when opening info panel
 	if (cfg.getInt("MAINTENANCE", "update_ytdlp") == 2)
 	{
-		ytd.updateVersion();
 		cfg.setInt("MAINTENANCE", "update_ytdlp", 0);
+		ytd.updateVersion();
 	}
 	else
 	{
@@ -1572,7 +1673,6 @@ bool PlayitemCheck(const string &in path)
 {
 	//called when an item is being opened after PlaylistCheck or PlaylistParse
 	
-	if (cfg.getInt("MAINTENANCE", "critical_error") != 0) ytd.error = 3;
 	if (ytd.error == 3 || cfg.getInt("SWITCH", "stop") == 1) return false;
 	
 	path.MakeLower();
@@ -1654,7 +1754,7 @@ string _JudgeDomain(string domain)
 }
 
 
-bool _SelectAutoSub(string code, array<dictionary> dicsSub, string baseLang)
+bool _SelectAutoSub(string code, array<dictionary> dicsSub)
 {
 	if (code.empty()) return false;
 	
@@ -1665,7 +1765,7 @@ bool _SelectAutoSub(string code, array<dictionary> dicsSub, string baseLang)
 		//original language of contents
 		lang = code.Left(pos);
 	}
-	else if (HostRegExpParse(code, "^" + baseLang + "\\b", {}))
+	else if (HostRegExpParse(code, "^" + cfg.baseLang + "\\b", {}))
 	{
 		//user's base language
 		//If baseLang is "pt", both "pt-BR" and "pt-PT" are considered to be match.
@@ -1812,11 +1912,12 @@ string PlayitemParse(const string &in path, dictionary &MetaData, array<dictiona
 	if (!reader.parse(json, root) || !root.isObject())
 	{
 		if (cfg.consoleOut > 0) HostPrintUTF8("[yt-dlp] ERROR! Json data corrupted.\r\n");
-		return "";
+		ytd.criticalError(); return "";
 	}
 	JsonValue jVersion = root["_version"];
 	if (!jVersion.isObject())
 	{
+		if (cfg.consoleOut > 0) HostPrintUTF8("[yt-dlp] ERROR! No version info.\r\n");
 		ytd.criticalError(); return "";
 	}
 	else
@@ -1824,6 +1925,7 @@ string PlayitemParse(const string &in path, dictionary &MetaData, array<dictiona
 		string version = _GetJsonValueString(jVersion, "version");
 		if (version.empty())
 		{
+			if (cfg.consoleOut > 0) HostPrintUTF8("[yt-dlp] ERROR! No version info.\r\n");
 			ytd.criticalError(); return "";
 		}
 	}
@@ -1832,13 +1934,13 @@ string PlayitemParse(const string &in path, dictionary &MetaData, array<dictiona
 	if (extractor.empty())
 	{
 		if (cfg.consoleOut > 0) HostPrintUTF8("[yt-dlp] ERROR! No extractor.\r\n");
-		return "";
+		ytd.criticalError(); return "";
 	}
 	string webUrl = _GetJsonValueString(root, "webpage_url");
 	if (webUrl.empty())
 	{
 		if (cfg.consoleOut > 0) HostPrintUTF8("[yt-dlp] ERROR! No webpage url.\r\n");
-		return "";
+		ytd.criticalError(); return "";
 	}
 	
 	int playlistIdx = _GetJsonValueInt(root, "playlist_index");
@@ -2241,14 +2343,11 @@ string PlayitemParse(const string &in path, dictionary &MetaData, array<dictiona
 		jSubtitles = root["automatic_captions"];
 		if (jSubtitles.isObject())
 		{
-			string baseLang = cfg.getStr("YOUTUBE", "base_lang");
-			if (baseLang.size() < 2) baseLang = HostIso639LangName();
-			
 			array<string> subs = jSubtitles.getKeys();
 			for (uint i = 0; i < subs.size(); i++)
 			{
 				string langCode = subs[i];
-				if (_SelectAutoSub(langCode, dicsSub, baseLang))
+				if (_SelectAutoSub(langCode, dicsSub))
 				{
 					JsonValue jSubs = jSubtitles[langCode];
 					if (jSubs.isArray())
