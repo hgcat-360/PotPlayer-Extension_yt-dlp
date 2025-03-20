@@ -6,7 +6,7 @@
 *************************************************************/
 
 
-string SCRIPT_VERSION = "250320";
+string SCRIPT_VERSION = "250320-1";
 
 string YTDLP_EXE = "Module\\yt-dlp.exe";
 	//yt-dlp executable file; relative path to HostGetExecuteFolder(); (required)
@@ -23,55 +23,10 @@ string RADIO_IMAGE_2 = "yt-dlp_radio2.jpg";
 	//radio image files; placed in HostGetScriptFolder()
 
 
-class KeyData
+class FileConfig
 {
-	string section;
-	string key;
-	string areaStr;
-	string value;
-	int state = -1;
-	int keyTop = -1;
-	int valueTop = -1;
-	int areaTop = -1;
-	
-	KeyData(string _section, string _key)
-	{
-		section = _section;
-		key = _key;
-	}
-	
-	KeyData()
-	{
-	}
-	
-	void init()
-	{
-		areaStr = "";
-		value = "";
-		state = -1;
-		keyTop = -1;
-		valueTop = -1;
-		areaTop = -1;
-	}
-};
-
-class CFG
-{
-	string defCode;	//character code of the default config file
-	array<string> sectionNamesDef;	//default section names
-	array<string> sectionNamesCst;	//customize section order
-	dictionary keyNames;	//{section, {key}} dictionary with array
-	
-	dictionary kdsDef;	//default data
-	dictionary kdsCst;	//customized data
-		// {section, {key, KeyData}} dictionary with dictionary
-	
-	int consoleOut = 0;
-	string baseLang;
-	
-	bool isAlert = false;
+	string codeDef;	//character code of the default config file
 	bool isDefaultError = false;
-	bool isSaveError = false;
 	
 	string BOM_UTF8 = "\xEF\xBB\xBF";
 	string BOM_UTF16LE = "\xFF\xFE";
@@ -144,37 +99,7 @@ class CFG
 		return str;
 	}
 	
-	bool _createFolder(string folder)
-	{
-		//this folder is relative to HostGetConfigFolder()
-		//it doesn't includ a file name
-		if (HostFolderExist(HostGetConfigFolder() + folder)) return true;
-		if (folder.empty()) return false;
-		
-		int pos = folder.findLast("\\");
-		string folderParent = (pos >= 0) ? folder.Left(pos) : "";
-		if (_createFolder(folderParent))
-		{
-			return HostFolderCreate(folder);
-		}
-		return false;
-	}
-	
-	uintptr _createFolderFile(string path)
-	{
-		//this path is relative to HostGetConfigFolder()
-		//it includs a file name
-		string folder = path;
-		int pos = folder.findLast("\\");
-		folder = (pos >= 0) ? folder.Left(pos) : "";
-		if (_createFolder(folder))
-		{
-			return HostFileCreate(path);
-		}
-		return 0;
-	}
-	
-	string _readFileDefault()
+	string readFileDef(bool &inout isAlert)
 	{
 		string str;
 		string msg = "";
@@ -200,14 +125,14 @@ class CFG
 			}
 			else
 			{
-				str = _changeToUtf8Basic(str, defCode);
+				str = _changeToUtf8Basic(str, codeDef);
 				if (!HostRegExpParse(str, "^\\w+=", {}))
 				{
 					msg =
 					"The script cannot read this default config file.\r\n"
 					"Please use a proper file.\r\n"
 					"(Supported character code: UTF8(bom) or UTF16 LE)\r\n\r\n";
-					defCode = "";
+					codeDef = "";
 				}
 			}
 		}
@@ -216,7 +141,7 @@ class CFG
 			msg =
 			"The following default config file is not found.\r\n"
 			"Please place it together with the script file.\r\n\r\n";
-			defCode = "";
+			codeDef = "";
 		}
 		
 		if (msg.empty())
@@ -237,7 +162,37 @@ class CFG
 		return str;
 	}
 	
-	uintptr _openFile(string &out str)
+	bool _createFolder(string folder)
+	{
+		//this folder is relative to HostGetConfigFolder()
+		//it doesn't include a file name
+		if (HostFolderExist(HostGetConfigFolder() + folder)) return true;
+		if (folder.empty()) return false;
+		
+		int pos = folder.findLast("\\");
+		string folderParent = (pos >= 0) ? folder.Left(pos) : "";
+		if (_createFolder(folderParent))
+		{
+			return HostFolderCreate(folder);
+		}
+		return false;
+	}
+	
+	uintptr _createFolderFile(string path)
+	{
+		//this path is relative to HostGetConfigFolder()
+		//it includes a file name
+		string folder = path;
+		int pos = folder.findLast("\\");
+		folder = (pos >= 0) ? folder.Left(pos) : "";
+		if (_createFolder(folder))
+		{
+			return HostFileCreate(path);
+		}
+		return 0;
+	}
+	
+	uintptr openFileCst(string &out str)
 	{
 		str = "";
 		uintptr fp = _createFolderFile(SCRIPT_CONFIG);
@@ -251,14 +206,14 @@ class CFG
 		return fp;
 	}
 	
-	int _closeFile(uintptr fp, bool isWrite, string str)
+	int closeFileCst(uintptr fp, bool isWrite, string str)
 	{
 		int writeState = 0;
 		if (fp > 0)
 		{
 			if (isWrite)
 			{
-				str = _changeFromUtf8Basic(str, defCode);
+				str = _changeFromUtf8Basic(str, codeDef);
 				if (HostFileSetLength(fp, 0) == 0)
 				{
 					if (HostFileWrite(fp, str) == int(str.size()))
@@ -280,9 +235,66 @@ class CFG
 		return writeState;
 	}
 	
+};
+
+FileConfig fc;
+
+//----------------------- END of class FileConfig -------------------------
+
+
+class KeyData
+{
+	string section;
+	string key;
+	string areaStr;
+	string value;
+	int state = -1;
+	int keyTop = -1;
+	int valueTop = -1;
+	int areaTop = -1;
+	
+	KeyData(string _section, string _key)
+	{
+		section = _section;
+		key = _key;
+	}
+	
+	KeyData()
+	{
+	}
+	
+	void init()
+	{
+		areaStr = "";
+		value = "";
+		state = -1;
+		keyTop = -1;
+		valueTop = -1;
+		areaTop = -1;
+	}
+};
+
+//----------------------- END of class KeyData -------------------------
+
+
+class CFG
+{
+	array<string> sectionNamesDef;	//default section names
+	array<string> sectionNamesCst;	//customize section order
+	dictionary keyNames;	//{section, {key}} dictionary with array
+	
+	dictionary kdsDef;	//default data
+	dictionary kdsCst;	//customized data
+		// {section, {key, KeyData}} dictionary with dictionary
+	
+	int consoleOut = 0;
+	
+	bool isAlert = false;
+	bool isSaveError = false;
+	
 	int _searchBlankLine(string str, int pos)
 	{
-		if (pos == -1) pos = str.size();
+		if (pos == -1) pos = str.size() - 1;
 		pos = str.findLastNotOf("\r\n", pos);
 		if (pos < 0) pos = 0;
 		int pos0;
@@ -314,7 +326,7 @@ class CFG
 	int _addBlank(string &inout str, int &inout pos)
 	{
 		int add = 0;
-		if (pos == -1) pos = str.size();
+		if (pos == -1) pos = str.size() - 1;
 		pos = str.findLastNotOf("\r\n", pos);
 		if (pos < 0) pos = 0;
 		else pos += 1;
@@ -349,35 +361,11 @@ class CFG
 		return _addBlank(str, pos);
 	}
 	
-	int _getSectionSeparator(string str, int from, bool isIncludeFrom = false)
+	int _getSectionSepaNext(string str, int from)
 	{
-		int pos;
-		if (isIncludeFrom && str.substr(from, 1) == "[")
-		{
-			pos = from;
-		}
-		else
-		{
-			pos = str.find("\n[", from);
-			if (pos >= 0) pos += 1; else pos = _getLastPos(str);
-		}
+		int pos = str.find("\n[", from);
+		if (pos >= 0) pos += 1; else pos = _getLastPos(str);
 		return pos;
-	}
-	
-	int _searchSectionTop(string str, string section)
-	{
-		int top = -1;
-		if (!str.empty())
-		{
-			section = "[" + section + "]";
-			if (str.Left(section.size()) == section) top = 0;
-			else
-			{
-				top = str.find("\n" + section);
-				if (top >= 0) top += 1;
-			}
-		}
-		return top;
 	}
 	
 	string _getSectionNext(string str, int &inout top)
@@ -408,7 +396,7 @@ class CFG
 		section = _getSectionNext(str, top);
 		if (top >= 0)
 		{
-			int end = _getSectionSeparator(str, top);
+			int end = _getSectionSepaNext(str, top);
 			sectArea = str.substr(top, end - top);
 		}
 		return sectArea;
@@ -426,7 +414,7 @@ class CFG
 			match[0].get("first", s1);
 			match[0].get("second", s2);
 			int _top = _str.size() - s2.size() - s1.size();
-			if (_top <= _getSectionSeparator(_str, 0))
+			if (_top <= _getSectionSepaNext(_str, 0))
 			{
 				match[1].get("first", key);
 				top += _top;
@@ -445,7 +433,7 @@ class CFG
 		if (top >= 0)
 		{
 			int end = _searchBlankLine(str, top);
-			int sepa = _getSectionSeparator(str, top);
+			int sepa = _getSectionSepaNext(str, top);
 			if (end > sepa) end = sepa;
 			keyArea = str.substr(top, end - top);
 		}
@@ -466,7 +454,7 @@ class CFG
 		return top;
 	}
 	
-	void _parseKeyDataDefault(KeyData &inout kd)
+	void _parseKeyDataDef(KeyData &inout kd)
 	{
 		if (kd.key.empty()) {kd.init(); return;}
 		if (kd.areaStr.empty()) {kd.init(); return;}
@@ -482,7 +470,7 @@ class CFG
 	{
 		array<string> keys = {};
 		dictionary _kds;
-		int sepa = _getSectionSeparator(str, top);
+		int sepa = _getSectionSepaNext(str, top);
 		int top0;
 		do {
 			top0 = top;
@@ -493,7 +481,7 @@ class CFG
 				keys.insertLast(key);
 				KeyData kd(section, key);
 				kd.areaStr = keyArea;
-				_parseKeyDataDefault(kd);
+				_parseKeyDataDef(kd);
 				_kds.set(key, kd);
 				top += keyArea.size();
 			}
@@ -508,7 +496,7 @@ class CFG
 	
 	bool _loadDef()
 	{
-		string str = _readFileDefault();
+		string str = fc.readFileDef(isAlert);
 		if (str.empty()) return false;
 		
 		kdsDef = {};
@@ -569,7 +557,7 @@ class CFG
 		kd.areaStr = str;
 	}
 	
-	void _parseKeyData(KeyData &inout kd)
+	void _parseKeyDataCst(KeyData &inout kd)
 	{
 		array<string> patterns = {
 			"^[^\t\r\n]*\\b" + kd.key + " *=",	//comment out
@@ -681,7 +669,7 @@ class CFG
 					//Add the missing key
 					kd.areaStr = _getCfgStr(true, section, key);
 				}
-				_parseKeyData(kd);
+				_parseKeyDataCst(kd);
 				_kds.set(key, kd);
 			}
 		}
@@ -696,7 +684,15 @@ class CFG
 		if (sections.size() == 1 && sections[0] == "")
 		{
 			sectionNamesCst.insertLast("");
-			string sectArea = str.Left(_getSectionSeparator(str, 0, true));
+			string sectArea;
+			if (str.Left(1) == "[")
+			{
+				sectArea = "";
+			}
+			else
+			{
+				sectArea = str.Left(_getSectionSepaNext(str, 0));
+			}
 			__loadCst(sectArea, "");
 		}
 		else
@@ -851,7 +847,7 @@ class CFG
 		if (!_loadDef()) return false;
 		
 		string str0;
-		uintptr fp = _openFile(str0);
+		uintptr fp = fc.openFileCst(str0);
 		
 		string str1 = str0;
 		if (str1.empty()) str1 = _getCfgStr(true);
@@ -863,7 +859,7 @@ class CFG
 		
 		string str2 = _getCfgStr(false);
 		
-		if (_closeFile(fp, str2 != str0, str2) > 0)
+		if (fc.closeFileCst(fp, str2 != str0, str2) > 0)
 		{
 			isSaveError = false;
 		}
@@ -881,9 +877,6 @@ class CFG
 			}
 		}
 		
-		if (getStr("YOUTUBE", "base_lang").size() > 1) baseLang = getStr("YOUTUBE", "base_lang");
-		else baseLang = HostIso639LangName();
-		
 		consoleOut = getInt("MAINTENANCE", "console_out");
 		
 		return true;
@@ -892,9 +885,9 @@ class CFG
 	int _saveFile()
 	{
 		string str0;
-		uintptr fp = _openFile(str0);
+		uintptr fp = fc.openFileCst(str0);
 		string str1 = _getCfgStr(false);
-		return _closeFile(fp, str1 != str0, str1);
+		return fc.closeFileCst(fp, str1 != str0, str1);
 	}
 	
 	bool deleteKey(string section, string key)
@@ -981,7 +974,7 @@ class CFG
 						kd.areaStr = _getCfgStr(true, section, "#" + key);
 						if (kd.areaStr.Left(1) == "#") kd.areaStr = kd.areaStr.substr(1);
 					}
-					_parseKeyData(kd);
+					_parseKeyDataCst(kd);
 				}
 				
 				prevValue = kd.value;
@@ -1045,7 +1038,7 @@ class CFG
 
 CFG cfg;
 
-//----------------------- class CFG end -------------------------
+//----------------------- END of class CFG -------------------------
 
 
 class YTDLP
@@ -1103,7 +1096,7 @@ class YTDLP
 			}
 		}
 		
-		if (!cfg.isDefaultError && !cfg.isSaveError)
+		if (!fc.isDefaultError && !cfg.isSaveError)
 		{
 			uintptr fp = HostFileOpen(fileExe);
 			string data = HostFileRead(fp, HostFileLength(fp));
@@ -1409,7 +1402,7 @@ class YTDLP
 
 YTDLP ytd;
 
-//---------------------- class YTDLP end ------------------------
+//---------------------- END of class YTDLP ------------------------
 
 
 void OnInitialize()
@@ -1661,7 +1654,7 @@ string _JudgeDomain(string domain)
 }
 
 
-bool _SelectAutoSub(string code, array<dictionary> dicsSub)
+bool _SelectAutoSub(string code, array<dictionary> dicsSub, string baseLang)
 {
 	if (code.empty()) return false;
 	
@@ -1672,7 +1665,7 @@ bool _SelectAutoSub(string code, array<dictionary> dicsSub)
 		//original language of contents
 		lang = code.Left(pos);
 	}
-	else if (HostRegExpParse(code, "^" + cfg.baseLang + "\\b", {}))
+	else if (HostRegExpParse(code, "^" + baseLang + "\\b", {}))
 	{
 		//user's base language
 		//If baseLang is "pt", both "pt-BR" and "pt-PT" are considered to be match.
@@ -2248,11 +2241,14 @@ string PlayitemParse(const string &in path, dictionary &MetaData, array<dictiona
 		jSubtitles = root["automatic_captions"];
 		if (jSubtitles.isObject())
 		{
+			string baseLang = cfg.getStr("YOUTUBE", "base_lang");
+			if (baseLang.size() < 2) baseLang = HostIso639LangName();
+			
 			array<string> subs = jSubtitles.getKeys();
 			for (uint i = 0; i < subs.size(); i++)
 			{
 				string langCode = subs[i];
-				if (_SelectAutoSub(langCode, dicsSub))
+				if (_SelectAutoSub(langCode, dicsSub, baseLang))
 				{
 					JsonValue jSubs = jSubtitles[langCode];
 					if (jSubs.isArray())
