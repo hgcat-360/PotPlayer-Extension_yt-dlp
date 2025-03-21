@@ -5,7 +5,7 @@
   Placed in \PotPlayer\Extension\Media\PlayParse\
 *************************************************************/
 
-string SCRIPT_VERSION = "250321";
+string SCRIPT_VERSION = "250322";
 
 
 string YTDLP_EXE = "Module\\yt-dlp.exe";
@@ -27,7 +27,7 @@ class FileConfig
 {
 	string codeDef;	//character code of the default config file
 	
-	bool isAlert = false;
+	bool isShowMsg = false;
 	bool isDefaultError = false;
 	bool isSaveError = false;
 	
@@ -155,9 +155,9 @@ class FileConfig
 		{
 			isDefaultError = true;
 			str = "";
-			if (isAlert)
+			if (isShowMsg)
 			{
-				isAlert = false;
+				isShowMsg = false;
 				msg += HostGetScriptFolder() + "\r\n" + SCRIPT_CONFIG_DEFAULT;
 				HostMessageBox(msg, "[yt-dlp] ERROR: Default config file", 0, 0);
 			}
@@ -243,9 +243,9 @@ class FileConfig
 		else
 		{
 			isSaveError = true;
-			if (isAlert)
+			if (isShowMsg)
 			{
-				isAlert = false;
+				isShowMsg = false;
 				string msg =
 				"The script cannot create or save the config file.\r\n"
 				"Please confirm that this file is writable;\r\n\r\n"
@@ -923,7 +923,7 @@ class CFG
 		{
 			//specific properties of each script
 			consoleOut = getInt("MAINTENANCE", "console_out");
-			baseLang = cfg.getStr("YOUTUBE", "base_lang");
+			baseLang = getStr("YOUTUBE", "base_lang");
 			if (baseLang.size() < 2) baseLang = HostIso639LangName();
 		}
 		
@@ -1100,8 +1100,9 @@ class YTDLP
 	string version = "";
 	array<string> errors = {"(OK)", "(NOT FOUND)", "(LOOKS_DUMMY)", "(CRITICAL ERROR!)"};
 	int error = 0;
+	bool isCheckHash = false;
 	
-	int _checkYtdlpInfo()
+	int _checkInfo()
 	{
 		if (cfg.getInt("MAINTENANCE", "critical_error") != 0)
 		{
@@ -1152,7 +1153,7 @@ class YTDLP
 			}
 		}
 		
-		if (!fc.isDefaultError && !fc.isSaveError)
+		if (!fc.isDefaultError && !fc.isSaveError && isCheckHash)
 		{
 			uintptr fp = HostFileOpen(fileExe);
 			string data = HostFileRead(fp, HostFileLength(fp));
@@ -1196,14 +1197,15 @@ class YTDLP
 		return 0;
 	}
 	
-	int checkYtdlpInfo()
+	int checkInfo()
 	{
-		error = _checkYtdlpInfo();
+		error = _checkInfo();
 		if (error != 0)
 		{
 			cfg.deleteKey("MAINTENANCE", "update_ytdlp");
 			if (error > 0) version = "";
 		}
+		isCheckHash = false;
 		return error;
 	}
 	
@@ -1221,17 +1223,21 @@ class YTDLP
 	
 	void updateVersion()
 	{
-		if (version.empty()) ytd.checkYtdlpInfo();
+		checkInfo();
 		if (error != 0) return;
 		HostIncTimeOut(10000);
 		string output = HostExecuteProgram(fileExe, " -U");
+		if (output.find("Latest version:") < 0 && output.find("ERROR:") < 0)
 		{
-			int pos = output.findLastNotOf("\r\n");
-			if (pos >= 0) output = output.Left(pos + 1);
+			criticalError();
+			return;
 		}
+		int pos = output.findLastNotOf("\r\n");
+		if (pos >= 0) output = output.Left(pos + 1);
 		HostMessageBox(output, "[yt-dlp] INFO: Update yt-dlp.exe", 2, 1);
 		error = -1;
-		ytd.checkYtdlpInfo();
+		isCheckHash = true;
+		checkInfo();
 	}
 	
 	bool _checkVersionLog(string log)
@@ -1290,8 +1296,9 @@ class YTDLP
 						if (pos2 >= 0) pos2 += 1; else pos2 = log.size();
 						msg = log.substr(pos1, pos2 - pos1);
 						HostMessageBox(msg, "[yt-dlp] INFO: Auto update", 2, 0);
-						ytd.error = -1;
-						ytd.checkYtdlpInfo();
+						error = -1;
+						isCheckHash = true;
+						checkInfo();
 						return 1;
 					}
 				}
@@ -1353,7 +1360,8 @@ class YTDLP
 	
 	array<string> exec(string url, bool isPlaylist)
 	{
-		ytd.checkYtdlpInfo();
+		isCheckHash = true;
+		checkInfo();
 		if (error != 0) return {};
 		
 		if (cfg.consoleOut > 0) HostOpenConsole();
@@ -1500,7 +1508,7 @@ void OnInitialize()
 	//called when loading script at first
 	if (SCRIPT_VERSION.Right(1) == "#") HostOpenConsole();	//debug version
 	cfg.loadFile();
-	ytd.checkYtdlpInfo();
+	ytd.checkInfo();
 }
 
 
@@ -1531,7 +1539,7 @@ string GetTitle()
 string GetConfigFile()
 {
 	//called when opening config panel
-	fc.isAlert = true;
+	fc.isShowMsg = true;
 	cfg.loadFile();
 	return SCRIPT_CONFIG_CUSTOM;
 }
@@ -1558,7 +1566,8 @@ string GetDesc()
 	}
 	else
 	{
-		ytd.checkYtdlpInfo();
+		ytd.isCheckHash = true;
+		ytd.checkInfo();
 	}
 	
 	const string SITE_DEV = "https://github.com/yt-dlp/yt-dlp";
