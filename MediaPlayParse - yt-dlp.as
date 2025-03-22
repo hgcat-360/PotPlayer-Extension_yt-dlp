@@ -5,7 +5,7 @@
   Placed in \PotPlayer\Extension\Media\PlayParse\
 *************************************************************/
 
-string SCRIPT_VERSION = "250322";
+string SCRIPT_VERSION = "250322.1";
 
 
 string YTDLP_EXE = "Module\\yt-dlp.exe";
@@ -27,7 +27,7 @@ class FileConfig
 {
 	string codeDef;	//character code of the default config file
 	
-	bool isShowMsg = false;
+	bool isShowDialog = false;
 	bool isDefaultError = false;
 	bool isSaveError = false;
 	
@@ -155,9 +155,9 @@ class FileConfig
 		{
 			isDefaultError = true;
 			str = "";
-			if (isShowMsg)
+			if (isShowDialog)
 			{
-				isShowMsg = false;
+				isShowDialog = false;
 				msg += HostGetScriptFolder() + "\r\n" + SCRIPT_CONFIG_DEFAULT;
 				HostMessageBox(msg, "[yt-dlp] ERROR: Default config file", 0, 0);
 			}
@@ -243,9 +243,9 @@ class FileConfig
 		else
 		{
 			isSaveError = true;
-			if (isShowMsg)
+			if (isShowDialog)
 			{
-				isShowMsg = false;
+				isShowDialog = false;
 				string msg =
 				"The script cannot create or save the config file.\r\n"
 				"Please confirm that this file is writable;\r\n\r\n"
@@ -1100,9 +1100,8 @@ class YTDLP
 	string version = "";
 	array<string> errors = {"(OK)", "(NOT FOUND)", "(LOOKS_DUMMY)", "(CRITICAL ERROR!)"};
 	int error = 0;
-	bool isCheckHash = false;
 	
-	int _checkInfo()
+	int _checkInfo(bool isCheckHash)
 	{
 		if (cfg.getInt("MAINTENANCE", "critical_error") != 0)
 		{
@@ -1197,15 +1196,14 @@ class YTDLP
 		return 0;
 	}
 	
-	int checkInfo()
+	int checkInfo(bool isCheckHash)
 	{
-		error = _checkInfo();
+		error = _checkInfo(isCheckHash);
 		if (error != 0)
 		{
 			cfg.deleteKey("MAINTENANCE", "update_ytdlp");
 			if (error > 0) version = "";
 		}
-		isCheckHash = false;
 		return error;
 	}
 	
@@ -1223,7 +1221,7 @@ class YTDLP
 	
 	void updateVersion()
 	{
-		checkInfo();
+		checkInfo(false);
 		if (error != 0) return;
 		HostIncTimeOut(10000);
 		string output = HostExecuteProgram(fileExe, " -U");
@@ -1236,8 +1234,7 @@ class YTDLP
 		if (pos >= 0) output = output.Left(pos + 1);
 		HostMessageBox(output, "[yt-dlp] INFO: Update yt-dlp.exe", 2, 1);
 		error = -1;
-		isCheckHash = true;
-		checkInfo();
+		checkInfo(true);
 	}
 	
 	bool _checkVersionLog(string log)
@@ -1297,8 +1294,7 @@ class YTDLP
 						msg = log.substr(pos1, pos2 - pos1);
 						HostMessageBox(msg, "[yt-dlp] INFO: Auto update", 2, 0);
 						error = -1;
-						isCheckHash = true;
-						checkInfo();
+						checkInfo(true);
 						return 1;
 					}
 				}
@@ -1360,8 +1356,7 @@ class YTDLP
 	
 	array<string> exec(string url, bool isPlaylist)
 	{
-		isCheckHash = true;
-		checkInfo();
+		checkInfo(true);
 		if (error != 0) return {};
 		
 		if (cfg.consoleOut > 0) HostOpenConsole();
@@ -1411,8 +1406,14 @@ class YTDLP
 				}
 			}
 			
-			if (cfg.getInt("COOKIE", "mark_watched") == 1) options += " --mark-watched";
-			if (cfg.getInt("YOUTUBE", "live_from_start") == 1) options += " --live-from-start";
+			if (cfg.getInt("COOKIE", "mark_watched") == 1)
+			{
+				options += " --mark-watched";
+			}
+			if (cfg.getInt("YOUTUBE", "live_from_start") == 1)
+			{
+				options += " --live-from-start";
+			}
 		}
 		else	//playlist
 		{
@@ -1438,14 +1439,37 @@ class YTDLP
 		
 		options += " --retry-sleep exp=1:10";
 		
-		if (cfg.getStr("NETWORK", "proxy").size() > 3) options += " --proxy \"" + cfg.getStr("NETWORK", "proxy") + "\"";
+		if (cfg.getStr("NETWORK", "proxy").size() > 3)
+		{
+			options += " --proxy \"" + cfg.getStr("NETWORK", "proxy") + "\"";
+		}
+		if (cfg.getStr("NETWORK", "geo_verification_proxy").size() > 3)
+		{
+			options += " --geo-verification-proxy \"" + cfg.getStr("NETWORK", "geo_verification_proxy") + "\"";
+		}
+		if (cfg.getStr("NETWORK", "xff").size() > 1)
+		{
+			options += " --xff \"" + cfg.getStr("NETWORK", "xff") + "\"";
+		}
 		
-		if (cfg.getInt("NETWORK", "ip_version") == 4) options += " -4";
-		else if (cfg.getInt("NETWORK", "ip_version") == 6) options += " -6";
+		if (cfg.getInt("NETWORK", "ip_version") == 4)
+		{
+			options += " -4";
+		}
+		else if (cfg.getInt("NETWORK", "ip_version") == 6)
+		{
+			options += " -6";
+		}
 		
-		if (cfg.getInt("NETWORK", "no_check_certificates") == 1) options += " --no-check-certificates";
+		if (cfg.getInt("NETWORK", "no_check_certificates") == 1)
+		{
+			options += " --no-check-certificates";
+		}
 		
-		if (cfg.getInt("MAINTENANCE", "update_ytdlp") == 1) options += " -U";
+		if (cfg.getInt("MAINTENANCE", "update_ytdlp") == 1)
+		{
+			options += " -U";
+		}
 		
 		options += " -j -v --no-playlist --all-subs -- \"" + url + "\"";
 			//Note: "-j" must be in lower case.
@@ -1508,7 +1532,7 @@ void OnInitialize()
 	//called when loading script at first
 	if (SCRIPT_VERSION.Right(1) == "#") HostOpenConsole();	//debug version
 	cfg.loadFile();
-	ytd.checkInfo();
+	ytd.checkInfo(false);
 }
 
 
@@ -1539,7 +1563,7 @@ string GetTitle()
 string GetConfigFile()
 {
 	//called when opening config panel
-	fc.isShowMsg = true;
+	fc.isShowDialog = true;
 	cfg.loadFile();
 	return SCRIPT_CONFIG_CUSTOM;
 }
@@ -1566,8 +1590,7 @@ string GetDesc()
 	}
 	else
 	{
-		ytd.isCheckHash = true;
-		ytd.checkInfo();
+		ytd.checkInfo(true);
 	}
 	
 	const string SITE_DEV = "https://github.com/yt-dlp/yt-dlp";
@@ -2572,24 +2595,21 @@ array<dictionary> PlaylistParse(const string &in path)
 		string urlEntry;
 		if (dic.get("url", urlEntry) && !urlEntry.empty())
 		{
-			int idx = int(dic["playlistIdx"]);
-			if (idx > 0)
-			{
-				if (cfg.consoleOut > 0)
+				int idx = int(dic["playlistIdx"]);
+				if (idx > 0)
 				{
-					if (cnt == 0)
+					if (cfg.consoleOut > 0)
 					{
 						string extractor;
 						if (dic.get("extractor", extractor) && !extractor.empty())
 						{
-							HostPrintUTF8("Extractor: " + extractor);
+							if (cnt == 0) HostPrintUTF8("Extractor: " + extractor);
 						}
+						HostPrintUTF8("Url " + idx + ": " + urlEntry);
 					}
-					HostPrintUTF8("Url " + idx + ": " + urlEntry);
+					dicsEntry.insertLast(dic);
+					cnt++;
 				}
-				dicsEntry.insertLast(dic);
-				cnt++;
-			}
 		}
 	}
 	
