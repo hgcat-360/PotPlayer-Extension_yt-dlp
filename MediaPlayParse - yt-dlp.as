@@ -5,7 +5,7 @@
   Placed in \PotPlayer\Extension\Media\PlayParse\
 *************************************************************/
 
-string SCRIPT_VERSION = "250322.1";
+string SCRIPT_VERSION = "250323";
 
 
 string YTDLP_EXE = "Module\\yt-dlp.exe";
@@ -1101,21 +1101,21 @@ class YTDLP
 	array<string> errors = {"(OK)", "(NOT FOUND)", "(LOOKS_DUMMY)", "(CRITICAL ERROR!)"};
 	int error = 0;
 	
-	int _checkInfo(bool isCheckHash)
+	void _checkFileInfo()
 	{
 		if (cfg.getInt("MAINTENANCE", "critical_error") != 0)
 		{
-			return 3;
+			error = 3; return;
 		}
 		if (!HostFileExist(fileExe))
 		{
-			return 1;
+			error = 1; return;
 		}
 		
 		FileVersion verInfo;
 		if (!verInfo.Open(fileExe))
 		{
-			return 2;
+			error = 2; return;
 		}
 		else
 		{
@@ -1148,11 +1148,17 @@ class YTDLP
 			verInfo.Close();
 			if (isDoubt)
 			{
-				return 2;
+				error = 2; return;
 			}
 		}
+		if (error > 0) error = 0;
+	}
+	
+	void _checkFileHash()
+	{
+		if (error > 0) return;
 		
-		if (!fc.isDefaultError && !fc.isSaveError && isCheckHash)
+		if (!fc.isDefaultError && !fc.isSaveError)
 		{
 			uintptr fp = HostFileOpen(fileExe);
 			string data = HostFileRead(fp, HostFileLength(fp));
@@ -1160,7 +1166,7 @@ class YTDLP
 			string hash = HostHashSHA256(data);
 			if (hash.empty())
 			{
-				return 2;
+				error = 2;
 			}
 			else
 			{
@@ -1171,39 +1177,40 @@ class YTDLP
 					msg += "current version: " + version;
 					HostMessageBox(msg, "[yt-dlp] INFO", 2, 0);
 					cfg.setStr("MAINTENANCE", "ytdlp_hash", hash);
+					error = 0;
 				}
 				else if (hash != hash0)
 				{
 					if (error >= 0)
 					{
-						string msg = "Your [yt-dlp.exe] is different from before.\r\n\r\n";
-						msg += "current version: " + version;
-						msg += "\r\n\r\nContinue playing if you replaced it by yourself.";
+						string msg =
+						"Your [yt-dlp.exe] is different from before.\r\n\r\n"
+						"current version: " + version + "\r\n\r\n"
+						"Continue playing if you replaced it by yourself.";
 						if (cfg.getInt("MAINTENANCE", "update_ytdlp") > 0)
 						{
 							msg += "\r\nThe setting of [update_ytdlp] is reset.";
 						}
 						HostMessageBox(msg, "[yt-dlp] ALERT", 0, 0);
-						return -1;
+						error = -1;
 					}
 					else
 					{
 						cfg.setStr("MAINTENANCE", "ytdlp_hash", hash);
+						error = 0;
 					}
 				}
 			}
 		}
-		return 0;
 	}
 	
-	int checkInfo(bool isCheckHash)
+	int checkFile(bool isCheckHash)
 	{
-		error = _checkInfo(isCheckHash);
-		if (error != 0)
-		{
-			cfg.deleteKey("MAINTENANCE", "update_ytdlp");
-			if (error > 0) version = "";
-		}
+		_checkFileInfo();
+		if (isCheckHash) _checkFileHash();
+		
+		if (error != 0) cfg.deleteKey("MAINTENANCE", "update_ytdlp");
+		if (error > 0) version = "";
 		return error;
 	}
 	
@@ -1221,12 +1228,13 @@ class YTDLP
 	
 	void updateVersion()
 	{
-		checkInfo(false);
+		checkFile(false);
 		if (error != 0) return;
 		HostIncTimeOut(10000);
 		string output = HostExecuteProgram(fileExe, " -U");
 		if (output.find("Latest version:") < 0 && output.find("ERROR:") < 0)
 		{
+			HostPrintUTF8("[yt-dlp] ERROR! No data in output.\r\n");
 			criticalError();
 			return;
 		}
@@ -1234,10 +1242,10 @@ class YTDLP
 		if (pos >= 0) output = output.Left(pos + 1);
 		HostMessageBox(output, "[yt-dlp] INFO: Update yt-dlp.exe", 2, 1);
 		error = -1;
-		checkInfo(true);
+		checkFile(true);
 	}
 	
-	bool _checkVersionLog(string log)
+	bool _checkLogVersion(string log)
 	{
 		int pos1 = log.find("\n[debug] yt-dlp version");
 		if (pos1 >= 0)
@@ -1251,7 +1259,7 @@ class YTDLP
 		return false;
 	}
 	
-	int _checkAutoUpdate(string log)
+	int _checkLogUpdate(string log)
 	{
 		if (cfg.getInt("MAINTENANCE", "update_ytdlp") == 1)
 		{
@@ -1294,7 +1302,7 @@ class YTDLP
 						msg = log.substr(pos1, pos2 - pos1);
 						HostMessageBox(msg, "[yt-dlp] INFO: Auto update", 2, 0);
 						error = -1;
-						checkInfo(true);
+						checkFile(true);
 						return 1;
 					}
 				}
@@ -1356,7 +1364,7 @@ class YTDLP
 	
 	array<string> exec(string url, bool isPlaylist)
 	{
-		checkInfo(true);
+		checkFile(true);
 		if (error != 0) return {};
 		
 		if (cfg.consoleOut > 0) HostOpenConsole();
@@ -1498,18 +1506,20 @@ class YTDLP
 			HostPrintUTF8(output);
 		}
 		
-		if (!_checkVersionLog(log))
+		if (!_checkLogVersion(log))
 		{
+			HostPrintUTF8("[yt-dlp] ERROR! Wrong version.\r\n");
 			criticalError();
 			return {};
 		}
 		
-		_checkAutoUpdate(log);
+		_checkLogUpdate(log);
 		
 		if (entries.size() == 0)
 		{
-			if (output.find("ERROR:") < 0 && output.find("WARNING:") < 0)
+			if (output.find("ERROR:") < 0)
 			{
+				HostPrintUTF8("[yt-dlp] ERROR! No data in output.\r\n");
 				criticalError();
 			}
 			else
@@ -1532,7 +1542,7 @@ void OnInitialize()
 	//called when loading script at first
 	if (SCRIPT_VERSION.Right(1) == "#") HostOpenConsole();	//debug version
 	cfg.loadFile();
-	ytd.checkInfo(false);
+	ytd.checkFile(false);
 }
 
 
@@ -1590,7 +1600,7 @@ string GetDesc()
 	}
 	else
 	{
-		ytd.checkInfo(true);
+		ytd.checkFile(true);
 	}
 	
 	const string SITE_DEV = "https://github.com/yt-dlp/yt-dlp";
@@ -1943,13 +1953,13 @@ string PlayitemParse(const string &in path, dictionary &MetaData, array<dictiona
 	JsonValue root;
 	if (!reader.parse(json, root) || !root.isObject())
 	{
-		if (cfg.consoleOut > 0) HostPrintUTF8("[yt-dlp] ERROR! Json data corrupted.\r\n");
+		HostPrintUTF8("[yt-dlp] ERROR! Json data corrupted.\r\n");
 		ytd.criticalError(); return "";
 	}
 	JsonValue jVersion = root["_version"];
 	if (!jVersion.isObject())
 	{
-		if (cfg.consoleOut > 0) HostPrintUTF8("[yt-dlp] ERROR! No version info.\r\n");
+		HostPrintUTF8("[yt-dlp] ERROR! No version info.\r\n");
 		ytd.criticalError(); return "";
 	}
 	else
@@ -1957,7 +1967,7 @@ string PlayitemParse(const string &in path, dictionary &MetaData, array<dictiona
 		string version = _GetJsonValueString(jVersion, "version");
 		if (version.empty())
 		{
-			if (cfg.consoleOut > 0) HostPrintUTF8("[yt-dlp] ERROR! No version info.\r\n");
+			HostPrintUTF8("[yt-dlp] ERROR! No version info.\r\n");
 			ytd.criticalError(); return "";
 		}
 	}
@@ -1965,13 +1975,13 @@ string PlayitemParse(const string &in path, dictionary &MetaData, array<dictiona
 	if (extractor.empty()) extractor = _GetJsonValueString(root, "extractor");
 	if (extractor.empty())
 	{
-		if (cfg.consoleOut > 0) HostPrintUTF8("[yt-dlp] ERROR! No extractor.\r\n");
+		HostPrintUTF8("[yt-dlp] ERROR! No extractor.\r\n");
 		ytd.criticalError(); return "";
 	}
 	string webUrl = _GetJsonValueString(root, "webpage_url");
 	if (webUrl.empty())
 	{
-		if (cfg.consoleOut > 0) HostPrintUTF8("[yt-dlp] ERROR! No webpage url.\r\n");
+		HostPrintUTF8("[yt-dlp] ERROR! No webpage url.\r\n");
 		ytd.criticalError(); return "";
 	}
 	
