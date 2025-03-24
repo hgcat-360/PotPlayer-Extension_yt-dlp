@@ -5,7 +5,7 @@
   Placed in \PotPlayer\Extension\Media\PlayParse\
 *************************************************************/
 
-string SCRIPT_VERSION = "250324";
+string SCRIPT_VERSION = "250324.1";
 
 
 string YTDLP_EXE = "Module\\yt-dlp.exe";
@@ -1438,9 +1438,9 @@ class YTDLP
 				options = " --cookies \"" + cfg.getStr("COOKIE", "cookie_file") + "\"";
 				isCookie = true;
 			}
-			else if (cfg.getStr("COOKIE", "browser_name").size() > 3)
+			else if (cfg.getStr("COOKIE", "cookie_browser").size() > 3)
 			{
-				options = " --cookies-from-browser \"" + cfg.getStr("COOKIE", "browser_name") + "\"";
+				options = " --cookies-from-browser \"" + cfg.getStr("COOKIE", "cookie_browser") + "\"";
 				isCookie = true;
 			}
 			if (isCookie)
@@ -1620,9 +1620,9 @@ string GetTitle()
 	{
 		scriptName += " (cookie file)";
 	}
-	else if (cfg.getStr("COOKIE", "browser_name").size() > 3)
+	else if (cfg.getStr("COOKIE", "cookie_browser").size() > 3)
 	{
-		scriptName += " (cookie " + cfg.getStr("COOKIE", "browser_name") + ")";
+		scriptName += " (cookie " + cfg.getStr("COOKIE", "cookie_browser") + ")";
 	}
 	return scriptName;
 }

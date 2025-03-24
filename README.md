@@ -90,9 +90,9 @@ So you are required to use Firefox and log in to target websites with it in adva
 >This is because the act of automatically extracting cookies from other programs has been prevented due to security reasons.  
 >Automatic cookie extraction may eventually become unavailable with Firefox too in the future.  
 
-In the configuration file of the extension, specify the value of "*browser_name*" key in [COOKIE] section as follows:  
+In the configuration file of the extension, specify the value of "*cookie_browser*" key in [COOKIE] section as follows:  
 
-	browser_name=firefox
+	cookie_browser=firefox
 
 While you are logging in to the target website in Firefox, you can then watch the login content of the site with PotPlayer/yt-dlp by this method.  
 Once you create login cookies, you can close Firefox while using PotPlayer.  
@@ -106,7 +106,7 @@ If you are using [Multi-Account Containers of Firefox](https://support.mozilla.o
 If you are playing online videos/musics in a specific container, you can use limited cookies only associated with that container.  
 For example, if the name of your target container is "Video & Music", add it to the end of key value like this;  
 
-	browser_name=firefox::Video & Music
+	cookie_browser=firefox::Video & Music
 
 Most characters other than English letters are supported here.
 
