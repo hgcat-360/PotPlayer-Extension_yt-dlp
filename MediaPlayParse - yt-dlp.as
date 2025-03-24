@@ -5,7 +5,7 @@
   Placed in \PotPlayer\Extension\Media\PlayParse\
 *************************************************************/
 
-string SCRIPT_VERSION = "250323";
+string SCRIPT_VERSION = "250324";
 
 
 string YTDLP_EXE = "Module\\yt-dlp.exe";
@@ -311,6 +311,34 @@ class CFG
 	//specific properties of each script
 	int consoleOut = 0;
 	string baseLang;
+	
+	string _escapeQuote(string str)
+	{
+		//don't use Trim("\"")
+		if (str.Left(1) == "\"" && str.Right(1) == "\"")
+		{
+			str = str.substr(1, str.size() - 2);
+		}
+		int pos = 0;
+		int pos0;
+		do {
+			pos0 = pos;
+			pos = str.find("\"", pos);
+			if (pos >= 0)
+			{
+				if (pos == 0 || str.substr(pos - 1, 1) != "\\")
+				{
+					str.insert(pos, "\\");
+					pos += 2;
+				}
+				else
+				{
+					pos += 1;
+				}
+			}
+		} while (pos > pos0);
+		return str;
+	}
 	
 	int _searchBlankLine(string str, int pos)
 	{
@@ -990,12 +1018,12 @@ class CFG
 	
 	string getStr(string section, string key)
 	{
-		return _getValue(section, key, 0).Trim("\"");
+		return _escapeQuote(_getValue(section, key, 0));
 	}
 	
 	string getStr(string key)
 	{
-		return _getValue("", key, 0).Trim("\"");
+		return _escapeQuote(_getValue("", key, 0));
 	}
 	
 	int getInt(string section, string key)
@@ -1066,13 +1094,13 @@ class CFG
 	string setStr(string section, string key, string sValue, bool isSave = true)
 	{
 		string prevValue = _setValue(section, key, sValue, isSave);
-		return prevValue.Trim("\"");
+		return _escapeQuote(prevValue);
 	}
 	
 	string setStr(string key, string sValue, bool isSave = true)
 	{
 		string prevValue = _setValue("", key, sValue, isSave);
-		return prevValue.Trim("\"");
+		return _escapeQuote(prevValue);
 	}
 	
 	int setInt(string section, string key, int iValue, bool isSave = true)
@@ -1245,6 +1273,23 @@ class YTDLP
 		checkFile(true);
 	}
 	
+	bool _checkLogCommand(string log)
+	{
+		string errMsg = "\nyt-dlp.exe: error: ";
+		int pos1 = log.find(errMsg);
+		if (pos1 >= 0)
+		{
+			pos1 += errMsg.size();
+			int pos2 = log.find("\n", pos1);
+			if (pos2 < 0) pos2 = log.size() - 1;
+			pos2 = log.findLastNotOf("\r\n", pos2) + 1;
+			string msg = log.substr(pos1, pos2 - pos1);
+			HostMessageBox(msg, "[yt-dlp] ERROR: Command", 0, 0);
+			return true;
+		}
+		return false;
+	}
+	
 	bool _checkLogVersion(string log)
 	{
 		int pos1 = log.find("\n[debug] yt-dlp version");
@@ -1254,7 +1299,7 @@ class YTDLP
 			int pos2 = log.find("\n", pos1);
 			if (pos2 >= 0) pos2 += 1; else pos2 = log.size();
 			string str = log.substr(pos1, pos2 - pos1);
-			if (str.find(version) >= 0) return true;
+			if (str.find(version) < 0) return true;
 		}
 		return false;
 	}
@@ -1319,7 +1364,7 @@ class YTDLP
 		do {
 			str0 = str;
 			array<dictionary> match;
-			if (HostRegExpParse(str, "^(?:ERROR|WARNING):", match))
+			if (HostRegExpParse(str, "^(?:ERROR|WARNING|yt-dlp\\.exe: error):", match))
 			{
 				string s1, s2;
 				match[0].get("first", s1);
@@ -1451,6 +1496,14 @@ class YTDLP
 		{
 			options += " --proxy \"" + cfg.getStr("NETWORK", "proxy") + "\"";
 		}
+		if (cfg.getInt("NETWORK", "socket_timeout") > 0)
+		{
+			options += " --socket-timeout " + cfg.getInt("NETWORK", "socket_timeout");
+		}
+		if (cfg.getStr("NETWORK", "source_address").size() > 3)
+		{
+			options += " --source-address \"" + cfg.getStr("NETWORK", "source_address") + "\"";
+		}
 		if (cfg.getStr("NETWORK", "geo_verification_proxy").size() > 3)
 		{
 			options += " --geo-verification-proxy \"" + cfg.getStr("NETWORK", "geo_verification_proxy") + "\"";
@@ -1506,7 +1559,12 @@ class YTDLP
 			HostPrintUTF8(output);
 		}
 		
-		if (!_checkLogVersion(log))
+		if (_checkLogCommand(log))
+		{
+			return {};
+		}
+		
+		if (_checkLogVersion(log))
 		{
 			HostPrintUTF8("[yt-dlp] ERROR! Wrong version.\r\n");
 			criticalError();
@@ -1517,7 +1575,7 @@ class YTDLP
 		
 		if (entries.size() == 0)
 		{
-			if (output.find("ERROR:") < 0)
+			if (output.find("ERROR:") < 0 && output.find("error:") < 0)
 			{
 				HostPrintUTF8("[yt-dlp] ERROR! No data in output.\r\n");
 				criticalError();

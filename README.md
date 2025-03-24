@@ -1,4 +1,4 @@
-# Parse Streaming with yt-dlp - PotPlayer Extension
+﻿# Parse Streaming with yt-dlp - PotPlayer Extension
 
 ## Overview
 This is an extension for **PotPlayer** including an angel script file, which enables PotPlayer to play streaming videos/musics on various websites.  
@@ -71,7 +71,7 @@ You have description of each settings in the config file.
 ## Cookie Retrieval and Login
 When enjoying online videos/musics, some contents or survices may sometimes require you to log in to your account on the website. (for age verification or high-quality supported or special contents, etc)  
 In these cases, it is necessary for yt-dlp to have a function about log in.  
-There are some ways for yt-dlp to log in to the service's account, and using cookies is considered to be the most realistic method (as of 2025).  
+There are some ways for yt-dlp to log in to the service account, and using cookies is considered to be the most realistic method (as of 2025).  
 
 If using cookies, you must pass the cookies that your browser created to yt-dlp when logging in to each service.  
 There are two ways to do this as following;  
@@ -129,7 +129,7 @@ Here we will explain how to use Chrome and its extension "*Get cookies.txt LOCAL
 
 3. Create a cookie file using Chrome and its extension "*Get cookies.txt LOCALLY*"
 	>This cookie file is to be placed in a suitable folder that is not visible from the outside.  
-	>For more information about extraction methods, see the next chapter. ([simple method](#simple-method-~-add-websites-one-by-one) and [stable method](#stable-method-~-prevent-interference-with-browser))  
+	>For more information about extraction methods, see the next chapter. ([simple method](#simple-method--add-websites-one-by-one) and [stable method](#stable-method--prevent-interference-with-browser))  
 
 4. Open the configuration file of the extension and as the value of "*cookie_file*" key in [COOKIE] section, specify the path to the cookie file you saved
 	>Example 1  
