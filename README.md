@@ -15,17 +15,19 @@ This repository does not include the following softwares.
 Please prepare them separately in advance.  
 This script does not work with PotPlayer older than the version below.  
 
-- [PotPlayer **250226 or later versions** on Windows](https://potplayer.tv/)
+- [PotPlayer **250226 or later versions** on Windows](https://potplayer.tv/)  
 
-- [yt-dlp.exe](https://github.com/yt-dlp/yt-dlp/releases)
+- [yt-dlp.exe](https://github.com/yt-dlp/yt-dlp/)  
 
 ## Install
 
-1. Place all files of the archive to the following script folder;  
-	`(PotPlayer's program folder)\Extension\Media\PlayParse\`
+1. Place files of the archive to the following script folder;  
+	`(PotPlayer's program folder)\Extension\Media\PlayParse\`  
 	>
 	>***MediaPlayParse - yt-dlp.as*** and ***yt-dlp_default.ini*** are indispensable.  
-	>Change the icon of "MediaPlayParse - yt-dlp.as" if you like by renaming icon files (.ico).   
+	>***yt-dlp_default.ini*** must be updated together with ***MediaPlayParse - yt-dlp.as***.  
+	>Change the icon of "MediaPlayParse - yt-dlp.as" to suit your preference by renaming icon files (.ico).   
+	>***yt-dlp_radio1/2.jpg*** are playlist thumnail files for online radio.  
 	>
 	>![2025-03-16_10h29_04](https://github.com/user-attachments/assets/e3950518-e204-488f-a60c-36ba02e8c2fb)  
 
@@ -34,12 +36,12 @@ This script does not work with PotPlayer older than the version below.
 	>
 	>If ***yt-dlp.exe*** is placed in another folder, the script won't call it. (for security reason)  
 	>
-	>![2025-03-16_12h03_34](https://github.com/user-attachments/assets/9d395cb4-797c-4258-87c0-2db420056d1e)
+	>![2025-03-16_12h03_34](https://github.com/user-attachments/assets/9d395cb4-797c-4258-87c0-2db420056d1e)  
 
 3. Confirm that **yt-dlp** exists in the extension list of PotPlayer settings  
-	`Preferences(F5) > Extensions >  Media Playlist/Playitem`
+	`Preferences(F5) > Extensions >  Media Playlist/Playitem`  
 	>
-	>If you cannot see it, try to push [**Reload files**] button or reopen PotPlayer.
+	>If you cannot see it, try to push [**Reload files**] button or reopen PotPlayer.  
 	>
 	>![2025-03-16_02h02_06](https://github.com/user-attachments/assets/e4aa7177-7ba3-4f8a-8373-dbdd0d83f091)  
 	>
@@ -55,7 +57,7 @@ This script does not work with PotPlayer older than the version below.
 
 ### Extension priority
 If you have multiple extensions in the extension list, one shown at upper position takes priority.  
-As for YouTube, if you want to give priority to PotPlayer's YouTube extension rather than this extension,   
+As for YouTube, if you want to give priority to built-in YouTube extension of PotPlayer rather than this extension,   
 place **yt-dlp** below **YouTube** by using Up/Down buttons in the extension settings.  
 PotPlayer's YouTube extension can start YouTube playback more quickly than yt-dlp extension.  
 If the preferred extension fails to process the task, it will be handed over to a lower extension.  
@@ -64,12 +66,63 @@ If the preferred extension fails to process the task, it will be handed over to 
 You can customize behavior by editing the configuration file *yt-dlp.ini*.  
 Open it by pushing [**Config file**] button in extension settings.  
 Some functions (including login to your account or auto update of *yt-dlp.exe*) are available with it.  
-You have description of each settings in the config file.  
+You have description of each setting in the configuration file.  
 
 ![2025-03-16_02h11_12](https://github.com/user-attachments/assets/265f0fd4-2ae0-4968-9ca7-7d973ce95644)  
 
+In the configuration file, you can change section order if you like.  
+For example, if you often use [MAINTENANCE] section, you can move that section near the beginning of the file by cutting and pasting of the section area.  
+But key order within each section is not changable.  
+
+Available setting keys are pre-determined and you can always see them in the configuration file.  
+To initialize keys or sections, just delete them.  
+You can comment out keys with "//". (it is different from the original comment out symbol in ini files, but designed as this here for visibility)  
+If some lines are judged to be comments, they are automatically marked with '//' at the beginning of them.  
+
+In fact, it has also "hidden keys" that are usually invisible.  
+You can find them in *yt-dlp_default.ini* file in the script folder, where they have the character **#** at the top.  
+These keys are rarely used or not recommended.  
+If you want to use some key among them, just write the key (without **#**) and set its value as normal.  
+You can see the usage of each key in the description on [yt-dlp site](https://github.com/yt-dlp/yt-dlp/blob/master/README.md).  
+
+### Update yt-dlp.exe
+
+It is recommended for you to often update *yt-dlp.exe* so it can keep to support more websites.  
+If a website has changed specifications, yt-dlp may easily lost the way to handle URLs in it.  
+As a result, yt-dlp needs constant modifications and needs to be updated.  
+
+You can use nightly channel to quickly reflect the latest changes.  
+See: https://github.com/yt-dlp/yt-dlp/blob/master/README.md#update  
+
+|release channel|url|
+|---|---|
+|Stable (default) channel| https://github.com/yt-dlp/yt-dlp/releases |
+|Nightly channel| https://github.com/yt-dlp/yt-dlp-nightly-builds/releases |
+
+This extension has the function to update *yt-dlp.exe* automatically.  
+If you are using nightly channel, auto updator will also follow nightly channel and update *yt-dlp.exe* in finding a new version in nightly channel.  
+
+## Extract playlist
+
+Each website may have its own playlist.  
+If yt-dlp support the specified playlist URL, it will import items in the playlist into the playlist panel of PotPlayer when you open the playlist as a new url.  
+This behaves the same as the processing of YouTube playlists implemented by PotPlayer   
+
+There is a huge variety of playlists on the web, but yt-dlp can handle only a small part of them.  
+In addition, when a playlist has just a few items, you may be able to get all of them, but in the case of a larger number of items, you may not download them at all no matter how long you wait.  
+
+For YouTube playlists, it's recommend to leave it to PotPlayer, but you can also change the script configuration file to process YouTube playlists using yt-dlp.  
+
+a playlist of PotPlayer's format is called **album**.  
+Just like with YouTube, you can create an album with a playlist URL as external playlist.  
+It will be updated to the latest streaming program whenever you click the album tab in the playlist panel.  
+
 ## Cookie Retrieval and Login
+
 When enjoying online videos/musics, some contents or survices may sometimes require you to log in to your account on the website. (for age verification or high-quality supported or special contents, etc)  
+
+And YouTube may sometimes be restricted to prevent you from watching unless you log in.  
+
 In these cases, it is necessary for yt-dlp to have a function about log in.  
 There are some ways for yt-dlp to log in to the service account, and using cookies is considered to be the most realistic method (as of 2025).  
 
@@ -86,7 +139,7 @@ It is the simplest method, that is just to specify the browser name.
 But as of March 2025, the available browser of this method on Windows is virtually only Firefox.  
 So you are required to use Firefox and log in to target websites with it in advance.  
 
->Previously, Chromium-based browsers such as Chrome or Edge were able to be used for extracting cookies automatically, just like Firefox, but they have become unusable since around July 2024.  
+>Previously, Chromium-based browsers such as Chrome or Edge were able to be used for extracting cookies automatically, just like Firefox, but they have become unusable since around June 2024.  
 >This is because the act of automatically extracting cookies from other programs has been prevented due to security reasons.  
 >Automatic cookie extraction may eventually become unavailable with Firefox too in the future.  
 
@@ -108,11 +161,10 @@ For example, if the name of your target container is "Video & Music", add it to 
 
 	cookie_browser=firefox::Video & Music
 
-Most characters other than English letters are supported here.
+Most characters are supported here besides English characters.  
 
 Even if you are a Chrome or Edge user, you can use this automatic extraction to prevent the trouble of manually extracting cookies.  
 In that case, use Firefox as a secondary browser (sub-browser) and log in to each website with it.  
-
 
 ### Prepare a cookie file manually
 
@@ -121,17 +173,20 @@ About extracting cookies, see also: https://github.com/yt-dlp/yt-dlp/wiki/Extrac
 Here we will explain how to use Chrome and its extension "*Get cookies.txt LOCALLY*" to create a cookie file and pass it to the script.  
 **Basically these steps are also available for most browsers besides Chrome.**  
 
-1. In advance, create or register the account of the target website using Chrome
+1. In advance, create or register the account of the target website using Chrome  
 
-2. Add the extension "[*Get cookies.txt LOCALLY*](https://chromewebstore.google.com/detail/get-cookiestxt-locally/cclelndahbckbenkjhflpdbgdldlbecc)" to Chrome
+2. Add the extension "[*Get cookies.txt LOCALLY*](https://chromewebstore.google.com/detail/get-cookiestxt-locally/cclelndahbckbenkjhflpdbgdldlbecc)" to Chrome  
+	>
 	>"*Get cookies.txt LOCALLY*" can also be used with other Chromium based browsers such as Edge.  
 	>Note: "*Get cookies.txt*" **without LOCALLY** is another extension that has been banned.  
 
-3. Create a cookie file using Chrome and its extension "*Get cookies.txt LOCALLY*"
+3. Create a cookie file using Chrome and its extension "*Get cookies.txt LOCALLY*"  
+	>
 	>This cookie file is to be placed in a suitable folder that is not visible from the outside.  
 	>For more information about extraction methods, see the next chapter. ([simple method](#simple-method--add-websites-one-by-one) and [stable method](#stable-method--prevent-interference-with-browser))  
 
-4. Open the configuration file of the extension and as the value of "*cookie_file*" key in [COOKIE] section, specify the path to the cookie file you saved
+4. Open the configuration file of the extension and as the value of "*cookie_file*" key in [COOKIE] section, specify the path to the cookie file you saved  
+	>
 	>Example 1  
 	
 		cookie_file=C:\MyData 2025 3\♨secret☹\cookie2503.txt
@@ -142,11 +197,11 @@ Here we will explain how to use Chrome and its extension "*Get cookies.txt LOCAL
 
 #### Simple method ~ add websites one by one
 
-1. Open the target website in Chrome and log in to your account
+1. Open the target website in Chrome and log in to your account  
 
-2. Call "*Get cookies.txt LOCALLY*" and use [**Export As**] button to save cookies of that website as a file
+2. Call "*Get cookies.txt LOCALLY*" and use [**Export As**] button to save cookies of that website as a file  
 
-3. If treating multiple websites, you need to repeat the above and merge the cookie files into one file
+3. If treating multiple websites, you need to repeat the above and merge the cookie files into one file  
 
 In this method, the token associated with cookies is shared between your browser and yt-dlp.  
 
@@ -163,21 +218,25 @@ Although [Export All Cookies] button is used in the next "stable method", in tha
 This is the way to use "secret window" in your browser to create a cookie file that combines all the necessary websites.  
 Secret window is also called Private or InPrivate window depending on the browser.  
 
-1. Open the details of "*Get cookies.txt LOCALLY*" from the extension settings of Chrome and allow it to run in secret mode
+1. Open the details of "*Get cookies.txt LOCALLY*" from the extension settings of Chrome and allow it to run in secret mode  
 
-2. Opens the Chrome secret window
+2. Opens the Chrome secret window  
+	>
 	>secret window can be opened using the menu button in the top right of the browser.  
 	>To remove unnecessary cookies, leave "Block third party cookies" or "Enhanced tracking prevention" on.  
 
-3. Open the target websites in order and log in to the account on each site, then close them
+3. Open the target websites in order and log in to the account on each site, then close them  
+	>
 	>Do not close the secret window itself, but simply close the tabs for each website.  
 	>To prevent the secret window from exiting at this time, open a new tab and then close the website tab.  
 	>Do not log out of each website (close the tab while logging in).  
 
-4. Call "*Get cookies.txt LOCALLY*" in the secret window and use [**Export All Cookies**] button to save cookies from all websites in the window as a file
+4. Call "*Get cookies.txt LOCALLY*" in the secret window and use [**Export All Cookies**] button to save cookies from all websites in the window as a file  
+	>
 	>All cookies for each website that was once opened in the secret window will be stored.  
 
-5. Close the secret window
+5. Close the secret window  
+	>
 	>By closing the secret window, the cookies of the window will be discarded in the browser,  
 	>and the copied cookie and linking token will be only for yt-dlp.  
 
@@ -194,8 +253,15 @@ If using "private window" to create a cookie file as "Stable method" above, PotP
 If you are using [Multi-Account Containers of Firefox](https://support.mozilla.org/kb/containers), cookies are distinguished by container.  
 When saving a cookie file in the case of "simple method" above, you can choose the container that you usually use for playing videos/musics.  
 
+#### Supplement 
+
+Unless you log out, the cookie file should be able to last a certain amount of time.  
+However, the expiration date for login cookies is usually set to six months or one year, for example, and is not permanent.  
+Cookies and tokens associated with cookies may be invalidated due to a variety of other factors.  
+If you notice that it is no longer available, simply recreate the cookie file.  
+
 ## History
 
-- 2025-03-16 Published.
+- 2025-03-16 Published.  
 
 

@@ -5,7 +5,7 @@
   Placed in \PotPlayer\Extension\Media\PlayParse\
 *************************************************************/
 
-string SCRIPT_VERSION = "250324.1";
+string SCRIPT_VERSION = "250326";
 
 
 string YTDLP_EXE = "Module\\yt-dlp.exe";
@@ -984,6 +984,30 @@ class CFG
 		return false;
 	}
 	
+	bool cmtoutKey(string section, string key, bool isSave = true)
+	{
+		dictionary _kds;
+		if (kdsCst.get(section, _kds))
+		{
+			KeyData kd;
+			if (_kds.get(key, kd))
+			{
+				if (kd.state == 1 && !kd.areaStr.empty() && kd.keyTop >= 0)
+				{
+					kd.state = 0;
+					kd.areaStr.insert(kd.keyTop, "//");
+					kd.valueTop = -1;
+					kd.value = "";
+					_kds.set(key, kd);
+					kdsCst.set(section, _kds);
+					if (isSave) saveFile();
+					return true;
+				}
+			}
+		}
+		return false;
+	}
+	
 	bool deleteKey(string key, bool isSave = true)
 	{
 		return deleteKey("", key, isSave);
@@ -1217,7 +1241,7 @@ class YTDLP
 						"Continue playing if you replaced it by yourself.";
 						if (cfg.getInt("MAINTENANCE", "update_ytdlp") > 0)
 						{
-							msg += "\r\nThe setting of [update_ytdlp] is reset.";
+							msg += "\r\nThe setting of [update_ytdlp] will be reset.";
 						}
 						HostMessageBox(msg, "[yt-dlp] ALERT", 0, 0);
 						error = -1;
@@ -1266,7 +1290,7 @@ class YTDLP
 			criticalError();
 			return;
 		}
-		int pos = output.findLastNotOf("\r\n");
+		int pos = output.findLastNotOf("\r\n", output.size() - 1);
 		if (pos >= 0) output = output.Left(pos + 1);
 		HostMessageBox(output, "[yt-dlp] INFO: Update yt-dlp.exe", 2, 1);
 		error = -1;
@@ -1275,15 +1299,39 @@ class YTDLP
 	
 	bool _checkLogCommand(string log)
 	{
+		if (log.find("[debug] Command-line config:") < 0)
+		{
+			HostPrintUTF8("[yt-dlp] ERROR! No command line info.\r\n");
+			criticalError();
+			return true;
+		}
+		
+		string logLower = log;
+		logLower.MakeLower();
 		string errMsg = "\nyt-dlp.exe: error: ";
-		int pos1 = log.find(errMsg);
+		int pos1 = logLower.find(errMsg);
 		if (pos1 >= 0)
 		{
 			pos1 += errMsg.size();
 			int pos2 = log.find("\n", pos1);
 			if (pos2 < 0) pos2 = log.size() - 1;
 			pos2 = log.findLastNotOf("\r\n", pos2) + 1;
-			string msg = log.substr(pos1, pos2 - pos1);
+			string msg = logLower.substr(pos1, pos2 - pos1);
+			if (msg.find("unsupported browser specified for cookies") >= 0)
+			{
+				string browser = cfg.getStr("COOKIE", "cookie_browser");
+				if (!browser.empty())
+				{
+					msg =
+					browser + " is unsupported as browser.\r\n"
+					"Use Firefox as cookie_browser or use cookie_file option.\r\n\r\n"
+					"The setting of cookie_browser will be commented out.";
+					HostMessageBox(msg, "[yt-dlp] ERROR: Command", 0, 0);
+					cfg.cmtoutKey("COOKIE", "cookie_browser");
+					return true;
+				}
+			}
+			msg = log.substr(pos1, pos2 - pos1);
 			HostMessageBox(msg, "[yt-dlp] ERROR: Command", 0, 0);
 			return true;
 		}
@@ -1299,7 +1347,70 @@ class YTDLP
 			int pos2 = log.find("\n", pos1);
 			if (pos2 >= 0) pos2 += 1; else pos2 = log.size();
 			string str = log.substr(pos1, pos2 - pos1);
-			if (str.find(version) < 0) return true;
+			if (str.find(version) >= 0)
+			{
+				return false;
+			}
+		}
+		HostPrintUTF8("[yt-dlp] ERROR! Wrong version.\r\n");
+		criticalError();
+		return true;
+	}
+	
+	bool _checkLogBrowser(string log)
+	{
+		string logLower = log;
+		logLower.MakeLower();
+		array<dictionary> match;
+		if (HostRegExpParse(logLower, "^error: could not ([^\r\n]+?) cookies? database", match))
+		{
+			bool isErrorBrowser = false;
+			string msg = "";
+			string browser = cfg.getStr("COOKIE", "cookie_browser");
+			if (!browser.empty())
+			{
+				string op = "";
+				match[1].get("first", op);
+				if (op.find("copy") >= 0)
+				{
+					msg =
+					"Cannot copy cookie database from " + browser + ".\r\n"
+					"Use Firefox as cookie_browser or use cookie_file option.\r\n\r\n"
+					"The setting of cookie_browser will be commented out.";
+					isErrorBrowser = true;
+				}
+				else if (op.find("find") >= 0)
+				{
+					msg =
+					"Cannot find cookie database of " + browser + ".\r\n\r\n"
+					"The setting of cookie_browser will be commented out.";
+					isErrorBrowser = true;
+				}
+			}
+			if (msg.empty())
+			{
+				string s1, s2;
+				match[0].get("first", s1);
+				match[0].get("second", s2);
+				int pos1 = log.size() - s2.size() - s1.size();
+				int pos2 = log.find("\n", pos1);
+				if (pos2 < 0) pos2 = log.size() - 1;
+				pos2 = log.findLastNotOf("\r\n", pos2) + 1;
+				msg = log.substr(pos1, pos2 - pos1);
+			}
+			HostMessageBox(msg, "[yt-dlp] ERROR: Cookie browser", 0, 0);
+			if (isErrorBrowser) cfg.cmtoutKey("COOKIE", "cookie_browser");
+			return true;
+		}
+		if (cfg.getStr("COOKIE", "cookie_browser").MakeLower() == "safari")
+		{
+			string msg =
+			"Safari is not a supported browser on Windows.\r\n"
+			"Use Firefox as cookie_browser or use cookie_file option.\r\n\r\n"
+			"The setting of cookie_browser will be commented out.";
+			HostMessageBox(msg, "[yt-dlp] ERROR: Cookie browser", 0, 0);
+			cfg.cmtoutKey("COOKIE", "cookie_browser");
+			return true;
 		}
 		return false;
 	}
@@ -1335,7 +1446,7 @@ class YTDLP
 							if (pos2 >= 0) pos2 += 1; else pos2 = log.size();
 							msg += log.substr(pos1, pos2 - pos1);
 						}
-						msg += "\r\nThe setting of [update_ytdlp] is reset.";
+						msg += "\r\nThe setting of [update_ytdlp] will be reset.";
 						HostMessageBox(msg, "[yt-dlp] ERROR: Auto update", 0, 0);
 						cfg.setInt("MAINTENANCE", "update_ytdlp", 0);
 						return -1;
@@ -1343,7 +1454,8 @@ class YTDLP
 					else
 					{
 						int pos2 = log.find("\n", pos1);
-						if (pos2 >= 0) pos2 += 1; else pos2 = log.size();
+						if (pos2 < 0) pos2 = log.size() - 1;
+						pos2 = log.findLastNotOf("\r\n", pos2) + 1;
 						msg = log.substr(pos1, pos2 - pos1);
 						HostMessageBox(msg, "[yt-dlp] INFO: Auto update", 2, 0);
 						error = -1;
@@ -1559,25 +1671,17 @@ class YTDLP
 			HostPrintUTF8(output);
 		}
 		
-		if (_checkLogCommand(log))
-		{
-			return {};
-		}
-		
-		if (_checkLogVersion(log))
-		{
-			HostPrintUTF8("[yt-dlp] ERROR! Wrong version.\r\n");
-			criticalError();
-			return {};
-		}
+		if (_checkLogCommand(log)) return {};
+		if (_checkLogVersion(log)) return {};
+		if (_checkLogBrowser(log)) return {};
 		
 		_checkLogUpdate(log);
 		
 		if (entries.size() == 0)
 		{
-			if (output.find("ERROR:") < 0 && output.find("error:") < 0)
+			if (output.find("\nERROR:") < 0)
 			{
-				HostPrintUTF8("[yt-dlp] ERROR! No data in output.\r\n");
+				HostPrintUTF8("[yt-dlp] ERROR! No data or info.\r\n");
 				criticalError();
 			}
 			else
