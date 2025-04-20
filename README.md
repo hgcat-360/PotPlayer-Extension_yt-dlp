@@ -70,10 +70,6 @@ You have description of each setting in the configuration file.
 
 ![2025-03-16_02h11_12](https://github.com/user-attachments/assets/265f0fd4-2ae0-4968-9ca7-7d973ce95644)  
 
-In the configuration file, you can change section order if you like.  
-For example, if you often use [MAINTENANCE] section, you can move that section near the beginning of the file by cutting and pasting of the section area.  
-But key order within each section is not changable.  
-
 Available setting keys are pre-determined and you can always see them in the configuration file.  
 To initialize keys or sections, just delete them.  
 You can comment out keys with "//". (it is different from the original comment out symbol in ini files, but designed as this here for visibility)  
@@ -81,9 +77,13 @@ If some lines are judged to be comments, they are automatically marked with '//'
 
 In fact, it has also "hidden keys" that are usually invisible.  
 You can find them in *yt-dlp_default.ini* file in the script folder, where they have the character **#** at the top.  
-These keys are rarely used or not recommended.  
+These keys are not often used or not recommended.  
 If you want to use some key among them, just write the key (without **#**) and set its value as normal.  
 You can see the usage of each key in the description on [yt-dlp site](https://github.com/yt-dlp/yt-dlp/blob/master/README.md).  
+
+In the configuration file, you can change section order if you like.  
+For example, if you often use [MAINTENANCE] section, you can move that section near the beginning of the file by cutting and pasting of the section area.  
+But key order within each section is not changable.  
 
 ### Update yt-dlp.exe
 
