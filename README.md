@@ -113,7 +113,7 @@ In addition, when a playlist has just a few items, you may be able to get all of
 
 For YouTube playlists, it's recommend to leave it to PotPlayer, but you can also change the script configuration file to process YouTube playlists using yt-dlp.  
 
-a playlist of PotPlayer's format is called **album**.  
+A playlist of PotPlayer's format is called **album**.  
 Just like with YouTube, you can create an album with a playlist URL as external playlist.  
 It will be updated to the latest streaming program whenever you click the album tab in the playlist panel.  
 
