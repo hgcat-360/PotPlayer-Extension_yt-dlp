@@ -70,7 +70,6 @@ You have description of each setting in the configuration file.
 
 ![2025-05-29_00h27_06](https://github.com/user-attachments/assets/42b80fca-d891-4d44-9c99-9029895170e7)
 
-
 Available setting keys are pre-determined and you can always see them in the configuration file.  
 To initialize keys or sections, just delete them.  
 You can comment out keys with "//". (it is different from the original comment out symbol in ini files, but designed as this here for visibility)  
@@ -172,7 +171,7 @@ In that case, use Firefox as a secondary browser (sub-browser) and log in to eac
 About extracting cookies, see also: https://github.com/yt-dlp/yt-dlp/wiki/Extractors  
 
 Here we will explain how to use Chrome and its extension "*Get cookies.txt LOCALLY*" to create a cookie file and pass it to the script.  
-**Basically these steps are also available for most browsers besides Chrome.**  
+**Basically this work procedure is also available for most browsers besides Chrome.**  
 
 1. In advance, create or register the account of the target website using Chrome  
 
@@ -196,7 +195,7 @@ Here we will explain how to use Chrome and its extension "*Get cookies.txt LOCAL
 	
 		cookie_file=%APPDATA%\PotPlayerMini64\Extension\Media\PlayParse\cookies01.txt
 
-#### Simple method ~ add websites one by one
+#### Create cookie file: Simple method ~ add websites one by one
 
 1. Open the target website in Chrome and log in to your account  
 
@@ -214,7 +213,7 @@ When saving a cookie file, you can collect all cookies in the browser by using [
 But it is not recommended considerring security risk, for it may include a large number of websites that are unrelated to yt-dlp (such as ones about exchange of money).  
 Although [Export All Cookies] button is used in the next "stable method", in that case websites are collected only within "secret window" opened temporally.  
 
-#### Stable method ~ prevent interference with browser
+#### Create cookie file: Stable method ~ prevent interference with browser
 
 This is the way to use "secret window" in your browser to create a cookie file that combines all the necessary websites.  
 Secret window is also called Private or InPrivate window depending on the browser.  
