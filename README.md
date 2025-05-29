@@ -68,7 +68,8 @@ Open it by pushing [**Config file**] button in extension settings.
 Some functions (including login to your account or auto update of *yt-dlp.exe*) are available with it.  
 You have description of each setting in the configuration file.  
 
-![2025-03-16_02h11_12](https://github.com/user-attachments/assets/265f0fd4-2ae0-4968-9ca7-7d973ce95644)  
+![2025-05-29_00h27_06](https://github.com/user-attachments/assets/42b80fca-d891-4d44-9c99-9029895170e7)
+
 
 Available setting keys are pre-determined and you can always see them in the configuration file.  
 To initialize keys or sections, just delete them.  
