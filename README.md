@@ -246,7 +246,7 @@ Even if some website like YouTube is tightening regulations, the scope of the im
 
 #### For Firefox
 
-Firefox also has an extension like [cookies.txt](https://addons.mozilla.org/firefox/addon/cookies-txt/) and similarly you can extract a cookie file manually with Firefox.  
+Firefox also has add-ons (extensions) like [cookies.txt](https://addons.mozilla.org/firefox/addon/cookies-txt/) and similarly you can extract a cookie file manually with Firefox.  
 
 If using "private window" to create a cookie file as "Stable method" above, PotPlayer/yt-dlp won't be affected by the login status of Firefox.  
 
