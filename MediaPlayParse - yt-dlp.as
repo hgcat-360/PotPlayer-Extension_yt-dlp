@@ -5,7 +5,7 @@
   Placed in \PotPlayer\Extension\Media\PlayParse\
 *************************************************************/
 
-string SCRIPT_VERSION = "250529";
+string SCRIPT_VERSION = "250529.1";
 
 
 string YTDLP_EXE = "Module\\yt-dlp.exe";
@@ -2045,11 +2045,12 @@ string _GetUrlExtension(string url)
 
 bool _CheckExt(string ext, int kind)
 {
-	if (!ext.empty())
+	if (ext.empty()) return false;
+	if (ext.Left(1) == ".") ext = ext.substr(1);
+	ext.MakeLower();
+	
+	array<string> exts;
 	{
-		ext.MakeLower();
-		array<string> exts;
-		
 		if (kind & 0x1 > 0)	//image
 		{
 			array<string> extsImage = {"jpg", "jpeg", "png", "gif", "webp"};
@@ -2081,10 +2082,9 @@ bool _CheckExt(string ext, int kind)
 			array<string> extsCompressed = {"zip", "rar", "tar", "7z", "gz", "xz", "cab", "bz2", "lzma", "rpm"};
 			exts.insertAt(exts.size(), extsCompressed);
 		}
-		
-		if (exts.find(ext) >= 0) return true;
 	}
 	
+	if (exts.find(ext) >= 0) return true;
 	return false;
 }
 
@@ -3022,13 +3022,18 @@ array<dictionary> PlaylistParse(const string &in path)
 	
 	for (uint i = 0; i < dicsEntry.size(); i++)
 	{
+		string ext2;
+		string baseName;
+		if (dicsEntry[i].get("baseName", baseName))
+		{
+			ext2 = HostGetExtension(baseName);
+		}
+		
 		string title;
 		if (dicsEntry[i].get("title", title) && !title.empty())
 		{
-			string baseName;
-			if (dicsEntry[i].get("baseName", baseName))
+			if (!ext2.empty())
 			{
-				string ext2 = HostGetExtension(baseName);
 				if (baseName == title + ext2)
 				{
 					dicsEntry[i].set("title", "");
@@ -3039,25 +3044,36 @@ array<dictionary> PlaylistParse(const string &in path)
 		}
 		
 		string thumbnail;
-		if (dicsEntry[i].get("thumbnail", thumbnail) && thumbnail.empty())
+		if (!dicsEntry[i].get("thumbnail", thumbnail))
 		{
-			string ext;
-			if (dicsEntry[i].get("ext", ext))
+			if (cfg.getInt("TARGET", "radio_thumbnail") == 1)
 			{
-				bool isAudioExt = _CheckExt(ext, 0x100);
-				if (isAudioExt && cfg.getInt("TARGET", "radio_thumbnail") == 1)
+				bool isAudioExt = false;
+				if (!ext2.empty())
+				{
+					isAudioExt = _CheckExt(ext2, 0x100);
+				}
+				else
+				{
+					string ext;
+					if (dicsEntry[i].get("ext", ext))
+					{
+						isAudioExt = _CheckExt(ext, 0x100);
+					}
+				}
+				if (isAudioExt)
 				{
 					bool isDirect;
 					dicsEntry[i].get("isDirect", isDirect);
 					thumbnail = _GetRadioThumbnail(isDirect);
 				}
-				else
+			}
+			if (thumbnail.empty())
+			{
+				string urlEntry;
+				if (dicsEntry[i].get("url", urlEntry))
 				{
-					string urlEntry;
-					if (dicsEntry[i].get("url", urlEntry))
-					{
-						thumbnail = urlEntry;
-					}
+					thumbnail = urlEntry;
 				}
 			}
 			dicsEntry[i].set("thumbnail", thumbnail);
