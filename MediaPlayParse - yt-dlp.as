@@ -5,7 +5,7 @@
   Placed in \PotPlayer\Extension\Media\PlayParse\
 *************************************************************/
 
-string SCRIPT_VERSION = "250529.1";
+string SCRIPT_VERSION = "250605";
 
 
 string YTDLP_EXE = "Module\\yt-dlp.exe";
@@ -1135,7 +1135,7 @@ class SCH
 		return _reg;
 	}
 	
-	int regExpParse(string str, string reg, array<dictionary> &out match, int posFrom)
+	int regExpParse(string str, string reg, array<dictionary> &inout match, int posFrom)
 	{
 		//modify HostRegExpParse
 		if (str.empty() || reg.empty() || match is null) return -1;
@@ -1162,17 +1162,19 @@ class SCH
 				_match[i].get("second", s2);
 				int pos = _str.size() - s2.size() - s1.size();
 				pos = posFrom + pos;
-				dictionary dic;
-				if (!caseInsens)
 				{
-					dic.set("first", s1);
+					dictionary dic;
+					if (!caseInsens)
+					{
+						dic.set("first", s1);
+					}
+					else
+					{
+						dic.set("first", strOrig.substr(pos, s1.size()));
+					}
+					dic.set("second", pos);
+					match.insertLast(dic);
 				}
-				else
-				{
-					dic.set("first", strOrig.substr(pos, s1.size()));
-				}
-				dic.set("second", pos);
-				match.insertLast(dic);
 			}
 			int pos0;
 			match[0].get("second", pos0);
@@ -2771,18 +2773,22 @@ string PlayitemParse(const string &in path, dictionary &MetaData, array<dictiona
 					string subUrl = _GetJsonValueString(jSub, "url");
 					if (!subUrl.empty())
 					{
+						{
+							// .vtt.m3u8 -> .vtt
+							int pos = sch.regExpParse(subUrl, "\\.vtt\\.m3u8(\\?.*)?$", {}, 0);
+							if (pos > 0) subUrl.erase(pos + 4, 5);
+						}
+						
 						dictionary dic;
 						dic["langCode"] = langCode;
 						dic["url"] = subUrl;
 						string subName = _GetJsonValueString(jSub, "name");
 						if (!subName.empty()) dic["name"] = subName;
-						
 						if (HostRegExpParse(langCode, "\\b[Aa]uto", {}))
 						{
 							//Auto-generated
 							dic["kind"] = "asr";
 						}
-						
 						dicsSub.insertLast(dic);
 					}
 				}
