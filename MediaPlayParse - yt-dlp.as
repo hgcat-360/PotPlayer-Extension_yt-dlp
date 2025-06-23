@@ -5,7 +5,7 @@
   Placed in \PotPlayer\Extension\Media\PlayParse\
 *************************************************************/
 
-string SCRIPT_VERSION = "250605";
+string SCRIPT_VERSION = "250624";
 
 
 string YTDLP_EXE = "Module\\yt-dlp.exe";
@@ -1636,7 +1636,7 @@ class YTDLP
 			
 			options += " -I 1";
 			options += " --all-subs";
-			if (cfg.getInt("TARGET", "live_from_start") == 1)
+			if (cfg.getInt("FORMAT", "live_from_start") == 1)
 			{
 				options += " --live-from-start";
 			}
@@ -2418,6 +2418,17 @@ string PlayitemParse(const string &in path, dictionary &MetaData, array<dictiona
 			}
 			else
 			{
+				if (cfg.getInt("FORMAT", "more_detailed_title") == 1)
+				{
+					string alt_title = _GetJsonValueString(root, "alt_title");
+					if (!alt_title.empty())
+					{
+						if (alt_title.find(title) >= 0)
+						{
+							title = alt_title;
+						}
+					}
+				}
 				title2 = title;
 				MetaData["title"] = title2;
 			}
@@ -2433,7 +2444,7 @@ string PlayitemParse(const string &in path, dictionary &MetaData, array<dictiona
 	string thumbnail = _GetJsonValueString(root, "thumbnail");
 	if (thumbnail.empty())
 	{
-		if (isAudioExt && cfg.getInt("TARGET", "radio_thumbnail") == 1)
+		if (isAudioExt && cfg.getInt("FORMAT", "radio_thumbnail") == 1)
 		{
 			thumbnail = _GetRadioThumbnail(isDirect);
 			if (!thumbnail.empty()) MetaData["thumbnail"] = thumbnail;
@@ -3052,7 +3063,7 @@ array<dictionary> PlaylistParse(const string &in path)
 		string thumbnail;
 		if (!dicsEntry[i].get("thumbnail", thumbnail))
 		{
-			if (cfg.getInt("TARGET", "radio_thumbnail") == 1)
+			if (cfg.getInt("FORMAT", "radio_thumbnail") == 1)
 			{
 				bool isAudioExt = false;
 				if (!ext2.empty())
