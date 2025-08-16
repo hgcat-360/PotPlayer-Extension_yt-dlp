@@ -241,11 +241,11 @@ The one without "LOCALLY" is prohibited as malware.
 2. Install "["*Get cookies.txt LOCALLY*"](https://chromewebstore.google.com/detail/get-cookiestxt-locally/cclelndahbckbenkjhflpdbgdldlbecc).  
 	> "Get cookies.txt LOCALLY" works in other Chromium-based browsers (e.g., Edge).
 
-3. Use the extension to create a cookie file and save it in a secure location.  
-	>For detailed extraction methods, see the next chapter. 
-	>([simple method](#simple-method--add-websites-one-by-one) and [stable method](#stable-method--prevent-interference-with-browser))  
+3. Use the extension to create a cookie file and save it in a safe folder with no access restrictions.  
+	>For detailed extraction methods, see the next chapter. ([simple method](#simple-method--add-websites-one-by-one) and [stable method](#stable-method--prevent-interference-with-browser))  
 
 4. In the extension’s configuration file, set the "*cookie\_file*" key in the \[COOKIE] section to the cookie file you saved:  
+	>This cookie file is updated by yt-dlp.exe each time it is used.  
 	>Example 1  
 	>```
 	>cookie_file=C:\MyData 2025 3\♨secret☹\cookie2503.txt
@@ -314,5 +314,4 @@ If that happens, recreate the cookie file.
 ## History
 
 * 2025-03-16 Published.  
-
 
