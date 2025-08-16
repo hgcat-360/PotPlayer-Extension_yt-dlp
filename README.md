@@ -117,7 +117,7 @@ PotPlayer can extract YouTube playlists by default, and this extension adds supp
 When you open a playlist URL, the yt-dlp extension will import its items into PotPlayer’s playlist if yt-dlp supports that playlist.  
 
 While website playlists vary widely, yt-dlp supports only certain types.  
-Small playlists may load completely, but large ones may not load fully, even after a long wait.  
+Small playlists may load completely, but large ones may not load fully even after a long wait.  
 
 ### Playlist or Single Video
 
@@ -276,7 +276,7 @@ While this button is also used in the next “stable method”, it only collects
 
 Uses a browser’s Incognito window to store all necessary cookies independently.  
 
-**An Incognito** window is also called a **Private window** or an **InPrivate window**, depending on the browser.  
+**An Incognito window** is also called **a Private window** or **an InPrivate window**, depending on the browser.  
 
 1. Open the details of "*Get cookies.txt LOCALLY*" from Chrome’s extension settings and enable it to run in Incognito mode.  
 
