@@ -155,7 +155,7 @@ However, if yt-dlp.exe is not actually hanging and is only taking a long time to
 Note that PotPlayer or yt-dlp cannot forcibly terminate these processes on their own.  
 You will need to use your system’s **Task Manager** or, preferably, a more user-friendly external tool such as [Process Explorer](https://learn.microsoft.com/sysinternals/downloads/process-explorer) or [System Explorer](https://systemexplorer.net/).  
 
-<img width="959" height="475" alt="2025-08-15_21h14_42" src="https://github.com/user-attachments/assets/d73dd1da-1875-4af3-a860-b035e1bf3d60" />
+<img width="959" height="475" alt="2025-08-15_21h14_42" src="https://github.com/user-attachments/assets/6afc599a-1f96-4091-993f-40dad6b4071f" />
 
 It’s a basic shortcoming that you have to monitor processes with an external tool.  
 This comes from server restrictions, faulty processing of *yt-dlp.exe* and limitations in the design of the PotPlayer extension.  
@@ -314,4 +314,5 @@ If that happens, recreate the cookie file.
 ## History
 
 * 2025-03-16 Published.  
+
 
