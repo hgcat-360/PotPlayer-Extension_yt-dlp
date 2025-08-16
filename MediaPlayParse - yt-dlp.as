@@ -5,7 +5,7 @@
   Placed in \PotPlayer\Extension\Media\PlayParse\
 *************************************************************/
 
-string SCRIPT_VERSION = "250624";
+string SCRIPT_VERSION = "250816";
 
 
 string YTDLP_EXE = "Module\\yt-dlp.exe";
@@ -142,8 +142,8 @@ class FileConfig
 		else
 		{
 			msg =
-			"The following default config file is not found.\r\n"
-			"Please place it together with the script file.\r\n\r\n";
+			"The following default config file was not found.\r\n"
+			"Please place it in the same folder as the script file.\r\n\r\n";
 			codeDef = "";
 		}
 		
@@ -168,7 +168,7 @@ class FileConfig
 	bool _createFolder(string folder)
 	{
 		//this folder is relative to HostGetConfigFolder()
-		//it doesn't include a file name
+		//it does not include a file name
 		if (HostFolderExist(HostGetConfigFolder() + folder)) return true;
 		if (folder.empty()) return false;
 		
@@ -248,7 +248,7 @@ class FileConfig
 				showDialog = false;
 				string msg =
 				"The script cannot create or save the config file.\r\n"
-				"Please confirm that this file is writable;\r\n\r\n"
+				"Please ensure this file is writable.\r\n\r\n"
 				+ HostGetConfigFolder() + SCRIPT_CONFIG_CUSTOM;
 				HostMessageBox(msg, "[yt-dlp] ERROR: File save", 0, 0);
 			}
@@ -314,7 +314,7 @@ class CFG
 	
 	string _escapeQuote(string str)
 	{
-		//don't use Trim("\"")
+		//do not use Trim("\"")
 		if (str.Left(1) == "\"" && str.Right(1) == "\"")
 		{
 			str = str.substr(1, str.size() - 2);
@@ -1314,7 +1314,7 @@ class YTDLP
 				string hash0 = cfg.getStr("MAINTENANCE", "ytdlp_hash");
 				if (hash0.empty())
 				{
-					string msg = "You are using a newly placed [yt-dlp.exe].\r\n\r\n";
+					string msg = "You are using a newly added [yt-dlp.exe].\r\n\r\n";
 					msg += "current version: " + version;
 					HostMessageBox(msg, "[yt-dlp] INFO", 2, 0);
 					cfg.setStr("MAINTENANCE", "ytdlp_hash", hash);
@@ -1327,10 +1327,10 @@ class YTDLP
 						string msg =
 						"Your [yt-dlp.exe] is different from before.\r\n\r\n"
 						"current version: " + version + "\r\n\r\n"
-						"Continue playing if you replaced it by yourself.";
+						"You can continue playback if you replaced it intentionally.";
 						if (cfg.getInt("MAINTENANCE", "update_ytdlp") > 0)
 						{
-							msg += "\r\nThe setting of [update_ytdlp] will be reset.";
+							msg += "\r\nThe [update_ytdlp] setting will be reset.";
 						}
 						HostMessageBox(msg, "[yt-dlp] ALERT", 0, 0);
 						error = -1;
@@ -1365,9 +1365,9 @@ class YTDLP
 		error = 3;
 		cfg.setInt("MAINTENANCE", "critical_error", 1, false);
 		cfg.deleteKey("MAINTENANCE", "update_ytdlp");
-		string msg = "Your [yt-dlp.exe] behaved unexpectedly.\r\n";
+		string msg = "Your copy of [yt-dlp.exe] behaved unexpectedly.\r\n";
 		HostPrintUTF8("\r\n[yt-dlp] CRITICAL ERROR! " + msg);
-		msg += "After checking that it's fine, reset [critical_error] in config file and reload the script.";
+		msg += "After confirming no problems, set [critical_error] to 0 in the config file and reload the script.";
 		HostMessageBox(msg, "[yt-dlp] CRITICAL ERROR", 3, 2);
 	}
 	
@@ -1404,9 +1404,9 @@ class YTDLP
 				if (!browser.empty())
 				{
 					msg =
-					browser + " is unsupported as browser.\r\n"
-					"Use Firefox as cookie_browser or use cookie_file option.\r\n\r\n"
-					"The setting of cookie_browser will be commented out.";
+					browser + " is not supported as a browser.\r\n"
+					"Use Firefox as [cookie_browser] or use [cookie_file] option.\r\n\r\n"
+					"The [cookie_browser] setting will be commented out.";
 					HostMessageBox(msg, "[yt-dlp] ERROR: Command", 0, 0);
 					cfg.cmtoutKey("COOKIE", "cookie_browser");
 					return true;
@@ -1460,7 +1460,7 @@ class YTDLP
 				{
 					msg =
 					"Cannot copy cookie database from " + browser + ".\r\n"
-					"Use Firefox as cookie_browser or use cookie_file option.\r\n";
+					"Use Firefox as [cookie_browser] or use [cookie_file] option.\r\n";
 				}
 				else if (op.find("find") >= 0)
 				{
@@ -1477,13 +1477,24 @@ class YTDLP
 		{
 			msg =
 			"Safari is not a supported browser on Windows.\r\n"
-			"Use Firefox as cookie_browser or use cookie_file option.\r\n";
+			"Use Firefox as [cookie_browser] or use [cookie_file] option.\r\n";
 		}
 		if (!msg.empty())
 		{
-			msg += "\r\nThe setting of cookie_browser will be commented out.";
+			msg += "\r\nThe [cookie_browser] setting will be commented out.";
 			HostMessageBox(msg, "[yt-dlp] ERROR: Cookie browser", 0, 0);
 			cfg.cmtoutKey("COOKIE", "cookie_browser");
+			return true;
+		}
+		return false;
+	}
+	
+	bool _checkLogGeoRestriction(string log, string url)
+	{
+		if (HostRegExpParse(log, "Error: [^\r\n]* not available from your location due to geo restriction", {}))
+		{
+			string msg = "This video/sound is not available from your location due to geo restriction.\r\n\r\n" + url;
+			HostMessageBox(msg, "[yt-dlp] INFO", 2, 0);
 			return true;
 		}
 		return false;
@@ -1504,22 +1515,22 @@ class YTDLP
 					if (log.substr(pos1, 7) == "ERROR: ")
 					{
 						msg =
-						"A newer version of [yt-dlp.exe] is found on the website,\r\n"
-						"but automatic update failed.\r\n\r\n";
+						"A newer version of [yt-dlp.exe] was found on the website,\r\n"
+						"but the automatic update failed.\r\n\r\n";
 						pos1 += 7;
 						if (log.find("Unable to write", pos1) == pos1)
 						{
 							msg +=
 							"Unable to overwrite [yt-dlp.exe] here.\r\n"
 							+ fileExe + "\r\n\r\n"
-							"Replace it manually or try to run PotPlayer with administrator privileges.\r\n\r\n";
+							"Replace it manually or try running PotPlayer with administrator privileges.\r\n\r\n";
 						}
 						else
 						{
 							int pos2 = sch.getEol(log, pos1);
 							msg += log.substr(pos1, pos2 - pos1) + "\r\n\r\n";
 						}
-						msg += "The setting of [update_ytdlp] will be reset.";
+						msg += "The [update_ytdlp] setting will be reset.";
 						HostMessageBox(msg, "[yt-dlp] ERROR: Auto update", 0, 0);
 						cfg.setInt("MAINTENANCE", "update_ytdlp", 0);
 						return -1;
@@ -1537,6 +1548,29 @@ class YTDLP
 			}
 		}
 		return 0;
+	}
+	
+	bool _checkLiveOffline(string log, string url)
+	{
+		if (HostRegExpParse(log, "^ERROR: [^\r\n]* is (not currently live|offline)", {}))
+		{
+			string msg = "This channel is not currently live.\r\n\r\n" + url;
+			HostMessageBox(msg, "[yt-dlp] INFO", 2, 0);
+			return true;
+		}
+		return false;
+	}
+	
+	bool _checkLiveFromStart(string log, string options)
+	{
+		if (HostRegExpParse(log, "^ERROR: [^\r\n]*there are no formats that can be downloaded from the start", {}))
+		{
+			if (options.find(" --live-from-start") >= 0)
+			{
+				return true;
+			}
+		}
+		return false;
 	}
 	
 	string _extractLines(string log)
@@ -1607,6 +1641,8 @@ class YTDLP
 		//waitOutputs[idx] : {urls waiting outputs for}
 		// idx  0: parse item  / 1: parse playlist  / 2: download
 	
+	bool retryLive = false;
+	
 	array<string> exec(string url, bool isPlaylist)
 	{
 		checkFile(true);
@@ -1629,35 +1665,83 @@ class YTDLP
 		}
 		
 		string options = "";
+		bool isYoutube = _IsUrlSite(url, "youtube");
+		string argYoutube = "youtube:lang=" + cfg.baseLang;
 		
 		if (!isPlaylist)	//a single video/audio
 		{
-			if (cfg.csl > 0) HostPrintUTF8("\r\n[yt-dlp] Parsing... - " + qt(url) + "\r\n");
+			if (cfg.csl > 0) HostPrintUTF8("\r\n[yt-dlp] " + (retryLive ? "Retry " : "") + "Parsing... - " + qt(url) + "\r\n");
 			
+			options += " --no-playlist";
 			options += " -I 1";
 			options += " --all-subs";
-			if (cfg.getInt("FORMAT", "live_from_start") == 1)
+			if (retryLive)
 			{
-				options += " --live-from-start";
+				retryLive = false;
+			}
+			else if (isYoutube)
+			{
+				/*
+				if (cfg.getInt("YOUTUBE", "youtube_live") == 2)
+				{
+					options += " --live-from-start";
+				}
+				*/
+			}
+			else
+			{
+				if (cfg.getInt("FORMAT", "live_as_vod") == 1)
+				{
+					options += " --live-from-start";	//for twitch
+				}
 			}
 			
-			_addOptionsCookie(options);
+			string potoken;
+			_addOptionsCookie(options, potoken);
+			{
+				string potokenSubs = cfg.getStr("YOUTUBE", "potoken_subs");
+				if (!potokenSubs.empty())
+				{
+					if (!potoken.empty())
+					{
+						potoken += ",web.subs+" + potokenSubs;
+					}
+					else
+					{
+						potoken = "po_token=web.subs+" + potokenSubs;
+					}
+				}
+			}
+			if (!potoken.empty()) argYoutube += ";" + potoken;
 		}
 		else	//playlist
 		{
 			if (cfg.csl > 0) HostPrintUTF8( "\r\n[yt-dlp] Extracting playlist entries... - " + qt(url) + "\r\n");
 			
-			//Don't use cookies while extracting playlist items.
+			if (isYoutube)
+			{
+				//Do not use cookies while extracting playlist items exept for youtube.
+				string potoken;
+				_addOptionsCookie(options, potoken);
+				if (!potoken.empty()) argYoutube += ";" + potoken;
+				
+				options += " --no-playlist";
+			}
 			
 			options += " --flat-playlist";
 				//Fastest and reliable for collecting urls in a playlist.
-				//But collected items have no title or thumbnail except for some websites like YouTube.
+				//But collected items have no title or thumbnail except for some websites like youtube.
 				//Missing properties (title/thumbnail/duration) are fetched by a subsequent function "_getPlaylistItem".
 			
 			options += " -R 0 --file-access-retries 0 --fragment-retries 0";
 				//For playlist, detailed data is not necessary. (no effect??)
 			
 			HostIncTimeOut(30000);
+		}
+		
+		if (isYoutube)
+		{
+			options += " --extractor-args " + qt(argYoutube);
 		}
 		
 		_addOptionsNetwork(options);
@@ -1704,6 +1788,14 @@ class YTDLP
 		if (_checkLogCommand(log)) return {};
 		if (_checkLogVersion(log)) return {};
 		if (_checkLogBrowser(log)) return {};
+		if (_checkLogGeoRestriction(log, url)) return {};
+		if (_checkLiveOffline(log, url)) return {};
+		
+		if (_checkLiveFromStart(log, options))
+		{
+			retryLive = true;
+			return exec(url, isPlaylist);
+		}
 		
 		_checkLogUpdate(log);
 		if (entries.size() == 0)
@@ -1726,14 +1818,14 @@ class YTDLP
 		return entries;
 	}
 	
-	void _addOptionsCookie(string &inout options)
+	void _addOptionsCookie(string &inout options, string &inout potoken)
 	{
-		bool isCookie = false;
 		string cookieFile = cfg.getStr("COOKIE", "cookie_file");
+		bool hasCookie = false;
 		if (!cookieFile.empty())
 		{
 			options += " --cookies " + qt(cookieFile);
-			isCookie = true;
+			hasCookie = true;
 		}
 		else
 		{
@@ -1741,38 +1833,38 @@ class YTDLP
 			if (!cookieBrowser.empty())
 			{
 				options += " --cookies-from-browser " + qt(cookieBrowser);
-				isCookie = true;
-			}
-		}
-		if (isCookie)
-		{
-			string potokenScript = cfg.getStr("YOUTUBE", "potoken_bgutil_script");
-			if (!potokenScript.empty())
-			{
-				options += " --extractor-args " + qt("youtube:getpot_bgutil_script=" + potokenScript);
-			}
-			string potokenBaseurl = cfg.getStr("YOUTUBE", "potoken_bgutil_baseurl");
-			if (!potokenBaseurl.empty())
-			{
-				options += " --extractor-args " + qt("youtube:getpot_bgutil_baseurl=" + potokenBaseurl);
-			}
-			string potokenDirect = cfg.getStr("YOUTUBE", "potoken_direct");
-			if (!potokenDirect.empty())
-			{
-				options += " --extractor-args " + qt("youtube:po_token=web.gvs+" + potokenDirect);
+				hasCookie = true;
 			}
 		}
 		
-		if (cfg.getInt("COOKIE", "mark_watched") == 1)
+		if (hasCookie)
 		{
-			options += " --mark-watched";
+			if (cfg.getInt("COOKIE", "mark_watched") == 1)
+			{
+				options += " --mark-watched";
+			}
+			
+			string potokenGvs = cfg.getStr("YOUTUBE", "potoken_gvs");
+			if (!potokenGvs.empty())
+			{
+				potoken = "player-client=default,mweb;po_token=mweb.gvs+" + potokenGvs;
+			}
+			string bgutilHttp = cfg.getStr("YOUTUBE", "potoken_bgutil_http");
+			if (!bgutilHttp.empty())
+			{
+				options += " --extractor-args " + qt("youtubepot-bgutilhttp:" + bgutilHttp);
+			}
+			string bgutilScript = cfg.getStr("YOUTUBE", "potoken_bgutil_script");
+			if (!bgutilScript.empty())
+			{
+				options += " --extractor-args " + qt("youtubepot-bgutilscript:" + bgutilScript);
+			}
 		}
 	}
 	
 	void _addOptionsNetwork(string &inout options)
 	{
 		options += " --retry-sleep exp=1:10";
-		options += " --no-playlist";
 		
 		string proxy = cfg.getStr("NETWORK", "proxy");
 		if (!proxy.empty()) options += " --proxy " + qt(proxy);
@@ -1829,13 +1921,19 @@ class YTDLP
 			if (existTitle && existThumbnail && existDuration) return false;
 		}
 		
-		HostIncTimeOut(dicsEntry.size() * 2000);
+		HostIncTimeOut(dicsEntry.size() * 5000);
 		
 		string options = "";
-		options += " --ignore-no-formats-error";
-		options += " --no-flat-playlist";
+		
+		string argYoutube = "youtube:lang=" + cfg.baseLang;
+		string potoken;
+		_addOptionsCookie(options, potoken);
+		if (!potoken.empty()) argYoutube += ";" + potoken;
+		options += " --extractor-args " + qt(argYoutube);
+		
 		_addOptionsNetwork(options);
-		options += " -O webpage_url";
+		options += " --no-flat-playlist";
+		options += " --ignore-no-formats-error";
 		if (!existTitle) options += " -O title";
 		if (!existThumbnail) options += " -O thumbnail";
 		if (!existDuration) options += " -O duration_string";
@@ -1856,12 +1954,6 @@ class YTDLP
 			int pos = 0;
 			for (uint i = 0; i < dicsEntry.size(); i++)
 			{
-				{
-					string wpUrl;
-					pos = sch.getLine(output, pos, wpUrl);
-					if (pos < 0) break;
-					//if (wpUrl != "NA") dicsEntry[i].set("url", wpUrl);
-				}
 				if (!existTitle)
 				{
 					string title;
@@ -1869,7 +1961,6 @@ class YTDLP
 					if (pos < 0) break;
 					if (title != "NA") dicsEntry[i].set("title", title);
 				}
-				
 				if (!existThumbnail)
 				{
 					string thumbnail;
@@ -1877,7 +1968,6 @@ class YTDLP
 					if (pos < 0) break;
 					if (thumbnail != "NA") dicsEntry[i].set("thumbnail", thumbnail);
 				}
-				
 				if (!existDuration)
 				{
 					string duration;
@@ -2001,8 +2091,8 @@ string GetDesc()
 		case 3:
 			info += "\r\n\r\n"
 			"| Your [yt-dlp.exe] behaved unexpectedly.\r\n"
-			"| After checking that it's fine, reset [critical_error]\r\n"
-			"| in config file and reload the script.\r\n";
+			"| After confirming no issues, reset [critical_error]\r\n"
+			"| in the config file and reload the script.\r\n";
 			break;
 	}
 	return info;
@@ -2109,22 +2199,14 @@ string _reviseUrl(string url)
 }
 
 
-bool PlayitemCheck(const string &in path)
+bool _PlayitemCheck(string &in url)
 {
-	//called when an item is being opened after PlaylistCheck or PlaylistParse
-	
 	if (ytd.error == 3 || cfg.getInt("SWITCH", "stop") == 1) return false;
-	
-	string url = _reviseUrl(path);
-	url.MakeLower();
 	
 	if (!HostRegExpParse(url, "^https?://", {})) return false;
 	
 	if (HostRegExpParse(url, "//192\\.168\\.\\d+\\.\\d+\\b", {})) return false;
 		//Exclude LAN
-	
-	if (cfg.getInt("YOUTUBE", "enable_youtube") == 0 && _IsUrlSite(url, "youtube")) return false;
-		//Exclude youtube according to the setting
 	
 	if (_IsUrlSite(url, "kakao")) return false;
 		//Exclude KakaoTV
@@ -2133,8 +2215,8 @@ bool PlayitemCheck(const string &in path)
 	if (!ext.empty())	//hot-link to a web file
 	{
 		int kind = 0x0;
-		if (cfg.getInt("TARGET", "hotlink_media_file") < 1) kind |= 0x111;	//Exclude media files
-		if (cfg.getInt("TARGET", "hotlink_playlist_file") < 1) kind |= 0x1000;	//Exclude playlist files
+		if (cfg.getInt("TARGET", "direct_media_file") < 1) kind |= 0x111;	//Exclude media files
+		if (cfg.getInt("TARGET", "direct_playlist_file") < 1) kind |= 0x1000;	//Exclude playlist files
 		kind |= 0x110000;	//Exclude compressed/subtitles files
 		if (_CheckExt(ext, kind)) return false;
 	}
@@ -2142,6 +2224,21 @@ bool PlayitemCheck(const string &in path)
 	return true;
 }
 
+bool PlayitemCheck(const string &in path)
+{
+	string url = _reviseUrl(path);
+	url.MakeLower();
+	
+	//called when an item is being opened after PlaylistCheck or PlaylistParse
+	if (_IsUrlSite(url, "youtube"))
+	{
+		int enableYoutube = cfg.getInt("YOUTUBE", "enable_youtube");
+		if (enableYoutube != 1 && enableYoutube != 2) return false;
+		//Exclude youtube according to the setting
+	}
+	
+	return _PlayitemCheck(url);
+}
 
 string _OmitStr(string str, string search, uint allowDigit = 0)
 {
@@ -2289,6 +2386,28 @@ bool _IsSameQuality(dictionary dic, array<dictionary> dics)
 }
 
 
+bool _CheckLangageName(string note)
+{
+	//return true if note is possible to be a language name
+	if (!note.empty())
+	{
+		array<string> _qualities = {
+			"low", "medium", "high", "Default"
+		};
+		if (_qualities.find(note) < 0)
+		{
+			if (!HostRegExpParse(note, "\\w{20}", {}))
+			{
+				if (sch.regExpParse(note, "(?i)\\b(?:dash|hls)\\b", {}, 0) < 0)
+				{
+					return true;
+				}
+			}
+		}
+	}
+	return false;
+}
+
 string _GetJsonValueString(JsonValue json, string key)
 {
 	string str = "";
@@ -2350,7 +2469,7 @@ string PlayitemParse(const string &in path, dictionary &MetaData, array<dictiona
 	JsonValue root;
 	if (!reader.parse(json, root) || !root.isObject())
 	{
-		HostPrintUTF8("[yt-dlp] ERROR! Json data corrupted.\r\n");
+		HostPrintUTF8("[yt-dlp] ERROR! JSON data corrupted.\r\n");
 		ytd.criticalError(); return "";
 	}
 	JsonValue jVersion = root["_version"];
@@ -2375,10 +2494,12 @@ string PlayitemParse(const string &in path, dictionary &MetaData, array<dictiona
 		HostPrintUTF8("[yt-dlp] ERROR! No extractor.\r\n");
 		ytd.criticalError(); return "";
 	}
+	bool isYoutube = _IsUrlSite(inUrl, "youtube");
+	
 	string webUrl = _GetJsonValueString(root, "webpage_url");
 	if (webUrl.empty())
 	{
-		HostPrintUTF8("[yt-dlp] ERROR! No webpage url.\r\n");
+		HostPrintUTF8("[yt-dlp] ERROR! No webpage URL.\r\n");
 		ytd.criticalError(); return "";
 	}
 	
@@ -2386,13 +2507,13 @@ string PlayitemParse(const string &in path, dictionary &MetaData, array<dictiona
 	if (playlistIdx > 0 && inUrl != webUrl)
 	{
 		//Exclude playlist url
-		if (cfg.csl > 0) HostPrintUTF8("[yt-dlp] ERROR! This url is for playlist. You need to fetch url of each entry in it. - " + ytd.qt(inUrl) +"\r\n");
+		if (cfg.csl > 0) HostPrintUTF8("[yt-dlp] ERROR! This URL is for a playlist. You need to fetch the URL of each entry in it. - " + ytd.qt(inUrl) +"\r\n");
 		return "";
 	}
 	bool isLive = _GetJsonValueBool(root, "is_live");
-	if (isLive && cfg.getInt("YOUTUBE", "no_youtube_live") == 1 && _IsUrlSite(inUrl, "youtube"))
+	if (isLive && cfg.getInt("YOUTUBE", "youtube_live") != 1 && isYoutube)
 	{
-		if (cfg.csl > 0) HostPrintUTF8("[yt-dlp] YouTube live is passed through by \"no_youtube_live\". - " + ytd.qt(inUrl) +"\r\n");
+		if (cfg.csl > 0) HostPrintUTF8("[yt-dlp] YouTube Live was passed through according to the \"youtube_live\" setting. - " + ytd.qt(inUrl) +"\r\n");
 		return "";
 	}
 	
@@ -2447,7 +2568,6 @@ string PlayitemParse(const string &in path, dictionary &MetaData, array<dictiona
 		if (isAudioExt && cfg.getInt("FORMAT", "radio_thumbnail") == 1)
 		{
 			thumbnail = _GetRadioThumbnail(isDirect);
-			if (!thumbnail.empty()) MetaData["thumbnail"] = thumbnail;
 		}
 		else
 		{
@@ -2515,7 +2635,7 @@ string PlayitemParse(const string &in path, dictionary &MetaData, array<dictiona
 	JsonValue jFormats = root["formats"];
 	if (!jFormats.isArray() || jFormats.size() == 0)
 	{
-		//Don't treat it as an error.
+		//Do not treat it as an error.
 		//For getting uploader(website) or thumbnail or upload date.
 		if (cfg.csl > 0) HostPrintUTF8("[yt-dlp] No formats data...\r\n");
 	}
@@ -2528,12 +2648,15 @@ string PlayitemParse(const string &in path, dictionary &MetaData, array<dictiona
 		JsonValue jFormat = jFormats[i];
 		
 		string protocol = _GetJsonValueString(jFormat, "protocol");
-		if (protocol.empty()) continue;
-		if (protocol != "http" && protocol != "https" && protocol.Left(4) != "m3u8") continue;
+		if (protocol.Left(4) != "http" && protocol.Left(4) != "m3u8")
+		{
+			continue;
+		}
 		
 		int qualityIdx = _GetJsonValueInt(jFormat, "quality");
 		
 		string fmtUrl = _GetJsonValueString(jFormat, "url");
+//HostPrintUTF8("fmtUrl: " + fmtUrl);
 		if (fmtUrl.empty()) continue;
 		if (urlOut.empty()) urlOut = fmtUrl;
 		
@@ -2575,47 +2698,30 @@ string PlayitemParse(const string &in path, dictionary &MetaData, array<dictiona
 				}
 			}
 			
-			int width = _GetJsonValueInt(jFormat, "width");
-			if (width > 0 && cfg.getInt("FORMAT", "reduce_low_quality") == 1)
-			{
-				if (va == "v")
-				{
-					if (width < 360 && vCount >= 3) continue;
-					if (width < 480 && vCount >= 6) continue;
-				}
-				else if (va == "va")
-				{
-					if (width < 360 && vaCount >= 3) continue;
-					if (width < 480 && vaCount >= 6) continue;
-				}
-			}
-			
 			int height = _GetJsonValueInt(jFormat, "height");
-			if (height > 0 && cfg.getInt("FORMAT", "reduce_low_quality") == 1)
-			{
-				if (va == "v")
-				{
-					if (height < 360 && vCount >= 3) continue;
-					if (height < 480 && vCount >= 6) continue;
-				}
-				else if (va == "va")
-				{
-					if (height < 360 && vaCount >= 3) continue;
-					if (height < 480 && vaCount >= 6) continue;
-				}
-			}
-			
+			int width = _GetJsonValueInt(jFormat, "width");
+			float vbr = _GetJsonValueFloat(jFormat, "vbr");
+			float tbr = _GetJsonValueFloat(jFormat, "tbr");
 			float abr = _GetJsonValueFloat(jFormat, "abr");
-			if (abr > 0 && cfg.getInt("FORMAT", "reduce_low_quality") == 1)
+			
+			if (cfg.getInt("FORMAT", "reduce_low_quality") == 1)
 			{
-				if (va == "a")
+				int _count = (va == "v" ? vCount : va == "va" ? vaCount : 0);
+				if (_count > 0)
+				{
+					int _width = (width < height ? height : width);
+					if (_width > 0)
+					{
+						if (_width < 640 && _count >= 3) continue;
+						if (_width < 850 && _count >= 6) continue;
+						if (_width < 1280 && _count >= 10) continue;
+					}
+				}
+				else if (va == "a" && abr > 0)
 				{
 					if (abr < 100 && aCount >= 2) continue;
 				}
 			}
-			
-			float vbr = _GetJsonValueFloat(jFormat, "vbr");
-			float tbr = _GetJsonValueFloat(jFormat, "tbr");
 			
 			string bitrate;
 			if (tbr > 0) bitrate = HostFormatBitrate(int(tbr * 1000));
@@ -2651,20 +2757,10 @@ string PlayitemParse(const string &in path, dictionary &MetaData, array<dictiona
 				if (!language.empty() && language != "und")	//und = undetermined
 				{
 					note = _GetJsonValueString(jFormat, "format_note");
-					if (!note.empty())
+					note = _OmitStr(note, ",");
+					if(_CheckLangageName(note))
 					{
-						note = _OmitStr(note, ",");
-						array<string> _qualities = {
-							"low", "medium", "high", "Default"
-						};
-						if (_qualities.find(note) < 0)
-						{
-							if (!HostRegExpParse(note, "\\w{20}", {}))
-							{
-								//show only language name
-								format += note + ", ";
-							}
-						}
+						format += note + ", ";
 					}
 				}
 				format += fmtExt;
@@ -2789,10 +2885,22 @@ string PlayitemParse(const string &in path, dictionary &MetaData, array<dictiona
 							int pos = sch.regExpParse(subUrl, "\\.vtt\\.m3u8(\\?.*)?$", {}, 0);
 							if (pos > 0) subUrl.erase(pos + 4, 5);
 						}
+						if (isYoutube)
+						{
+							//remove unstable position data in youtube
+							// &fmt=vtt -> &fmt=srt
+							int pos = sch.regExpParse(subUrl, "&fmt=vtt\\b", {}, 0);
+							if (pos > 0)
+							{
+								subUrl.erase(pos + 5, 3);
+								subUrl.insert(pos + 5, "srt");
+							}
+						}
 						
 						dictionary dic;
 						dic["langCode"] = langCode;
 						dic["url"] = subUrl;
+//HostPrintUTF8("sub lang: " + langCode + "\turl: " + subUrl);
 						string subName = _GetJsonValueString(jSub, "name");
 						if (!subName.empty()) dic["name"] = subName;
 						if (HostRegExpParse(langCode, "\\b[Aa]uto", {}))
@@ -2825,7 +2933,7 @@ string PlayitemParse(const string &in path, dictionary &MetaData, array<dictiona
 								string subExt = _GetJsonValueString(jSsub, "ext");
 								if (!subExt.empty())
 								{
-									if (subExt.find("vtt") >= 0 || subExt.find("srv") >= 0)
+									if (subExt.find("srt") >= 0)	//or vtt, srv
 									{
 										string subUrl = _GetJsonValueString(jSsub, "url");
 										if (!subUrl.empty())
@@ -2868,21 +2976,33 @@ string PlayitemParse(const string &in path, dictionary &MetaData, array<dictiona
 					string cptTitle = _GetJsonValueString(jChapter, "title");
 					if (!cptTitle.empty())
 					{
-						float cTime = _GetJsonValueFloat(jChapter, "start_time");
-						if (cTime >= 0)
+						dictionary dic;
+						dic["title"] = cptTitle;
+						float startTime = _GetJsonValueFloat(jChapter, "start_time");
+						if (isLive)
 						{
-							dictionary dic;
-							dic["title"] = cptTitle;
-							dic["time"] = formatInt(int(cTime * 1000));	//milli-second
-							dicsChapter.insertLast(dic);
+							//For Twitch with --live-from-start
+							//Generally PotPlayer cannot reflect chapter positions on live stream.
+							float secDuration = _GetJsonValueFloat(root, "duration");
+							if (secDuration > 0)
+							{
+								//negative number means past time.
+								startTime -= secDuration;
+							}
+							else
+							{
+								startTime = 0;
+							}
 						}
+						dic["time"] = formatInt(int(startTime * 1000));	//milli-second;
+						dicsChapter.insertLast(dic);
 					}
 				}
 			}
 		}
 		if (dicsChapter.size() > 0) MetaData["chapter"] = dicsChapter;
 	}
-	if (cfg.csl > 0) HostPrintUTF8("[yt-dlp] Parsing complete by " + extractor + ". - " + ytd.qt(inUrl) +"\r\n");
+	if (cfg.csl > 0) HostPrintUTF8("[yt-dlp] Parsing completed by " + extractor + ". - " + ytd.qt(inUrl) +"\r\n");
 	
 	return urlOut;
 }
@@ -2894,25 +3014,27 @@ bool PlaylistCheck(const string &in path)
 	//Some playlist extraction may freeze yt-dlp.
 	
 	
-	string inUrl = _reviseUrl(path);
-	if (!PlayitemCheck(inUrl)) return false;
+	string url = _reviseUrl(path);
 	
-	if (_IsUrlSite(inUrl, "youtube"))
+	if (_IsUrlSite(url, "youtube"))
 	{
-		if (cfg.getInt("YOUTUBE", "enable_youtube") < 2) return false;
+		int enableYoutube = cfg.getInt("YOUTUBE", "enable_youtube");
+		if (enableYoutube != 2 && enableYoutube != 3) return false;
 	}
 	else
 	{
 		if (cfg.getInt("TARGET", "website_playlist") < 1) return false;
 	}
 	
-	string ext = _GetUrlExtension(inUrl);
+	if (!_PlayitemCheck(url)) return false;
+	
+	string ext = _GetUrlExtension(url);
 	if (!ext.empty())
 	{
 		if (_CheckExt(ext, 0x110111)) return false;
 		if (_CheckExt(ext, 0x1000))
 		{
-			if (cfg.getInt("TARGET", "hotlink_playlist_file") < 2) return false;
+			if (cfg.getInt("TARGET", "direct_playlist_file") < 2) return false;
 		}
 	}
 	
@@ -2920,7 +3042,7 @@ bool PlaylistCheck(const string &in path)
 }
 
 
-dictionary _PlaylistParse(string json)
+dictionary _PlaylistParse(string json, bool forcePlaylist)
 {
 	dictionary dic;
 	
@@ -2931,7 +3053,17 @@ dictionary _PlaylistParse(string json)
 		if (reader.parse(json, root) && root.isObject())
 		{
 			int playlistIdx = _GetJsonValueInt(root, "playlist_index");
-			if (playlistIdx < 1) return {};
+			if (playlistIdx < 1)
+			{
+				if (forcePlaylist)
+				{
+					playlistIdx = 0;
+				}
+				else
+				{
+					return {};
+				}
+			}
 			dic["playlistIdx"] = playlistIdx;
 			
 			string extractor = _GetJsonValueString(root, "extractor_key");
@@ -3000,15 +3132,23 @@ array<dictionary> PlaylistParse(const string &in path)
 {
 	//called after PlaylistCheck if it returns true
 	
-	string inUrl = _reviseUrl(path);
-	array<string> entries = ytd.exec(inUrl, true);
+	string url = _reviseUrl(path);
+	array<string> entries = ytd.exec(url, true);
 	if (entries.size() == 0) return {};
 	
 	array<dictionary> dicsEntry;
+	bool forcePlaylist = _IsUrlSite(url, "youtube");
+		// For YouTube, this extension always treats a URL as a playlist
+		// to prevent the built-in YouTube extension from changing the playlist state.
+		// If a URL refers to both a video and a playlist
+		// (e.g., https://www.youtube.com/watch?v=XXXXX&list=YYYYY),
+		// this extension uses the --no-playlist option to ignore the playlist
+		// and treats the URL as a playlist containing only that single video.
+	
 	int cnt = 0;
 	for (uint i = 0; i < entries.size(); i++)
 	{
-		dictionary dic = _PlaylistParse(entries[i]);
+		dictionary dic = _PlaylistParse(entries[i], forcePlaylist);
 		if (!dic.empty())
 		{
 			string urlEntry;
@@ -3019,13 +3159,11 @@ array<dictionary> PlaylistParse(const string &in path)
 					if (cnt == 0)
 					{
 						string extractor;
-						if (dic.get("extractor", extractor))
-						{
-							HostPrintUTF8("Extractor: " + extractor);
-						}
+						dic.get("extractor", extractor);
+						HostPrintUTF8("Extractor: " + extractor);
 					}
-					int idx = int(dic["playlistIdx"]);	//idx > 0
-					HostPrintUTF8("Url " + idx + ": " + urlEntry);
+					int idx = int(dic["playlistIdx"]);
+					HostPrintUTF8("URL " + idx + ": " + urlEntry);
 				}
 				
 				dicsEntry.insertLast(dic);
@@ -3033,9 +3171,9 @@ array<dictionary> PlaylistParse(const string &in path)
 			}
 		}
 	}
-	if (cfg.csl > 0) HostPrintUTF8("[yt-dlp] Playlist entries: " + cnt + "    - " + ytd.qt(inUrl) +"\r\n");
+	if (cfg.csl > 0) HostPrintUTF8("[yt-dlp] Playlist entries: " + cnt + "    - " + ytd.qt(url) +"\r\n");
 	
-	ytd.getPlaylistItems(dicsEntry, inUrl);
+	ytd.getPlaylistItems(dicsEntry, url);
 	
 	for (uint i = 0; i < dicsEntry.size(); i++)
 	{
