@@ -116,19 +116,17 @@ Each website may provide its own playlist features.
 PotPlayer can extract YouTube playlists by default, and this extension adds support for playlists from many other sites — including YouTube.  
 When you open a playlist URL, the yt-dlp extension will import its items into PotPlayer’s playlist if yt-dlp supports that playlist.  
 
-While website playlists vary widely, yt-dlp supports only certain types.  
-Small playlists may load completely, but large ones may not load fully, even after a long wait.  
+While website playlists vary widely, yt-dlp only supports limited types.  
+Small playlists may load completely, but large ones may not load fully even after a long wait.  
 
 ### Playlist or Single Video
 
 For YouTube, some URLs contain both a single video and a playlist (e.g., https://www.youtube.com/watch?v=XXXXX&list=YYYYY) and may not look like playlists at first glance.  
 PotPlayer treats these as playlists by default, but this extension does not.  
 Therefore, enabling the YouTube playlist processing in this extension helps prevent unintended imports of a large number of videos all at once.  
-If you want to treat a certain YouTube URL as a playlist, make sure that the URL contains only a playlist ID without any video ID (e.g., https://www.youtube.com/playlist?list=YYYYY).  
+In that case, if you want to treat a certain YouTube URL as a playlist, make sure that the URL includes only a playlist ID without any video ID (e.g., https://www.youtube.com/playlist?list=YYYYY).  
 
-However, for websites other than YouTube, if supported, this extension treats URLs that include both a single video (or music track) and a playlist as a playlist.  
-
-This specification is subject to change in the future.  
+For websites other than YouTube, playlist handling (if supported) is set in the [TARGET] section of the configuration file.
 
 ### External Playlist Albums
 
@@ -155,15 +153,19 @@ However, if yt-dlp.exe is not actually hanging and is only taking a long time to
 Note that PotPlayer or yt-dlp cannot forcibly terminate these processes on their own.  
 You will need to use your system’s **Task Manager** or, preferably, a more user-friendly external tool such as [Process Explorer](https://learn.microsoft.com/sysinternals/downloads/process-explorer) or [System Explorer](https://systemexplorer.net/).  
 
-<img width="959" height="475" alt="2025-08-15_21h14_42" src="https://github.com/user-attachments/assets/d73dd1da-1875-4af3-a860-b035e1bf3d60" />
+<img width="959" height="475" alt="2025-08-15_21h14_42" src="https://github.com/user-attachments/assets/6afc599a-1f96-4091-993f-40dad6b4071f" />
 
 It’s a basic shortcoming that you have to monitor processes with an external tool.  
 This comes from server restrictions, faulty processing of *yt-dlp.exe* and limitations in the design of the PotPlayer extension.  
 
 ### Options Selection Criteria
 
-|                                                 | YouTube                                       | Other than YouTube    |
-| --------------------------------------- | ------------------------------------------ | -------------------------- |
+PotPlayer generally plays only direct links to media content, with some exceptions.  
+For websites other than YouTube and KakaoTV, yt-dlp must basically support them.  
+Even when using the yt-dlp extension, PotPlayer cannot play media content from sites or pages that yt-dlp does not support.  
+
+|                                                 | YouTube                                       | non-YouTube sites        |
+| --------------------------------------- | ------------------------------------------ | --------------------------- |
 | Default PotPlayer (built-in)           | normal viewing                              | not available                |
 | yt-dlp extention                          | when default is restricted                | regular content            |
 | yt-dlp extention +login                | login-only content / when restricted | login-lnly content          |
@@ -213,8 +215,8 @@ cookie_browser=firefox
 ```
 
 Once logged in with Firefox, you can watch login-required content in PotPlayer/yt-dlp.  
-After creating login cookies, you can close Firefox.  
-Keep the site logged in and disable any settings that delete cookies when closing Firefox.  
+After creating login cookies, you can close Firefox and use PotPlayer.  
+But Keep the site logged in when closing Firefox. Also disable any settings that delete cookies when closing Firefox.  
 
 > **Note:** If you log out in Firefox, yt-dlp will lose access. Log in again in Firefox to restore it.
 
@@ -241,11 +243,11 @@ The one without "LOCALLY" is prohibited as malware.
 2. Install "["*Get cookies.txt LOCALLY*"](https://chromewebstore.google.com/detail/get-cookiestxt-locally/cclelndahbckbenkjhflpdbgdldlbecc).  
 	> "Get cookies.txt LOCALLY" works in other Chromium-based browsers (e.g., Edge).
 
-3. Use the extension to create a cookie file and save it in a secure location.  
-	>For detailed extraction methods, see the next chapter. 
-	>([simple method](#simple-method--add-websites-one-by-one) and [stable method](#stable-method--prevent-interference-with-browser))  
+3. Use the extension to create a cookie file and save it in a safe folder with no access restrictions.  
+	>For detailed extraction methods, see the next chapter. ([simple method](#simple-method--add-websites-one-by-one) and [stable method](#stable-method--prevent-interference-with-browser))  
 
 4. In the extension’s configuration file, set the "*cookie\_file*" key in the \[COOKIE] section to the cookie file you saved:  
+	>This cookie file is updated by yt-dlp.exe each time it is used.  
 	>Example 1  
 	>```
 	>cookie_file=C:\MyData 2025 3\♨secret☹\cookie2503.txt
@@ -276,7 +278,7 @@ While this button is also used in the next “stable method”, it only collects
 
 Uses a browser’s Incognito window to store all necessary cookies independently.  
 
-**An Incognito** window is also called a **Private window** or an **InPrivate window**, depending on the browser.  
+**An Incognito window** is also called **a Private window** or **an InPrivate window**, depending on the browser.  
 
 1. Open the details of "*Get cookies.txt LOCALLY*" from Chrome’s extension settings and enable it to run in Incognito mode.  
 
@@ -314,4 +316,5 @@ If that happens, recreate the cookie file.
 ## History
 
 * 2025-03-16 Published.  
+
 

@@ -5,7 +5,7 @@
   Placed in \PotPlayer\Extension\Media\PlayParse\
 *************************************************************/
 
-string SCRIPT_VERSION = "250816";
+string SCRIPT_VERSION = "250819";
 
 
 string YTDLP_EXE = "Module\\yt-dlp.exe";
@@ -1665,8 +1665,8 @@ class YTDLP
 		}
 		
 		string options = "";
+		bool hasCookie = false;
 		bool isYoutube = _IsUrlSite(url, "youtube");
-		string argYoutube = "youtube:lang=" + cfg.baseLang;
 		
 		if (!isPlaylist)	//a single video/audio
 		{
@@ -1682,7 +1682,8 @@ class YTDLP
 			else if (isYoutube)
 			{
 				/*
-				if (cfg.getInt("YOUTUBE", "youtube_live") == 2)
+				int youtubeLive = cfg.getInt("YOUTUBE", "youtube_live");
+				if (youtubeLive == 2 || youtubeLive == 3)
 				{
 					options += " --live-from-start";
 				}
@@ -1696,23 +1697,7 @@ class YTDLP
 				}
 			}
 			
-			string potoken;
-			_addOptionsCookie(options, potoken);
-			{
-				string potokenSubs = cfg.getStr("YOUTUBE", "potoken_subs");
-				if (!potokenSubs.empty())
-				{
-					if (!potoken.empty())
-					{
-						potoken += ",web.subs+" + potokenSubs;
-					}
-					else
-					{
-						potoken = "po_token=web.subs+" + potokenSubs;
-					}
-				}
-			}
-			if (!potoken.empty()) argYoutube += ";" + potoken;
+			hasCookie = _addOptionsCookie(options);
 		}
 		else	//playlist
 		{
@@ -1720,12 +1705,22 @@ class YTDLP
 			
 			if (isYoutube)
 			{
-				//Do not use cookies while extracting playlist items exept for youtube.
-				string potoken;
-				_addOptionsCookie(options, potoken);
-				if (!potoken.empty()) argYoutube += ";" + potoken;
+				hasCookie = _addOptionsCookie(options);
 				
 				options += " --no-playlist";
+			}
+			else
+			{
+				//Do not use cookies while extracting playlist items exept for youtube.
+				
+				if (cfg.getInt("TARGET", "website_playlist") == 2)
+				{
+					options += " --no-playlist";
+				}
+				else
+				{
+					options += " --yes-playlist";
+				}
 			}
 			
 			options += " --flat-playlist";
@@ -1741,6 +1736,7 @@ class YTDLP
 		
 		if (isYoutube)
 		{
+			string argYoutube = _getArgsYoutube(hasCookie);
 			options += " --extractor-args " + qt(argYoutube);
 		}
 		
@@ -1818,10 +1814,10 @@ class YTDLP
 		return entries;
 	}
 	
-	void _addOptionsCookie(string &inout options, string &inout potoken)
+	bool _addOptionsCookie(string &inout options)
 	{
-		string cookieFile = cfg.getStr("COOKIE", "cookie_file");
 		bool hasCookie = false;
+		string cookieFile = cfg.getStr("COOKIE", "cookie_file");
 		if (!cookieFile.empty())
 		{
 			options += " --cookies " + qt(cookieFile);
@@ -1844,11 +1840,6 @@ class YTDLP
 				options += " --mark-watched";
 			}
 			
-			string potokenGvs = cfg.getStr("YOUTUBE", "potoken_gvs");
-			if (!potokenGvs.empty())
-			{
-				potoken = "player-client=default,mweb;po_token=mweb.gvs+" + potokenGvs;
-			}
 			string bgutilHttp = cfg.getStr("YOUTUBE", "potoken_bgutil_http");
 			if (!bgutilHttp.empty())
 			{
@@ -1860,6 +1851,46 @@ class YTDLP
 				options += " --extractor-args " + qt("youtubepot-bgutilscript:" + bgutilScript);
 			}
 		}
+		
+		return hasCookie;
+	}
+	
+	string _getArgsYoutube(bool hasCookie)
+	{
+		string argYoutube = "youtube:";
+		argYoutube += "lang=" + cfg.baseLang;
+		argYoutube += ";player-client=default,mweb";
+		string bgutil;
+		string potokenGvs;
+		if (hasCookie)
+		{
+			bgutil = cfg.getStr("YOUTUBE", "potoken_bgutil");
+			if (bgutil.empty())
+			{
+				potokenGvs = cfg.getStr("YOUTUBE", "potoken_gvs");
+			}
+		}
+		string potokenSubs = cfg.getStr("YOUTUBE", "potoken_subs");
+		if (!potokenGvs.empty())
+		{
+			argYoutube += ";potoken=web.gvs+" + potokenGvs;
+			if (!potokenSubs.empty())
+			{
+				argYoutube += ",web.subs+" + potokenSubs;
+			}
+		}
+		else
+		{
+			if (!potokenSubs.empty())
+			{
+				argYoutube += ";po_token=web.subs+" + potokenSubs;
+			}
+			if (!bgutil.empty())
+			{
+				argYoutube += ";" + bgutil;
+			}
+		}
+		return argYoutube;
 	}
 	
 	void _addOptionsNetwork(string &inout options)
@@ -1925,11 +1956,13 @@ class YTDLP
 		
 		string options = "";
 		
-		string argYoutube = "youtube:lang=" + cfg.baseLang;
-		string potoken;
-		_addOptionsCookie(options, potoken);
-		if (!potoken.empty()) argYoutube += ";" + potoken;
-		options += " --extractor-args " + qt(argYoutube);
+		bool hasCookie = _addOptionsCookie(options);
+		
+		if (_IsUrlSite(urlPlaylist, "youtube"))
+		{
+			string argYoutube = _getArgsYoutube(hasCookie);
+			options += " --extractor-args " + qt(argYoutube);
+		}
 		
 		_addOptionsNetwork(options);
 		options += " --no-flat-playlist";
@@ -2315,7 +2348,7 @@ bool _SelectAutoSub(string code, array<dictionary> dicsSub)
 		string code1;
 		if (dicsSub[i].get("langCode", code1))
 		{
-			if (lang == code1) return false;	//duplicated
+			if (lang == code1) return false;	//duplicate
 		}
 	}
 	
@@ -2386,7 +2419,7 @@ bool _IsSameQuality(dictionary dic, array<dictionary> dics)
 }
 
 
-bool _CheckLangageName(string note)
+bool _CheckLangageName(string &inout note)
 {
 	//return true if note is possible to be a language name
 	if (!note.empty())
@@ -2400,6 +2433,11 @@ bool _CheckLangageName(string note)
 			{
 				if (sch.regExpParse(note, "(?i)\\b(?:dash|hls)\\b", {}, 0) < 0)
 				{
+					int pos = note.find(" (default)");
+					if (pos >= 0)
+					{
+						note.erase(pos, 10);
+					}
 					return true;
 				}
 			}
@@ -2687,7 +2725,7 @@ string PlayitemParse(const string &in path, dictionary &MetaData, array<dictiona
 			}
 			else
 			{
-				if (qualityIdx == -1 && !isLive) continue;	//audio for non-merged in youtube
+				if (qualityIdx == -1 && !isLive) continue;	//audio for non-merged on youtube
 				if (aExt != "none" || acodec != "none")
 				{
 					va = "a";	//audio only
@@ -2851,7 +2889,7 @@ string PlayitemParse(const string &in path, dictionary &MetaData, array<dictiona
 			HostSetITag(itag);
 			dic["itag"] = itag;
 			
-			if (cfg.getInt("FORMAT", "remove_duplicated_quality") == 1)
+			if (cfg.getInt("FORMAT", "remove_duplicate_quality") == 1)
 			{
 				if (_IsSameQuality(dic, QualityList)) continue;
 			}
@@ -2887,7 +2925,7 @@ string PlayitemParse(const string &in path, dictionary &MetaData, array<dictiona
 						}
 						if (isYoutube)
 						{
-							//remove unstable position data in youtube
+							//remove unstable position data on youtube
 							// &fmt=vtt -> &fmt=srt
 							int pos = sch.regExpParse(subUrl, "&fmt=vtt\\b", {}, 0);
 							if (pos > 0)
@@ -3011,7 +3049,7 @@ string PlayitemParse(const string &in path, dictionary &MetaData, array<dictiona
 bool PlaylistCheck(const string &in path)
 {
 	//called when a new item is being opend from a location other than potplayer's playlist
-	//Some playlist extraction may freeze yt-dlp.
+	//Some playlist extraction may hang yt-dlp.
 	
 	
 	string url = _reviseUrl(path);
@@ -3023,7 +3061,8 @@ bool PlaylistCheck(const string &in path)
 	}
 	else
 	{
-		if (cfg.getInt("TARGET", "website_playlist") < 1) return false;
+		int websitePlaylist = cfg.getInt("TARGET", "website_playlist");
+		if (websitePlaylist != 1 && websitePlaylist != 2) return false;
 	}
 	
 	if (!_PlayitemCheck(url)) return false;
