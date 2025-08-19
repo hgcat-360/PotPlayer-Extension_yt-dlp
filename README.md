@@ -116,7 +116,7 @@ Each website may provide its own playlist features.
 PotPlayer can extract YouTube playlists by default, and this extension adds support for playlists from many other sites — including YouTube.  
 When you open a playlist URL, the yt-dlp extension will import its items into PotPlayer’s playlist if yt-dlp supports that playlist.  
 
-While website playlists vary widely, yt-dlp supports only certain types.  
+While website playlists vary widely, yt-dlp only supports limited types.  
 Small playlists may load completely, but large ones may not load fully even after a long wait.  
 
 ### Playlist or Single Video
@@ -126,9 +126,7 @@ PotPlayer treats these as playlists by default, but this extension does not.
 Therefore, enabling the YouTube playlist processing in this extension helps prevent unintended imports of a large number of videos all at once.  
 If you want to treat a certain YouTube URL as a playlist, make sure that the URL contains only a playlist ID without any video ID (e.g., https://www.youtube.com/playlist?list=YYYYY).  
 
-However, for websites other than YouTube, if supported, this extension treats URLs that include both a single video (or music track) and a playlist as a playlist.  
-
-This specification is subject to change in the future.  
+For websites other than YouTube, playlist handling (if supported) follows the *website_playlist* setting in the configuration file.  
 
 ### External Playlist Albums
 
@@ -161,6 +159,10 @@ It’s a basic shortcoming that you have to monitor processes with an external t
 This comes from server restrictions, faulty processing of *yt-dlp.exe* and limitations in the design of the PotPlayer extension.  
 
 ### Options Selection Criteria
+
+PotPlayer generally plays only direct links to media content, with some exceptions.  
+For websites other than YouTube and KakaoTV, yt-dlp must basically support them.  
+Even when using the yt-dlp extension, PotPlayer cannot play media content from sites or pages that yt-dlp does not support.  
 
 |                                                 | YouTube                                       | Other than YouTube    |
 | --------------------------------------- | ------------------------------------------ | -------------------------- |
@@ -213,8 +215,8 @@ cookie_browser=firefox
 ```
 
 Once logged in with Firefox, you can watch login-required content in PotPlayer/yt-dlp.  
-After creating login cookies, you can close Firefox.  
-Keep the site logged in and disable any settings that delete cookies when closing Firefox.  
+After creating login cookies, you can close Firefox and use PotPlayer.  
+But Keep the site logged in when closing Firefox. Also disable any settings that delete cookies when closing Firefox.  
 
 > **Note:** If you log out in Firefox, yt-dlp will lose access. Log in again in Firefox to restore it.
 
@@ -314,4 +316,5 @@ If that happens, recreate the cookie file.
 ## History
 
 * 2025-03-16 Published.  
+
 
