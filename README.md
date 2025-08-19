@@ -124,9 +124,9 @@ Small playlists may load completely, but large ones may not load fully even afte
 For YouTube, some URLs contain both a single video and a playlist (e.g., https://www.youtube.com/watch?v=XXXXX&list=YYYYY) and may not look like playlists at first glance.  
 PotPlayer treats these as playlists by default, but this extension does not.  
 Therefore, enabling the YouTube playlist processing in this extension helps prevent unintended imports of a large number of videos all at once.  
-If you want to treat a certain YouTube URL as a playlist, make sure that the URL contains only a playlist ID without any video ID (e.g., https://www.youtube.com/playlist?list=YYYYY).  
+In that case, if you want to treat a certain YouTube URL as a playlist, make sure that the URL includes only a playlist ID without any video ID (e.g., https://www.youtube.com/playlist?list=YYYYY).  
 
-For websites other than YouTube, playlist handling (if supported) follows the *website_playlist* setting in the configuration file.  
+For websites other than YouTube, playlist handling (if supported) is set in the [TARGET] section of the configuration file.
 
 ### External Playlist Albums
 
@@ -164,8 +164,8 @@ PotPlayer generally plays only direct links to media content, with some exceptio
 For websites other than YouTube and KakaoTV, yt-dlp must basically support them.  
 Even when using the yt-dlp extension, PotPlayer cannot play media content from sites or pages that yt-dlp does not support.  
 
-|                                                 | YouTube                                       | Other than YouTube    |
-| --------------------------------------- | ------------------------------------------ | -------------------------- |
+|                                                 | YouTube                                       | non-YouTube sites        |
+| --------------------------------------- | ------------------------------------------ | --------------------------- |
 | Default PotPlayer (built-in)           | normal viewing                              | not available                |
 | yt-dlp extention                          | when default is restricted                | regular content            |
 | yt-dlp extention +login                | login-only content / when restricted | login-lnly content          |
