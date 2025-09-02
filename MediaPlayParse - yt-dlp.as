@@ -5,7 +5,7 @@
   Placed in \PotPlayer\Extension\Media\PlayParse\
 *************************************************************/
 
-string SCRIPT_VERSION = "250902";
+string SCRIPT_VERSION = "250902a";
 
 
 string YTDLP_EXE = "Module\\yt-dlp.exe";
@@ -2273,8 +2273,7 @@ class SHOUTPL
 		string ext = HostRegExpParse(url, "/tunein-station\\.(pls|m3u|xspf)\\?");
 		if (!ext.empty())
 		{
-			string data = _GetHttpContent1(url);
-			//string data = _GetHttpContent2(url, 1, 4095);
+			string data = _GetHttpContent(url, 1, 4095);
 			if (!data.empty())
 			{
 				string outUrl;
@@ -2562,7 +2561,7 @@ bool _CheckExt(string ext, int kind)
 }
 
 
-string _GetHttpContent2(string url, int maxTime, int range)
+string _GetHttpContent(string url, int maxTime, int range)
 {
 	string options = "";
 	if (maxTime > 0)
@@ -2585,16 +2584,17 @@ string _GetHttpContent2(string url, int maxTime, int range)
 	return data;
 }
 
-string _GetHttpHeader2(string url, int maxTime)
+string _GetHttpHeader(string url, int maxTime)
 {
-	return _GetHttpContent2(url, maxTime, -1);
+	return _GetHttpContent(url, maxTime, -1);
 }
 
 
-string _GetHttpContent1(string url, bool isHeader = false)
+string _GetHttpContent2(string url, bool isHeader = false)
 {
 	string data;
-	string UserAgent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:142.0) Gecko/20100101 Firefox/142.0";
+	string UserAgent;
+	//string UserAgent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:142.0) Gecko/20100101 Firefox/142.0";
 	uintptr http = HostOpenHTTP(url, UserAgent);
 	if (http > 0)
 	{
@@ -2607,21 +2607,25 @@ string _GetHttpContent1(string url, bool isHeader = false)
 			data = HostGetContentHTTP(http);
 		}
 	}
+	
+HostPrintUTF8("\r\n http --------------------------");
+HostPrintUTF8(data);
+HostPrintUTF8("--------------------------\r\n");
+	
 	HostCloseHTTP(http);
 	return data;
 }
 
-string _GetHttpHeader1(string url)
+string _GetHttpHeader2(string url)
 {
-	return _GetHttpContent1(url, true);
+	return _GetHttpContent2(url, true);
 }
 
 
 bool _ExistHttpFile(string url)
 {
 	//check if a real file exists on the server with Content-Length
-	string head = _GetHttpHeader1(url);
-	//string head = _GetHttpHeader2(url, 1);
+	string head = _GetHttpHeader(url, 1);
 	int len = parseInt(sch.getRegExp(head, "(?i)^Content-Length: ?([^\r\n]+)"));
 	if (len > 0) return true;
 	return false;
@@ -2630,8 +2634,7 @@ bool _ExistHttpFile(string url)
 
 bool _CheckM3u8Hls(string url)
 {
-	string data = _GetHttpContent1(url);
-	//string data = _GetHttpContent2(url, 1, 63);
+	string data = _GetHttpContent(url, 1, 63);
 	if (!data.empty())
 	{
 		if (data.find("\n#EXT-X-") >= 0)
@@ -2650,8 +2653,7 @@ bool _CheckM3u8Hls(string url)
 
 bool _GetRadioInfo(string url, dictionary &inout MetaData, bool isDirect)
 {
-	string data = _GetHttpHeader1(url);
-	//string data = _GetHttpHeader2(url, 1);
+	string data = _GetHttpHeader(url, 1);
 	if (data.empty()) return false;
 	
 	uint titleMaxLen = uint(cfg.getInt("FORMAT", "title_max_len"));
@@ -2673,8 +2675,7 @@ bool _GetRadioInfo(string url, dictionary &inout MetaData, bool isDirect)
 		string url2 = url;
 		if (url2.Right(1) == "/") url2.erase(url2.size() - 1);
 		url2 += ".xspf";
-		string data2 = _GetHttpContent1(url2);
-		//string data2 = _GetHttpContent2(url2, 1, 4095);
+		string data2 = _GetHttpContent(url2, 1, 4095);
 		if (!data2.empty())
 		{
 			data2 = HostRegExpParse(data2, "<annotation>([^<]+?)</annotation>");
@@ -2770,8 +2771,7 @@ bool _GetRadioInfo(string url, dictionary &inout MetaData, bool isDirect)
 
 bool _CheckRss(string url, string &out imgUrl)
 {
-	string cont = _GetHttpContent1(url);
-	//string cont = _GetHttpContent2(url, 1, 2047);
+	string cont = _GetHttpContent(url, 1, 2047);
 	if (!cont.empty())
 	{
 		int pos1 = cont.find("<rss");
