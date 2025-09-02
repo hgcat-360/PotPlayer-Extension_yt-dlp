@@ -1,4 +1,4 @@
-# Parse Streaming with yt-dlp - PotPlayer Extension
+﻿# Parse Streaming with yt-dlp - PotPlayer Extension
 
 ## Overview
 
@@ -117,7 +117,7 @@ PotPlayer can extract YouTube playlists by default, and this extension adds supp
 When you open a playlist URL, the yt-dlp extension will import its items into PotPlayer’s playlist if yt-dlp supports that playlist.  
 
 While website playlists vary widely, yt-dlp only supports limited types.  
-Small playlists may load completely, but large ones may not load fully even after a long wait.  
+Moreover, small playlists may load completely, but large ones may fail to load fully even after a long wait.
 
 ### Playlist or Single Video
 
@@ -182,6 +182,9 @@ However, it includes built-in workarounds that can bypass some YouTube restricti
 
 It may seem that the lower options in this table are always superior for viewing capability, but sometimes you may not be able to play YouTube with login even though playback works without login.  
 This depends on which connections YouTube is restricting at that time.  
+
+>If you cannot play videos in a certain site after logging in, try logging out of the site, clearing cookies for that site in your browser, and then logging in again.  
+>If you use a cookie file, recreate it from the same browser after logging in again.  
 
 If you cannot watch, try the available options in order.  
 
