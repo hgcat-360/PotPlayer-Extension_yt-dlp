@@ -22,6 +22,10 @@ This repository does not include the following applications. You must obtain the
 * [PotPlayer (**250226 or later**)](https://potplayer.tv/)
 * [yt-dlp.exe](https://github.com/yt-dlp/yt-dlp/)
 
+This extension also uses **curl.exe** to retrieve server data,  
+Some features may not work on Windows versions earlier than 10, which do not include the curl command by default.  
+In that case, you can download [**curl.exe**](https://curl.se/download.html#Win64) and place it in the *system32* folder or any folder included in the system's PATH.  
+
 ## Installation
 
 Follow these steps to install this extension.  
@@ -135,6 +139,7 @@ As with YouTube, this extension also allows you to create an album as an "***ext
 An "*external playlist*" is automatically updated with the latest streaming content whenever you click its album tab to bring it into focus in the playlist panel.  
 
 ![2025-08-15_03h58_09](https://github.com/user-attachments/assets/27ebd5fe-de63-449a-9ca1-a5eb2aaefa5e)
+(For YouTube, you can use an external-playlist album without the yt-dlp extension.)
 
 ## Notes
 

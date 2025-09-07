@@ -5,7 +5,7 @@
   Placed in \PotPlayer\Extension\Media\PlayParse\
 *************************************************************/
 
-string SCRIPT_VERSION = "250906";
+string SCRIPT_VERSION = "250907";
 
 
 string YTDLP_EXE = "Module\\yt-dlp.exe";
@@ -25,7 +25,7 @@ string RADIO_IMAGE_2 = "yt-dlp_radio2.jpg";
 
 class FileConfig
 {
-	string codeDef;	//character code of the default config file
+	string codeDef;	//encoding of default config file
 	
 	bool showDialog = false;
 	bool errorDefault = false;
@@ -108,7 +108,14 @@ class FileConfig
 		string msg = "";
 		string path = HostGetScriptFolder() + SCRIPT_CONFIG_DEFAULT;
 		uintptr fp = HostFileOpen(path);
-		if (fp > 0)
+		if (fp <= 0)
+		{
+			msg =
+			"Default config file not found.\r\n"
+			"Please place it in the same folder as the script.\r\n\r\n";
+			codeDef = "";
+		}
+		else
 		{
 			str = HostFileRead(fp, HostFileLength(fp));
 			HostFileClose(fp);
@@ -116,15 +123,15 @@ class FileConfig
 			if (str.empty())
 			{
 				msg =
-				"This default config file is empty.\r\n"
-				"Please use a proper file.\r\n\r\n";
+				"Default config file empty.\r\n"
+				"Please use a valid config file.\r\n\r\n";
 			}
 			else if (str.find("\n") < 0)
 			{
 				msg =
-				"This default config file is not available.\r\n"
-				"Please use a proper file.\r\n"
-				"(Supported EOL code: CRLF or LF)\r\n\r\n";
+				"Default config file not available.\r\n"
+				"Please use a valid config file.\r\n"
+				"(Supported line endings: CRLF or LF)\r\n\r\n";
 			}
 			else
 			{
@@ -132,19 +139,26 @@ class FileConfig
 				if (!HostRegExpParse(str, "^\\w+=", {}))
 				{
 					msg =
-					"The script cannot read this default config file.\r\n"
-					"Please use a proper file.\r\n"
-					"(Supported character code: UTF8(bom) or UTF16 LE)\r\n\r\n";
+					"Cannot read default config file.\r\n"
+					"Please use a valid config file.\r\n"
+					"(Supported encodings: UTF8(BOM) or UTF16 LE)\r\n\r\n";
 					codeDef = "";
 				}
+				else
+				{
+					if (SCRIPT_VERSION.Right(1) != "#")
+					{
+						string curVer = SCRIPT_VERSION.Left(6);
+						int pos = str.find("VERSION " + curVer);
+						if (pos < 0 || pos > 10)
+						{
+							msg =
+							"Default config file for a different version of the script.\r\n"
+							"Please use the one for [" + curVer + "].\r\n\r\n";
+						}
+					}
+				}
 			}
-		}
-		else
-		{
-			msg =
-			"The following default config file was not found.\r\n"
-			"Please place it in the same folder as the script file.\r\n\r\n";
-			codeDef = "";
 		}
 		
 		if (msg.empty())
@@ -333,7 +347,7 @@ class CFG
 		return str;
 	}
 	
-	int _getBlankLine(string str, int pos)
+	int _findBlankLine(string str, int pos)
 	{
 		if (pos < 0) pos = str.size();
 		pos = str.findLastNotOf("\r\n", pos);
@@ -355,19 +369,20 @@ class CFG
 		return str.size();
 	}
 	
-	string _addBlankLast(string str)
+	string _removeLastBlank(string str)
 	{
 		int pos = str.findLastNotOf("\r\n", str.size());
-		if (pos >= 0) pos += 1; else pos = 0;
+		if (pos >= 0) pos = str.findFirstOf("\r\n", pos);
+		else pos = 0;
 		str = str.Left(pos);
-		str += "\r\n\r\n";
+		str += "\r\n";
 		return str;
 	}
 	
-	int _getSectionSepaNext(string str, int from)
+	int _findSectionSepaNext(string str, int from)
 	{
 		int pos = str.find("\n[", from);
-		if (pos >= 0) pos += 1; else pos = _getBlankLine(str, -1);
+		if (pos >= 0) pos += 1; else pos = _findBlankLine(str, -1);
 		return pos;
 	}
 	
@@ -387,7 +402,7 @@ class CFG
 		section = _getSectionNext(str, pos);
 		if (pos >= 0)
 		{
-			int pos2 = _getSectionSepaNext(str, pos);
+			int pos2 = _findSectionSepaNext(str, pos);
 			sectArea = str.substr(pos, pos2 - pos);
 		}
 		return sectArea;
@@ -398,7 +413,7 @@ class CFG
 		if (str.empty() || pos < 0 || uint(pos) >= str.size()) {pos = -1; return "";}
 		string key;
 		pos = sch.findRegExp(str, "^(?://)?(#?\\w+)=", key, pos);
-		if (pos >= 0 && pos <= _getSectionSepaNext(str, pos))
+		if (pos >= 0 && pos <= _findSectionSepaNext(str, pos))
 		{
 			return key;
 		}
@@ -411,17 +426,41 @@ class CFG
 		key = _getKeyNext(str, pos);
 		if (pos >= 0)
 		{
-			int pos2 = _getBlankLine(str, pos);
-			int sepa = _getSectionSepaNext(str, pos);
+			int pos2 = _findBlankLine(str, pos);
+			int sepa = _findSectionSepaNext(str, pos);
 			if (pos2 > sepa) pos2 = sepa;
 			keyArea = str.substr(pos, pos2 - pos);
 		}
 		return keyArea;
 	}
 	
-	int _searchKeyTop(string sectArea, string key)
+	int _findKeyTop(string sectArea, string key)
 	{
 		int pos = sch.findRegExp(sectArea, "^[^\t\r\n]*\\b" + key + " *=");
+		return pos;
+	}
+	
+	string _removeTabLine(string keyArea)
+	{
+		int pos1;
+		int pos2 = 0;
+		while (pos2 >= 0)
+		{
+			pos1 = pos2;
+			string line;
+			pos2 = sch.findRegExp(keyArea, "^\t[^\r\n]*\r\n", line, pos1);
+			if (pos2 >= 0)
+			{
+				keyArea.erase(pos2, line.size());
+			}
+		}
+		return keyArea;
+	}
+	
+	int _findDescriptionTop(string keyAreaDef)
+	{
+		int pos = keyAreaDef.find("\r\n\t");
+		if (pos > 0) pos += 2;
 		return pos;
 	}
 	
@@ -437,7 +476,7 @@ class CFG
 	{
 		array<string> keys = {};
 		dictionary _kds;
-		int sepa = _getSectionSepaNext(str, pos);
+		int sepa = _findSectionSepaNext(str, pos);
 		int pos0;
 		do {
 			pos0 = pos;
@@ -607,7 +646,7 @@ class CFG
 			string key = keys[i];
 			if (key.Left(1) == "#") key = key.substr(1);	//hidden key
 			KeyData kd(section, key);
-			int pos = _searchKeyTop(sectArea, key);
+			int pos = _findKeyTop(sectArea, key);
 			if (pos >= 0)
 			{
 				kd.areaTop = pos;
@@ -628,12 +667,24 @@ class CFG
 				{
 					int idx = tops.find(kd.areaTop);
 					if (idx < 0) continue;
-					idx++;
-					uint pos2 = uint(idx) < tops.size() ? tops[idx] : sectArea.size();
-					int blnk = _getBlankLine(sectArea, kd.areaTop);
-					if (pos2 > uint(blnk)) pos2 = blnk;
-					string keyArea = sectArea.substr(kd.areaTop, pos2 - kd.areaTop);
-					keyArea = _addBlankLast(keyArea);
+					string keyArea;
+					{
+						//find the top of the next keyArea and determine the current keyArea
+						idx++;	//next key
+						uint _pos = (uint(idx) < tops.size()) ? tops[idx] : sectArea.size();
+						int blnk = _findBlankLine(sectArea, kd.areaTop);
+						if (_pos > uint(blnk)) _pos = blnk;
+						keyArea = sectArea.substr(kd.areaTop, _pos - kd.areaTop);
+					}
+					{
+						//reflect the default description
+						string keyAreaDef = _getCfgStrDefAll(section, key);
+						int _pos = _findDescriptionTop(keyAreaDef);
+						string desc = (_pos > 0) ? keyAreaDef.substr(_pos) : "\r\n";
+						keyArea = _removeTabLine(keyArea);
+						keyArea = _removeLastBlank(keyArea);
+						keyArea += desc;
+					}
 					kd.areaStr = keyArea;
 					kd.areaTop = -1;
 				}
@@ -664,7 +715,7 @@ class CFG
 			}
 			else
 			{
-				sectArea = str.Left(_getSectionSepaNext(str, 0));
+				sectArea = str.Left(_findSectionSepaNext(str, 0));
 			}
 			__loadCst(sectArea, "");
 		}
@@ -706,12 +757,20 @@ class CFG
 		}
 	}
 	
-	string _getCfgStr(bool isDef)
+	string _getCfgStr(int stateDef)
 	{
+		//stateDef - 0: cust / 1: def without hidden key / 2: def all
+		
 		dictionary kds;
 		array<string> sections;
-		if (isDef) {kds = kdsDef; sections = sectionNamesDef;}
-		else {kds = kdsCst; sections = sectionNamesCst;}
+		if (stateDef > 0)
+		{
+			kds = kdsDef; sections = sectionNamesDef;
+		}
+		else
+		{
+			kds = kdsCst; sections = sectionNamesCst;
+		}
 		if (sections.size() == 0 || kds.size() == 0) return "";
 		
 		string str = "";
@@ -730,8 +789,8 @@ class CFG
 					string key = keys[j];
 					if (key.Left(1) == "#")	//hidden key
 					{
-						if ( isDef) continue;
-						else key = key.substr(1);
+						if (stateDef == 1) continue;
+						else if (stateDef == 0) key = key.substr(1);
 					}
 					dictionary _kds;
 					if (kds.get(section, _kds))
@@ -748,22 +807,35 @@ class CFG
 		return str;
 	}
 	
-	string _getCfgStrDef()
-	{
-		return _getCfgStr(true);
-	}
-	
 	string _getCfgStrCst()
 	{
-		return _getCfgStr(false);
+		return _getCfgStr(0);
 	}
 	
-	string _getCfgStr(bool isDef, string section)
+	string _getCfgStrDef()
 	{
+		return _getCfgStr(1);
+	}
+	
+	string _getCfgStrDefAll()
+	{
+		return _getCfgStr(2);
+	}
+	
+	string _getCfgStr(int stateDef, string section)
+	{
+		//stateDef - 0: cust / 1: def without hidden key / 2: def all
+		
 		dictionary kds;
 		array<string> sections;
-		if (isDef) {kds = kdsDef; sections = sectionNamesDef;}
-		else {kds = kdsCst; sections = sectionNamesCst;}
+		if (stateDef > 0)
+		{
+			kds = kdsDef; sections = sectionNamesDef;
+		}
+		else
+		{
+			kds = kdsCst; sections = sectionNamesCst;
+		}
 		if (sections.size() == 0 || kds.size() == 0) return "";
 		
 		string str = "";
@@ -779,8 +851,8 @@ class CFG
 				string key = keys[j];
 				if (key.Left(1) == "#")	//hidden key
 				{
-					if ( isDef) continue;
-					else key = key.substr(1);
+					if (stateDef == 1) continue;
+					else if (stateDef == 0) key = key.substr(1);
 				}
 				dictionary _kds;
 				if (kds.get(section, _kds))
@@ -796,23 +868,33 @@ class CFG
 		return str;
 	}
 	
-	string _getCfgStrDef(string section)
-	{
-		return _getCfgStr(true, section);
-	}
-	
 	string _getCfgStrCst(string section)
 	{
-		return _getCfgStr(false, section);
+		return _getCfgStr(0, section);
 	}
 	
-	string _getCfgStr(bool isDef, string section, string key)
+	string _getCfgStrDef(string section)
 	{
-		if (key.Left(1) == "#" && !isDef) key = key.substr(1);	//hidden key
+		return _getCfgStr(1, section);
+	}
+	
+	string _getCfgStrDefAll(string section)
+	{
+		return _getCfgStr(2, section);
+	}
+	
+	string _getCfgStr(int stateDef, string section, string key)
+	{
+		//stateDef - 0: cust / 1: def without hidden key / 2: def all
+		
+		if (key.Left(1) == "#" && stateDef != 1)
+		{
+			key = key.substr(1);	//hidden key
+		}
 		
 		dictionary kds;
 		array<string> sections;
-		if (isDef)
+		if (stateDef > 0)
 		{
 			kds = kdsDef;
 			sections = sectionNamesDef;
@@ -833,18 +915,30 @@ class CFG
 			{
 				str = kd.areaStr;
 			}
+			else if (stateDef == 2)
+			{
+				if (_kds.get("#" + key, kd))
+				{
+					str = kd.areaStr;
+				}
+			}
 		}
 		return str;
 	}
 	
-	string _getCfgStrDef(string section, string key)
-	{
-		return _getCfgStr(true, section, key);
-	}
-	
 	string _getCfgStrCst(string section, string key)
 	{
-		return _getCfgStr(false, section, key);
+		return _getCfgStr(0, section, key);
+	}
+	
+	string _getCfgStrDef(string section, string key)
+	{
+		return _getCfgStr(1, section, key);
+	}
+	
+	string _getCfgStrDefAll(string section, string key)
+	{
+		return _getCfgStr(2, section, key);
 	}
 	
 	bool loadFile()
@@ -1005,12 +1099,8 @@ class CFG
 				{
 					kd.section = section;
 					kd.key = key;
-					kd.areaStr = _getCfgStrDef(section, key);
-					if (kd.areaStr.empty())
-					{
-						kd.areaStr = _getCfgStrDef(section, "#" + key);
-						if (kd.areaStr.Left(1) == "#") kd.areaStr = kd.areaStr.substr(1);
-					}
+					kd.areaStr = _getCfgStrDefAll(section, key);
+					if (kd.areaStr.Left(1) == "#") kd.areaStr = kd.areaStr.substr(1);
 					_parseKeyDataCst(kd);
 				}
 				
@@ -1239,7 +1329,7 @@ class SCH
 		return getStr;
 	}
 	
-	int getEol(string str, int pos)
+	int findEol(string str, int pos)
 	{
 		//does not include EOL characters at the end
 		if (pos >= 0) pos = str.find("\n", pos);
@@ -1249,7 +1339,7 @@ class SCH
 		return pos;
 	}
 	
-	int getLineTop(string str, int pos)
+	int findLineTop(string str, int pos)
 	{
 		if (pos < 0) pos = str.size();
 		pos = str.findLastNotOf("\r\n", pos);
@@ -1259,12 +1349,12 @@ class SCH
 		return pos;
 	}
 	
-	int getLine(string str, int pos, string &out line)
+	int walkLine(string str, int pos, string &out line)
 	{
 		if (pos < 0) return -1;
 		int pos1 = str.findFirstNotOf("\r\n", pos);
 		if (pos1 < 0) return -1;
-		int pos2 = getEol(str, pos1);
+		int pos2 = findEol(str, pos1);
 		line = str.substr(pos1, pos2 - pos1);
 		return pos2;
 	}
@@ -1276,12 +1366,26 @@ class SCH
 		return (s1 == s2);
 	}
 	
+	uint _findCharaTop(string str, uint pos)
+	{
+		//for multi-byte codes of utf8
+		for (int i = 1; i <= 3; i++)
+		{
+			string chr = str.substr(pos - i, 1);
+			if (chr > "\xf0") return pos - i;
+			else if (i <= 2 && chr > "\xe0") return pos - i;
+			else if (i <= 1 && chr > "\xc0") return pos - i;
+		}
+		return pos;
+	}
+	
 	string cutoffDesc(string desc, uint len)
 	{
 		string str;
 		if (desc.size() > len)
 		{
-			str = desc.Left(len);
+			int pos = _findCharaTop(desc, len);
+			str = desc.Left(pos);
 			str += "...";
 		}
 		else
@@ -1400,7 +1504,7 @@ class YTDLP
 				string hash0 = cfg.getStr("MAINTENANCE", "ytdlp_hash");
 				if (hash0.empty())
 				{
-					string msg = "You are using a new copy of [yt-dlp.exe].\r\n\r\n";
+					string msg = "You are using a new [yt-dlp.exe].\r\n\r\n";
 					msg += "current version: " + version;
 					HostMessageBox(msg, "[yt-dlp] INFO", 2, 0);
 					cfg.setStr("MAINTENANCE", "ytdlp_hash", hash);
@@ -1412,7 +1516,7 @@ class YTDLP
 					{
 						string msg =
 						"Your [yt-dlp.exe] is different from before.\r\n\r\n"
-						"current version: " + version + "\r\n\r\n"
+						"Current version: " + version + "\r\n\r\n"
 						"You can continue playback if you replaced it intentionally.";
 						if (cfg.getInt("MAINTENANCE", "update_ytdlp") > 0)
 						{
@@ -1451,9 +1555,9 @@ class YTDLP
 		error = 3;
 		cfg.setInt("MAINTENANCE", "critical_error", 1, false);
 		cfg.deleteKey("MAINTENANCE", "update_ytdlp");
-		string msg = "Your copy of [yt-dlp.exe] behaved unexpectedly.\r\n";
+		string msg = "Your [yt-dlp.exe] did not work as expected.\r\n";
 		HostPrintUTF8("\r\n[yt-dlp] CRITICAL ERROR! " + msg);
-		msg += "After confirming no problems, set [critical_error] to 0 in the config file and reload the script.";
+		msg += "After confirming there are no problems, set [critical_error] to 0 in the config file and reload the script.";
 		HostMessageBox(msg, "[yt-dlp] CRITICAL ERROR", 3, 2);
 	}
 	
@@ -1469,7 +1573,7 @@ class YTDLP
 			criticalError();
 			return;
 		}
-		output = output.Left(sch.getEol(output, -1));
+		output = output.Left(sch.findEol(output, -1));
 		HostMessageBox(output, "[yt-dlp] INFO: Update yt-dlp.exe", 2, 1);
 		error = -1;
 		checkFile(true);
@@ -1482,9 +1586,9 @@ class YTDLP
 		if (pos1 >= 0)
 		{
 			pos1 += errMsg.size();
-			int pos2 = sch.getEol(log, pos1);
+			int pos2 = sch.findEol(log, pos1);
 			string msg = log.substr(pos1, pos2 - pos1);
-			if (sch.findI(msg, "unsupported browser specified for cookies") >= 0)
+			if (sch.findI(msg, "unsupported browser") >= 0)
 			{
 				string browser = cfg.getStr("COOKIE", "cookie_browser");
 				if (!browser.empty())
@@ -1518,7 +1622,7 @@ class YTDLP
 		if (pos1 >= 0)
 		{
 			pos1 += 1;
-			int pos2 = sch.getEol(log, pos1);
+			int pos2 = sch.findEol(log, pos1);
 			string str = log.substr(pos1, pos2 - pos1);
 			if (str.find(version) >= 0)
 			{
@@ -1553,8 +1657,8 @@ class YTDLP
 			}
 			if (msg.empty())
 			{
-				pos1 = sch.getLineTop(log, pos1);
-				int pos2 = sch.getEol(log, pos1);
+				pos1 = sch.findLineTop(log, pos1);
+				int pos2 = sch.findEol(log, pos1);
 				msg = log.substr(pos1, pos2 - pos1) + "\r\n";
 			}
 		}
@@ -1606,13 +1710,13 @@ class YTDLP
 						if (sch.findI(log, "Unable to write", pos1) == pos1)
 						{
 							msg +=
-							"Unable to overwrite [yt-dlp.exe] here.\r\n"
+							"Unable to overwrite [yt-dlp.exe] in:\r\n"
 							+ fileExe + "\r\n\r\n"
 							"Replace it manually or try running PotPlayer with administrator privileges.\r\n\r\n";
 						}
 						else
 						{
-							int pos2 = sch.getEol(log, pos1);
+							int pos2 = sch.findEol(log, pos1);
 							msg += log.substr(pos1, pos2 - pos1) + "\r\n\r\n";
 						}
 						msg += "The [update_ytdlp] setting will be reset.";
@@ -1622,7 +1726,7 @@ class YTDLP
 					}
 					else
 					{
-						int pos2 = sch.getEol(log, pos1);
+						int pos2 = sch.findEol(log, pos1);
 						msg = log.substr(pos1, pos2 - pos1);
 						HostMessageBox(msg, "[yt-dlp] INFO: Auto update", 2, 0);
 						error = -1;
@@ -1639,7 +1743,7 @@ class YTDLP
 	{
 		if (sch.findRegExp(log, "(?i)^ERROR: [^\r\n]* (not currently live|off ?line)") >= 0)
 		{
-			string msg = "This channel is not currently live.\r\n\r\n" + url;
+			string msg = "This channel is not live now.\r\n\r\n" + url;
 			HostMessageBox(msg, "[yt-dlp] INFO", 2, 0);
 			return true;
 		}
@@ -1670,8 +1774,8 @@ class YTDLP
 			pos1 = sch.findRegExp(log, "(?i)(error|warning)", pos1);
 			if (pos1 >= 0)
 			{
-				pos1 = sch.getLineTop(log, pos1);
-				int pos2 = sch.getEol(log, pos1);
+				pos1 = sch.findLineTop(log, pos1);
+				int pos2 = sch.findEol(log, pos1);
 				if (sch.findI(log, "[debug]", pos1) != pos1 && sch.findI(log, "  File \"", pos1) != pos1)
 				{
 					outStr += log.substr(pos1, pos2 - pos1) + "\r\n";
@@ -2074,21 +2178,21 @@ class YTDLP
 				if (!existTitle)
 				{
 					string title;
-					pos = sch.getLine(output, pos, title);
+					pos = sch.walkLine(output, pos, title);
 					if (pos < 0) break;
 					if (title != "NA") dicsEntry[i].set("title", title);
 				}
 				if (!existThumb)
 				{
 					string thumb;
-					pos = sch.getLine(output, pos, thumb);
+					pos = sch.walkLine(output, pos, thumb);
 					if (pos < 0) break;
 					if (thumb != "NA") dicsEntry[i].set("thumbnail", thumb);
 				}
 				if (!existDuration)
 				{
 					string duration;
-					pos = sch.getLine(output, pos, duration);
+					pos = sch.walkLine(output, pos, duration);
 					if (pos < 0) break;
 					if (duration != "NA") dicsEntry[i].set("duration", duration);
 				}
@@ -2108,13 +2212,6 @@ YTDLP ytd;
 class SHOUTPL
 {
 	
-	string _reviseTitle(string title)
-	{
-		string hidden = HostRegExpParse(title, "^(\\(#\\d[^)]+\\) )");
-		if (!hidden.empty()) title = title.substr(hidden.size());
-		return title;
-	}
-	
 	string _parsePls(string data, string &out getTitle, array<dictionary> &QualityList)
 	{
 		//For Shoutcast pls playlist
@@ -2126,7 +2223,6 @@ class SHOUTPL
 			string title = _GetDataField(data, "Title" + (i + 1), "=");
 			if (!title.empty())
 			{
-				title = _reviseTitle(title);
 				if (i == 0) getTitle = title;
 				else if (title != getTitle) break;
 			}
@@ -2180,7 +2276,6 @@ class SHOUTPL
 				string title;
 				{
 					match[1].get("first", title);
-					title = _reviseTitle(title);
 					if (i == 0) getTitle = title;
 					else if (title != getTitle) break;
 				}
@@ -2235,7 +2330,6 @@ class SHOUTPL
 				match[1].get("first", track);
 				string title = HostRegExpParse(track, "<title>(.+?)</title>");
 				{
-					title = _reviseTitle(title);
 					if (i == 0) getTitle = title;
 					else if (title != getTitle) break;
 				}
@@ -2267,6 +2361,13 @@ class SHOUTPL
 		return outUrl;
 	}
 	
+	string _removeNumber(string title)
+	{
+		string hidden = HostRegExpParse(title, "^(\\(#\\d[^)]+\\) ?)");
+		if (!hidden.empty()) title = title.substr(hidden.size());
+		return title;
+	}
+	
 	string parse(string url, dictionary &MetaData, array<dictionary> &QualityList)
 	{
 		string ext = HostRegExpParse(url, "/tunein-station\\.(pls|m3u|xspf)\\?");
@@ -2285,6 +2386,8 @@ class SHOUTPL
 				{
 					MetaData["url"] = url;
 					MetaData["webUrl"] = url;
+					title = _removeNumber(title);
+					title = _CutoffDesc(title);
 					MetaData["title"] = title;	//station name. replaced to current music titles after playback starts
 					MetaData["author"] = title + " @ShoutcastPL";
 					MetaData["vid"] = HostRegExpParse(url, "\\?id=(\\d+)");
@@ -2353,7 +2456,7 @@ void OnInitialize()
 
 string GetTitle()
 {
-	//called when loading script and closing config panel with ok button
+	//called when loading script and closing the config panel with ok button
 	string scriptName = "yt-dlp " + SCRIPT_VERSION;
 	if (ytd.error > 0)
 	{
@@ -2381,7 +2484,7 @@ string GetTitle()
 
 string GetConfigFile()
 {
-	//called when opening config panel
+	//called when opening the config panel
 	fc.showDialog = true;
 	cfg.loadFile();
 	return SCRIPT_CONFIG_CUSTOM;
@@ -2390,11 +2493,19 @@ string GetConfigFile()
 
 void ApplyConfigFile()
 {
-	//called when closing config panel with ok button
+	//called when closing the config panel with ok button
 	if (!cfg.loadFile())
 	{
 		string msg = "The script cannot apply the configuration.\r\n";
-		HostMessageBox(msg, "[yt-dlp] ERROR: Default config file", 0, 0);
+		HostMessageBox(msg, "[yt-dlp] ERROR: Default config file", 3, 0);
+	}
+	if (noCurl == 1)
+	{
+		noCurl = 2;
+		string msg = 
+		"curl command not found.\r\n"
+		"Some features do not work if they need curl.exe.";
+		HostMessageBox(msg, "[yt-dlp] CAUTION: No CURL Command", 0, 1);
 	}
 }
 
@@ -2433,17 +2544,17 @@ string GetDesc()
 		case 1:
 			info += "\r\n\r\n"
 			"| Please place [yt-dlp.exe] in Module folder\r\n"
-			"| under the PotPlayer's program folder.\r\n";
+			"| under PotPlayer's program folder.\r\n";
 			break;
 		case 2:
 			info += "\r\n\r\n"
-			"| Your [yt-dlp.exe] appears to be FAKE.\r\n"
-			"| Please confirm in PotPlayer's Module folder\r\n"
-			"| and replace with another one.\r\n";
+			"| Your [yt-dlp.exe] may not be valid.\r\n"
+			"| Please check in PotPlayer's Module folder\r\n"
+			"| and replace it with a proper one.\r\n";
 			break;
 		case 3:
 			info += "\r\n\r\n"
-			"| Your [yt-dlp.exe] behaved unexpectedly.\r\n"
+			"| Your [yt-dlp.exe] did not work as expected.\r\n"
 			"| After confirming no issues, reset [critical_error]\r\n"
 			"| in the config file and reload the script.\r\n";
 			break;
@@ -2543,6 +2654,8 @@ string _GetUrlExtension(string url)
 }
 
 
+int noCurl = 0;
+
 string _GetHttpContent(string url, int maxTime, int range, bool isInsecure)
 {
 	//Uses curl command.
@@ -2571,13 +2684,37 @@ string _GetHttpContent(string url, int maxTime, int range, bool isInsecure)
 	options += " \"" + url + "\"";
 	string data = HostExecuteProgram("curl", options);
 	
-	if (cfg.csl >= 2)
+	if (data.empty())
 	{
-		HostPrintUTF8("\r\n http " + (range < 0 ? "header" : "content") + " -------------------");
-		HostPrintUTF8(data);
-		HostPrintUTF8("--------------------------\r\n");
+		if (noCurl == 0)
+		{
+			string ver = HostExecuteProgram("curl", "-V");
+			if (ver.empty()) noCurl = 1;
+		}
+	}
+	else
+	{
+		noCurl = 0;
 	}
 	
+	if (noCurl > 0)
+	{
+		if (cfg.csl > 0)
+		{
+			HostPrintUTF8("\r\n[yt-dlp] CAUTION: \"curl.exe\" is not found.\r\n");
+		}
+	}
+	else
+	{
+		if (cfg.csl >= 2)
+		{
+			HostPrintUTF8("\r\n http " + (range < 0 ? "header" : "content") + " -------------------");
+			HostPrintUTF8(data);
+			HostPrintUTF8("--------------------------\r\n");
+		}
+	}
+	
+	if (!data.empty())
 	{
 		//Get only the last header if data includes multiple headers with redirect.
 		int pos1;
@@ -2587,7 +2724,9 @@ string _GetHttpContent(string url, int maxTime, int range, bool isInsecure)
 			pos2 = sch.findRegExp(data, "(?i)\n\r?\n(HTTP)", pos1);
 		} while (pos2 > pos1);
 		data = data.substr(pos1);
+		
 	}
+	
 	return data;
 }
 
@@ -2699,6 +2838,17 @@ bool PlaylistCheck(const string &in path)
 	
 	int websitePlaylist = cfg.getInt("TARGET", "website_playlist");
 	return (websitePlaylist == 1 || websitePlaylist == 2);
+}
+
+
+string _CutoffDesc(string desc)
+{
+	uint MINI_LENGTH = 30;
+	if (desc.size() < MINI_LENGTH) return desc;
+	uint titleMaxLen = uint(cfg.getInt("FORMAT", "title_max_length"));
+	if (titleMaxLen < MINI_LENGTH) titleMaxLen = MINI_LENGTH;
+	desc = sch.cutoffDesc(desc, titleMaxLen);
+	return desc;
 }
 
 
@@ -2825,6 +2975,7 @@ dictionary _PlaylistParse(string json, bool forcePlaylist)
 			}
 			else if (!title.empty())
 			{
+				title = _CutoffDesc(title);
 				dic["title"] = title;
 			}
 			
@@ -3114,27 +3265,6 @@ bool _TitleAuthorSites(string extractor)
 	return false;
 }
 
-bool _JudgeTitle(string title)
-{
-	if (title.empty()) return false;
-	if (HostRegExpParse(title, "^\\w{20}", {})) return false;
-	if (sch.findI(title, "Shoutcast Server") == 0) return false;
-	
-	//If there are too many digits, it will not be considered a title.
-	int i;
-	int pos = 0;
-	for (i = 0; i < 6; i++)
-	{
-		string _s;
-		pos = sch.findRegExp(title, "\\d+", _s, pos);
-		if (pos < 0) break;
-		pos += _s.size();
-	}
-	if (i > 5) return false;
-	return true;
-}
-
-
 string _GetUrlDomain(string url)
 {
 	string domain;
@@ -3417,9 +3547,6 @@ bool _GetRadioInfo(dictionary &inout MetaData, string httpHead, string url)
 {
 	if (httpHead.empty()) return false;
 	
-	uint titleMaxLen = uint(cfg.getInt("FORMAT", "title_max_len"));
-	if (titleMaxLen < 30) titleMaxLen = 30;
-	
 	string server = _GetDataField(httpHead, "Server");
 	if (sch.findI(server, "icecast") >= 0)
 	{
@@ -3443,11 +3570,10 @@ bool _GetRadioInfo(dictionary &inout MetaData, string httpHead, string url)
 			string title = _GetDataField(data, "Stream Title");
 			if (!title.empty())
 			{
-				title = _ReviseDesc(title);
-				title = sch.cutoffDesc(title, titleMaxLen);
 				string _s;
 				if ((!MetaData.get("title", _s)) || _s.empty())
 				{
+					title = _CutoffDesc(title);
 					MetaData["title"] = title;
 					MetaData["author"] = title + " @" +server;
 						//The station name is kept in the author field.
@@ -3482,11 +3608,10 @@ bool _GetRadioInfo(dictionary &inout MetaData, string httpHead, string url)
 	string title = _GetDataField(httpHead, "icy-name");
 	if (!title.empty())
 	{
-		title = _ReviseDesc(title);
-		title = sch.cutoffDesc(title, titleMaxLen);
 		string _s;
 		if ((!MetaData.get("title", _s)) || _s.empty())
 		{
+			title = _CutoffDesc(title);
 			MetaData["title"] = title;
 			MetaData["author"] = title + " @" +server;
 				//The station name is kept in the author field.
@@ -3543,7 +3668,7 @@ string _GetFileType(string httpHead)
 {
 	//check if a real file exists on the server with Content-Length
 	int contLen = parseInt(_GetDataField(httpHead, "Content-Length"));
-	if (contLen > 10)
+	if (contLen > 100)
 	{
 		string contType = _GetDataField(httpHead, "Content-Type");
 		if (!contType.empty())
@@ -3672,7 +3797,7 @@ string PlayitemParse(const string &in path, dictionary &MetaData, array<dictiona
 	if (playlistIdx > 0 && inUrl != webUrl)
 	{
 		//Exclude playlist url
-		if (cfg.csl > 0) HostPrintUTF8("[yt-dlp] ERROR! This URL is for a playlist. You need to fetch the URL of each entry in it. - " + ytd.qt(inUrl) +"\r\n");
+		if (cfg.csl > 0) HostPrintUTF8("[yt-dlp] ERROR! This URL points to a playlist. You need to fetch each entry's URL separately. - " + ytd.qt(inUrl) +"\r\n");
 		return "";
 	}
 	bool isLive = _GetJsonValueBool(root, "is_live");
@@ -3692,7 +3817,6 @@ string PlayitemParse(const string &in path, dictionary &MetaData, array<dictiona
 	string ext2 = HostGetExtension(baseName);	//include the top dot
 	
 	string title = _GetJsonValueString(root, "title");
-	title = _ReviseDesc(title);
 	if (!title.empty())
 	{
 		if (cfg.getInt("FORMAT", "more_detailed_title") == 1)
@@ -3737,16 +3861,6 @@ string PlayitemParse(const string &in path, dictionary &MetaData, array<dictiona
 					{
 						string urlDomain = _GetJsonValueString(root, "webpage_url_domain");
 						author = _GetUrlDomain(urlDomain);
-						if (author.empty())
-						{
-							if (isAudioExt)
-							{
-								if (_JudgeTitle(baseName))
-								{
-									author = baseName;
-								}
-							}
-						}
 					}
 				}
 			}
@@ -3775,7 +3889,7 @@ string PlayitemParse(const string &in path, dictionary &MetaData, array<dictiona
 	{
 		if (!title.empty() && baseName == title + ext2) {}
 			//MetaData["title"] is empty if yt-dlp cannot get a substantial title,
-			//to prevent potplayer from changing the edited title in the playlist panel.
+			//to prevent potplayer from overwriting the edited title in the playlist panel.
 		else if (sch.findI(title, "Shoutcast Server") == 0) {}
 		else
 		{
@@ -3836,9 +3950,7 @@ string PlayitemParse(const string &in path, dictionary &MetaData, array<dictiona
 		}
 		if (!title2.empty())
 		{
-			uint titleMaxLen = uint(cfg.getInt("FORMAT", "title_max_len"));
-			if (titleMaxLen < 30) titleMaxLen = 30;
-			title2 = sch.cutoffDesc(title2, titleMaxLen);
+			title2 = _CutoffDesc(title2);
 			MetaData["title"] = title2;
 		}
 	}
