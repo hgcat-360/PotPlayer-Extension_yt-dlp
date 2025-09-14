@@ -5,7 +5,7 @@
   Placed in \PotPlayer\Extension\Media\PlayParse\
 *************************************************************/
 
-string SCRIPT_VERSION = "250907";
+string SCRIPT_VERSION = "250914";
 
 
 string YTDLP_EXE = "Module\\yt-dlp.exe";
@@ -972,6 +972,7 @@ class CFG
 		{
 			//specific properties of each script
 			csl = getInt("MAINTENANCE", "console_out");
+			if (csl < 0 || csl > 3) csl = 0;
 			baseLang = getStr("YOUTUBE", "base_lang");
 			if (baseLang.empty()) baseLang = HostIso639LangName();
 		}
@@ -1349,6 +1350,28 @@ class SCH
 		return pos;
 	}
 	
+	int findNextLineTop(string str, int pos)
+	{
+		if (pos < 0) return -1;
+		pos = str.find("\n", pos);
+		if (pos < 0) return -1;
+		return pos + 1;
+	}
+	
+	uint countLines(string str)
+	{
+		uint nCount = 1;
+		int pos = 0;
+		while (true)
+		{
+			pos = str.find("\n", pos);
+			if (pos < 0) break;
+			nCount++;
+			pos += 1;
+		}
+		return nCount;
+	}
+	
 	int walkLine(string str, int pos, string &out line)
 	{
 		if (pos < 0) return -1;
@@ -1369,8 +1392,9 @@ class SCH
 	uint _findCharaTop(string str, uint pos)
 	{
 		//for multi-byte codes of utf8
-		for (int i = 1; i <= 3; i++)
+		for (uint i = 1; i <= 3; i++)
 		{
+			if (pos < i) break;
 			string chr = str.substr(pos - i, 1);
 			if (chr > "\xf0") return pos - i;
 			else if (i <= 2 && chr > "\xe0") return pos - i;
@@ -1381,6 +1405,7 @@ class SCH
 	
 	string cutoffDesc(string desc, uint len)
 	{
+		if (len == 0) return desc;
 		string str;
 		if (desc.size() > len)
 		{
@@ -1917,7 +1942,7 @@ class YTDLP
 			options += " -R 0 --file-access-retries 0 --fragment-retries 0";
 				//For playlist, detailed data is not necessary. (no effect??)
 			
-			HostIncTimeOut(30000);
+			HostIncTimeOut(120000);
 		}
 		
 		if (isYoutube)
@@ -1933,9 +1958,9 @@ class YTDLP
 			options += " -U";
 		}
 		
+		options += " -v";
 		options += " -j";	// "-j" must be in lower case
-		
-		options += " -v -- " + qt(url);
+		options += " -- " + qt(url);
 		
 		int idx = isPlaylist ? 1 : 0;
 		if (waitOutputs[idx].find(url) < 0)
@@ -1992,8 +2017,8 @@ class YTDLP
 			}
 			else
 			{
-				HostPrintUTF8("[yt-dlp] ERROR! No data or info.\r\n");
-				criticalError();
+				//HostPrintUTF8("[yt-dlp] ERROR! No data or info.\r\n");
+				//criticalError();
 			}
 		}
 		
@@ -2082,6 +2107,7 @@ class YTDLP
 	void _addOptionsNetwork(string &inout options)
 	{
 		options += " --retry-sleep exp=1:10";
+		//options += " --retry-sleep linear=1::2";
 		
 		string proxy = cfg.getStr("NETWORK", "proxy");
 		if (!proxy.empty()) options += " --proxy " + qt(proxy);
@@ -2108,13 +2134,33 @@ class YTDLP
 		}
 	}
 	
-	bool getPlaylistItems(array<dictionary> &inout dicsEntry, string urlPlaylist)
+	string _getPlaylistOutput2(string options, uint size)
 	{
-		if (dicsEntry.empty() || urlPlaylist.empty()) return false;
+		string output;
+		int waitTime = cfg.getInt("NETWORK", "playlist_wait_time");
+		
+		uint startTime = HostGetTickCount();
+		for (uint i = 1; i <= size; i += 10)
+		{
+			string countOption = " -I " + i + ":" + (i + 9);
+			output += HostExecuteProgram(fileExe, countOption + options);
+			int elapsedTime = HostGetTickCount() - startTime;
+			if (elapsedTime < 0) break;
+			if (waitTime > 0 && elapsedTime > waitTime * 1000) break;
+		}
+		
+		return output;
+	}
+	
+	bool getPlaylistItems(array<dictionary> &inout dicsEntry, string plUrl)
+	{
+		if (dicsEntry.empty() || plUrl.empty()) return false;
+		bool isYoutube = _IsUrlSite(plUrl, "youtube");
 		
 		bool existTitle = false;
 		bool existThumb = false;
 		bool existDuration = false;
+		if (isYoutube) existDuration = true;	//give up duration for short movies
 		//bool existAuthor = false;
 		for (uint i = 0; i < dicsEntry.size(); i++)
 		{
@@ -2145,11 +2191,12 @@ class YTDLP
 		
 		bool hasCookie = _addOptionsCookie(options);
 		
-		if (_IsUrlSite(urlPlaylist, "youtube"))
+		if (isYoutube)
 		{
 			string argYoutube = _getArgsYoutube(hasCookie);
 			options += " --extractor-args " + qt(argYoutube);
 		}
+		options += " --no-playlist";
 		
 		_addOptionsNetwork(options);
 		
@@ -2159,15 +2206,17 @@ class YTDLP
 		if (!existThumb) options += " -O thumbnail";
 		if (!existDuration) options += " -O duration_string";
 		options += " --encoding \"utf8\"";	//required to prevent garbled text
-		options += " -- " + urlPlaylist;
+		options += " -- " + qt(plUrl);
 		
-		if (waitOutputs[1].find(urlPlaylist) < 0)
+		if (waitOutputs[1].find(plUrl) < 0)
 		{
 			if (waitOutputs[1].size() > 9) waitOutputs[1].removeAt(0);
-			waitOutputs[1].insertLast(urlPlaylist);
+			waitOutputs[1].insertLast(plUrl);
 		}
-		string output = HostExecuteProgram(ytd.fileExe, options);
-		int woi = waitOutputs[1].find(urlPlaylist);
+		
+		string output = _getPlaylistOutput2(options, dicsEntry.size());
+		
+		int woi = waitOutputs[1].find(plUrl);
 		if (woi >= 0 ) waitOutputs[1].removeAt(woi);
 		
 		if (!output.empty())
@@ -2212,17 +2261,40 @@ YTDLP ytd;
 class SHOUTPL
 {
 	
+	string _removeNumber(string title)
+	{
+		string hidden = HostRegExpParse(title, "^(\\(#\\d[^)]+\\) ?)");
+		if (!hidden.empty()) title = title.substr(hidden.size());
+		return title;
+	}
+	
+	string _getFormat(string fmtUrl, uint i)
+	{
+		string format = "#" + i;
+		int pos = fmtUrl.findLast("/");
+		if (pos > 0) format += ": " + fmtUrl.substr(pos + 1);
+		return format;
+	}
+	
+	uint _setItag(void)
+	{
+		uint itag = 0;
+		while (HostExistITag(itag)) itag++;
+		HostSetITag(itag);
+		return itag;
+	}
+	
 	string _parsePls(string data, string &out getTitle, array<dictionary> &QualityList)
 	{
 		//For Shoutcast pls playlist
 		
 		string outUrl;
-		
-		int i = 0;
+		uint i = 0;
 		do {
 			string title = _GetDataField(data, "Title" + (i + 1), "=");
 			if (!title.empty())
 			{
+				title = _removeNumber(title);
 				if (i == 0) getTitle = title;
 				else if (title != getTitle) break;
 			}
@@ -2235,15 +2307,8 @@ class SHOUTPL
 					dictionary dic;
 					if (outUrl.empty()) outUrl = fmtUrl;
 					dic["url"] = fmtUrl;
-					string format;
-					int pos = fmtUrl.findLast("/");
-					if (pos > 0) format = fmtUrl.substr(pos + 1);
-					if (format.empty()) format = formatInt(i);
-					dic["format"] = format;
-					uint itag = 0;
-					while (HostExistITag(itag)) itag++;
-					HostSetITag(itag);
-					dic["itag"] = itag;
+					dic["format"] = _getFormat(fmtUrl, i);
+					dic["itag"] = _setItag();
 					QualityList.insertLast(dic);
 				}
 			}
@@ -2262,7 +2327,7 @@ class SHOUTPL
 		//For Shoutcast m3u playlist
 		
 		string outUrl;
-		int i = 0;
+		uint i = 0;
 		int pos = 0;
 		do {
 			array<dictionary> match;
@@ -2276,6 +2341,7 @@ class SHOUTPL
 				string title;
 				{
 					match[1].get("first", title);
+					title = _removeNumber(title);
 					if (i == 0) getTitle = title;
 					else if (title != getTitle) break;
 				}
@@ -2287,15 +2353,9 @@ class SHOUTPL
 					match[2].get("first", fmtUrl);
 					if (outUrl.empty()) outUrl = fmtUrl;
 					dic["url"] = fmtUrl;
-					string format;
-					int pos2 = fmtUrl.findLast("/");
-					if (pos2 > 0) format = fmtUrl.substr(pos2 + 1);
-					if (format.empty()) format = formatInt(i);
-					dic["format"] = format;
-					uint itag = 0;
-					while (HostExistITag(itag)) itag++;
-					HostSetITag(itag);
-					dic["itag"] = itag;
+					dic["format"] = _getFormat(fmtUrl, i);
+HostPrintUTF8("format i: " + i);
+					dic["itag"] = _setItag();
 					QualityList.insertLast(dic);
 				}
 			}
@@ -2313,10 +2373,9 @@ class SHOUTPL
 		//For Shoutcast xspf playlist
 		
 		string outUrl;
-		
 		data.replace("\n", ""); data.replace("\r", "");
 		
-		int i = 0;
+		uint i = 0;
 		int pos = 0;
 		do {
 			array<dictionary> match;
@@ -2330,6 +2389,7 @@ class SHOUTPL
 				match[1].get("first", track);
 				string title = HostRegExpParse(track, "<title>(.+?)</title>");
 				{
+					title = _removeNumber(title);
 					if (i == 0) getTitle = title;
 					else if (title != getTitle) break;
 				}
@@ -2340,15 +2400,8 @@ class SHOUTPL
 					string fmtUrl = HostRegExpParse(track, "<location>(.+?)</location>");
 					if (outUrl.empty()) outUrl = fmtUrl;
 					dic["url"] = fmtUrl;
-					string format;
-					int pos2 = fmtUrl.findLast("/");
-					if (pos2 > 0) format = fmtUrl.substr(pos2 + 1);
-					if (format.empty()) format = formatInt(i);
-					dic["format"] = format;
-					uint itag = 0;
-					while (HostExistITag(itag)) itag++;
-					HostSetITag(itag);
-					dic["itag"] = itag;
+					dic["format"] = _getFormat(fmtUrl, i);
+					dic["itag"] = _setItag();
 					QualityList.insertLast(dic);
 				}
 			}
@@ -2359,13 +2412,6 @@ class SHOUTPL
 		} while (i < 10);
 		
 		return outUrl;
-	}
-	
-	string _removeNumber(string title)
-	{
-		string hidden = HostRegExpParse(title, "^(\\(#\\d[^)]+\\) ?)");
-		if (!hidden.empty()) title = title.substr(hidden.size());
-		return title;
 	}
 	
 	string parse(string url, dictionary &MetaData, array<dictionary> &QualityList)
@@ -2386,9 +2432,8 @@ class SHOUTPL
 				{
 					MetaData["url"] = url;
 					MetaData["webUrl"] = url;
-					title = _removeNumber(title);
-					title = _CutoffDesc(title);
 					MetaData["title"] = title;	//station name. replaced to current music titles after playback starts
+					title = _CutoffDesc(title);
 					MetaData["author"] = title + " @ShoutcastPL";
 					MetaData["vid"] = HostRegExpParse(url, "\\?id=(\\d+)");
 					MetaData["fileExt"] = ext;
@@ -2503,8 +2548,9 @@ void ApplyConfigFile()
 	{
 		noCurl = 2;
 		string msg = 
-		"curl command not found.\r\n"
-		"Some features do not work if they need curl.exe.";
+		"CURL command not found.\r\n"
+		"Some features do not work if they need \"curl.exe\".\r\n"
+		"Please place \"curl.exe\" in the system32 folder or in any folder accessible to the extension.";
 		HostMessageBox(msg, "[yt-dlp] CAUTION: No CURL Command", 0, 1);
 	}
 }
@@ -2823,6 +2869,10 @@ bool PlaylistCheck(const string &in path)
 	}
 	if (_IsExtType(ext, 0x111011))	//other direct files
 	{
+		if (ext == "m3u8")
+		{
+			if (cfg.getInt("TARGET", "m3u8_hls") == 2) return true;
+		}
 		return false;
 	}
 	
@@ -2843,11 +2893,22 @@ bool PlaylistCheck(const string &in path)
 
 string _CutoffDesc(string desc)
 {
-	uint MINI_LENGTH = 30;
-	if (desc.size() < MINI_LENGTH) return desc;
-	uint titleMaxLen = uint(cfg.getInt("FORMAT", "title_max_length"));
-	if (titleMaxLen < MINI_LENGTH) titleMaxLen = MINI_LENGTH;
-	desc = sch.cutoffDesc(desc, titleMaxLen);
+	int MINI_LENGTH = 30;
+	int titleMaxLen = cfg.getInt("FORMAT", "title_max_length");
+	if (titleMaxLen > 0)
+	{
+		if (titleMaxLen < MINI_LENGTH)
+		{
+			cfg.setInt("FORMAT", "title_max_length", MINI_LENGTH);
+			titleMaxLen = MINI_LENGTH;
+		}
+		desc = sch.cutoffDesc(desc, uint(titleMaxLen));
+	}
+	else if (titleMaxLen < 0)
+	{
+		cfg.setInt("FORMAT", "title_max_length", 0);
+		titleMaxLen = 0;
+	}
 	return desc;
 }
 
@@ -3025,26 +3086,26 @@ array<dictionary> PlaylistParse(const string &in path)
 	
 	array<dictionary> dicsEntry;
 	
-	string url = _ReviseUrl(path);
+	string plUrl = _ReviseUrl(path);
 	
-	if (_IsUrlSite(url, "shoutcast"))
+	if (_IsUrlSite(plUrl, "shoutcast"))
 	{
 		if (cfg.getInt("TARGET", "shoutcast_playlist") == 1)
 		{
-			shoutpl.passPlaylist(url, dicsEntry);
+			shoutpl.passPlaylist(plUrl, dicsEntry);
 		}
 		else
 		{
-			shoutpl.extractPlaylist(url, dicsEntry);
+			shoutpl.extractPlaylist(plUrl, dicsEntry);
 		}
 		return dicsEntry;
 	}
 	
-	string httpHead = _GetHttpHeader(url, 5);
+	string httpHead = _GetHttpHeader(plUrl, 5);
 	
 	if (_CheckRadioServer(httpHead))
 	{
-		if (_SetOrdinaryAudioThumb(dicsEntry, url))
+		if (_SetOrdinaryAudioThumb(dicsEntry, plUrl))
 		{
 			return dicsEntry;
 		}
@@ -3056,7 +3117,7 @@ array<dictionary> PlaylistParse(const string &in path)
 	{
 		if (fileType == "audio")
 		{
-			if (_SetOrdinaryAudioThumb(dicsEntry, url))
+			if (_SetOrdinaryAudioThumb(dicsEntry, plUrl))
 			{
 				return dicsEntry;
 			}
@@ -3064,11 +3125,11 @@ array<dictionary> PlaylistParse(const string &in path)
 		return {};
 	}
 	
-	array<string> entries = ytd.exec(url, true);
+	array<string> entries = ytd.exec(plUrl, true);
 	if (entries.size() == 0) return {};
 	
 	bool forcePlaylist = false;
-	if (_IsUrlSite(url, "youtube")) forcePlaylist = true;;
+	if (_IsUrlSite(plUrl, "youtube")) forcePlaylist = true;;
 		// For YouTube, this extension always treats a URL as a playlist
 		// to prevent the built-in YouTube extension from changing the playlist state.
 		// If a URL refers to both a video and a playlist
@@ -3078,9 +3139,9 @@ array<dictionary> PlaylistParse(const string &in path)
 	
 	bool isRss = false;
 	string imgUrl;
-	if (_IsExtType(_GetUrlExtension(url), 0x1000000))	//xml/rss file
+	if (_IsExtType(_GetUrlExtension(plUrl), 0x1000000))	//xml/rss file
 	{
-		if (_CheckRss(url, imgUrl))
+		if (_CheckRss(plUrl, imgUrl))
 		{
 			if (cfg.getInt("TARGET", "rss_playlist") == 1)
 			{
@@ -3099,8 +3160,8 @@ array<dictionary> PlaylistParse(const string &in path)
 		dictionary dic = _PlaylistParse(entries[i], forcePlaylist);
 		if (!dic.empty())
 		{
-			string urlEntry;
-			if (dic.get("url", urlEntry))
+			string entrUrl;
+			if (dic.get("url", entrUrl))
 			{
 				if (cfg.csl > 0)
 				{
@@ -3111,18 +3172,18 @@ array<dictionary> PlaylistParse(const string &in path)
 						HostPrintUTF8("Extractor: " + extractor);
 					}
 					int idx = int(dic["playlistIdx"]);
-					HostPrintUTF8("URL " + idx + ": " + urlEntry);
+					HostPrintUTF8("URL " + idx + ": " + entrUrl);
 				}
 				dicsEntry.insertLast(dic);
 				cnt++;
 			}
 		}
 	}
-	if (cfg.csl > 0) HostPrintUTF8("[yt-dlp] Playlist entries: " + cnt + "    - " + ytd.qt(url) +"\r\n");
+	if (cfg.csl > 0) HostPrintUTF8("[yt-dlp] Playlist entries: " + cnt + "    - " + ytd.qt(plUrl) +"\r\n");
 	
 	if (!isRss)
 	{
-		ytd.getPlaylistItems(dicsEntry, url);	//get missing metadata
+		ytd.getPlaylistItems(dicsEntry, plUrl);	//get missing metadata
 	}
 	
 	for (uint i = 0; i < dicsEntry.size(); i++)
@@ -3164,7 +3225,7 @@ array<dictionary> PlaylistParse(const string &in path)
 			}
 			else
 			{
-				thumb = url;
+				thumb = plUrl;
 			}
 			dicsEntry[i].set("thumbnail", thumb);
 		}
@@ -3188,12 +3249,25 @@ bool PlayitemCheck(const string &in path)
 {
 	//called when an item is being opened after PlaylistCheck or PlaylistParse
 	
-	string url = _ReviseUrl(path);
-	url.MakeLower();
+	string plUrl = _ReviseUrl(path);
+	plUrl.MakeLower();
 	
-	if (!_PlayitemCheckBase(url)) return false;;
+	if (!_PlayitemCheckBase(plUrl)) return false;
 	
-	if (_IsUrlSite(url, "youtube"))
+	string ext = _GetUrlExtension(plUrl);
+	if (ext == "rss") return false;
+	if (_IsExtType(ext, 0x111000))	//playlist or other files
+	{
+		if (ext == "m3u8")
+		{
+			int m3u8Hls = cfg.getInt("TARGET", "m3u8_hls");
+			if (m3u8Hls == 1 || m3u8Hls == 2) return true;
+		}
+		if (_IsUrlSite(plUrl, "shoutcast")) return true;
+		return false;
+	}
+	
+	if (_IsUrlSite(plUrl, "youtube"))
 	{
 		int enableYoutube = cfg.getInt("YOUTUBE", "enable_youtube");
 		if (enableYoutube != 1 && enableYoutube != 2) return false;
@@ -3557,7 +3631,7 @@ bool _GetRadioInfo(dictionary &inout MetaData, string httpHead, string url)
 		server = "ShoutcastCh";
 	}
 	
-	if (server == "IcecastCh")
+	if (server == "IcecastCh" || httpHead == "\r\n")
 	{
 		//XSPF metadata for icecast
 		string url2 = url;
@@ -3570,6 +3644,7 @@ bool _GetRadioInfo(dictionary &inout MetaData, string httpHead, string url)
 			string title = _GetDataField(data, "Stream Title");
 			if (!title.empty())
 			{
+				if (server.empty()) server = "IcecastCh";
 				string _s;
 				if ((!MetaData.get("title", _s)) || _s.empty())
 				{
@@ -3720,7 +3795,6 @@ string PlayitemParse(const string &in path, dictionary &MetaData, array<dictiona
 	if (_GetUrlExtension(inUrl) == "m3u8")
 	{
 		if (!_CheckM3u8Hls(inUrl)) return "";
-		if (cfg.getInt("TARGET", "m3u8_hls") != 1) return "";
 	}
 	
 	string httpHead = _GetHttpHeader(inUrl, 5);
@@ -3866,17 +3940,19 @@ string PlayitemParse(const string &in path, dictionary &MetaData, array<dictiona
 			}
 		}
 	}
+	string _author = author;
 	if (isGeneric)
 	{
-		if (!author.empty())
+		if (sch.findI(title, "Shoutcast Server") == 0)
 		{
-			MetaData["author"] = author;
+			_author += (!author.empty() ? " " : "") + "@ShoutcastCh";
 		}
 	}
 	else
 	{
-		MetaData["author"] = author2 + (!author2.empty() ? " " : "") + "@" + extractor;
+		_author += (!author.empty() ? " " : "") + "@" + extractor;
 	}
+	if (!_author.empty()) MetaData["author"] = _author;
 	
 	string date = _GetJsonValueString(root, "upload_date");
 	date = _ReviseDate(date);

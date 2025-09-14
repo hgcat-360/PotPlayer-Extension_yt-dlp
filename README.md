@@ -24,7 +24,7 @@ This repository does not include the following applications. You must obtain the
 
 This extension also uses **curl.exe** to retrieve server data,  
 Some features may not work on Windows versions earlier than 10, which do not include the curl command by default.  
-In that case, you can download [**curl.exe**](https://curl.se/download.html#Win64) and place it in the *system32* folder or any folder included in the system's PATH.  
+In that case, you can download [**curl.exe**](https://curl.se/windows/) and place it in the *system32* folder or in any folder included in the system's PATH.  
 
 ## Installation
 
