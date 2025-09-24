@@ -5,7 +5,7 @@
   Placed in \PotPlayer\Extension\Media\PlayParse\
 *************************************************************/
 
-string SCRIPT_VERSION = "250914";
+string SCRIPT_VERSION = "250924";
 
 
 string YTDLP_EXE = "Module\\yt-dlp.exe";
@@ -1488,7 +1488,14 @@ class YTDLP
 			{
 				doubt = true;
 			}
-			else if (verInfo.GetLegalCopyright().find("UNLICENSE") < 0 || verInfo.GetProductVersion().find("Python") < 0)
+			/*
+			//The copyright property in verInfo was removed from 250907.
+			else if (verInfo.GetLegalCopyright().find("UNLICENSE") < 0)
+			{
+				doubt = true;
+			}
+			*/
+			else if (verInfo.GetProductVersion().find("Python") < 0)
 			{
 				doubt = true;
 			}
