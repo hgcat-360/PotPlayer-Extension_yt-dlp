@@ -1,4 +1,4 @@
-﻿# Parse Streaming with yt-dlp - PotPlayer Extension
+﻿﻿# Parse Streaming with yt-dlp - PotPlayer Extension
 
 ## Overview
 
@@ -6,7 +6,7 @@
 With this yt-dlp extension, when opening a URL, PotPlayer temporarily runs yt-dlp.exe to obtain a playable link.  
 
 The supported websites and services are largely the same as those supported by yt-dlp.exe, with some exceptions.  
-As a general rule, yt-dlp **does not support** commercial services for paid members, DRM-protected content, or obvious pirate sites.  
+As a general rule, yt-dlp does not support sites that are obviously pirated, and it also cannot be expected to handle paid content (usually protected with DRM).  
 
 For YouTube, PotPlayer can generally play YouTube videos without this extension, 
 but it can be useful when YouTube restricts access from external applications.  
@@ -32,25 +32,25 @@ Follow these steps to install this extension.
 Make sure that PotPlayer is installed in advance.  
 
 1. Extract the archive files to the script folder:  
-   `(PotPlayer program folder)\Extension\Media\PlayParse\`  
-   > ***MediaPlayParse - yt-dlp.as*** and ***yt-dlp\_default.ini*** are required.  
+   `(PotPlayer installation folder)\Extension\Media\PlayParse\`  
+   > ***MediaPlayParse - yt-dlp.as*** and ***yt-dlp_default.ini*** are required.  
    > You must always update *yt-dlp_default.ini* at the same time as *MediaPlayParse - yt-dlp.as*.  
    > You can customize the icon of *MediaPlayParse - yt-dlp.as* with the *.ico files renamed.  
-   > ***yt-dlp\_radio1.jpg*** and ***yt-dlp\_radio2.jpg*** are thumbnails for online radio, displayed in the PotPlayer's playlist panel.  
+   > ***yt-dlp_radio1.jpg*** and ***yt-dlp_radio2.jpg*** are thumbnails for online radio, displayed in the PotPlayer's playlist panel.  
    >Other files in the repository are not required in this folder.
    >  
    > ![2025-03-16\_10h29\_04](https://github.com/user-attachments/assets/e3950518-e204-488f-a60c-36ba02e8c2fb)
 
-2. Place *yt-dlp.exe* in the module folder:  
-   `(PotPlayer program folder)\Module\`  
-   > For security reasons, the script calls *yt-dlp.exe* only from this folder.  
-   > If *yt-dlp.exe* is not found here, this script will return an error.  
+2. Place *yt-dlp.exe* in PotPlayer's module folder:  
+    `(PotPlayer installation folder)\Module\`  
+   > You can change this folder with the ***ytdlp_location*** setting in the [MAINTENANCE] section of the configuration file.  
+   > If *yt-dlp.exe* is not found, this script will return an error.  
    >  
    > ![2025-03-16\_12h03\_34](https://github.com/user-attachments/assets/9d395cb4-797c-4258-87c0-2db420056d1e)  
 
 3. Confirm that **yt-dlp** appears in PotPlayer's extension list:  
    `Preferences (F5) > Extensions > Media Playlist/Playitem`  
-   > If not visible, click \[**Reload files**] or restart PotPlayer.  
+   > If not visible, click [**Reload files**] or restart PotPlayer.  
    >  
    > ![2025-03-16\_02h02\_06](https://github.com/user-attachments/assets/e4aa7177-7ba3-4f8a-8373-dbdd0d83f091)
    >  
@@ -73,16 +73,16 @@ move **yt-dlp** below **YouTube** using the Up/Down buttons in the **Media Playl
 PotPlayer’s built-in YouTube extension generally starts playback faster.  
 If the preferred extension fails to process a URL, the task is passed to the next extension.  
 
-![2025-08-14_22h01_22](https://github.com/user-attachments/assets/27bc5fc6-1fc5-42e8-aa1f-9d4059649216)
+![2025-08-14\_22h01\_22](https://github.com/user-attachments/assets/27bc5fc6-1fc5-42e8-aa1f-9d4059649216)
 
 ### Configuration File
 
 You can customize the behavior by editing the *yt-dlp.ini* configuration file.  
-Open it in a popup panel via the \[**Config file**] button that appears when you select **yt-dlp** in the extension settings list.  
+Open it in a popup panel via the [**Config file**] button that appears when you select **yt-dlp** in the extension settings list.  
 Some features, including account login and automatic *yt-dlp.exe* updates, are controlled here.  
 Each setting has a description inside the file.  
 
-![2025-08-14_22h23_34](https://github.com/user-attachments/assets/e91f9bdf-af11-4397-930a-b4ce2726e21f)
+![2025-08-14\_22h23\_34](https://github.com/user-attachments/assets/e91f9bdf-af11-4397-930a-b4ce2726e21f)
 
 Available keys are predefined and always visible in the *yt-dlp.ini* panel.  
 To reset keys or sections, delete them from the file — they will be restored with default values automatically.  
@@ -93,7 +93,7 @@ There are also “hidden keys” that are not normally listed in *yt-dlp.ini* bu
 To use these keys, add them to *yt-dlp.ini* without the “#” and set their values there (You should not edit *yt-dlp_default.ini* directly).  
 
 You can reorder sections in *yt-dlp.ini* as you like.  
-For example, move the frequently used \[MAINTENANCE] section near the top by cutting and pasting.  
+For example, move the frequently used the [MAINTENANCE] section near the top by cutting and pasting.  
 However, the order of keys within each section cannot be changed.  
 
 ### Updating yt-dlp.exe
@@ -130,7 +130,7 @@ PotPlayer treats these as playlists by default, but this extension does not.
 Therefore, enabling the YouTube playlist processing in this extension helps prevent unintended imports of a large number of videos all at once.  
 In that case, if you want to treat a certain YouTube URL as a playlist, make sure that the URL includes only a playlist ID without any video ID (e.g., https://www.youtube.com/playlist?list=YYYYY).  
 
-For websites other than YouTube, playlist handling (if supported) is set in the [TARGET] section of the configuration file.
+For various websites including YouTube, you can set playlist handling (if supported) in the [TARGET] section of the configuration file.
 
 ### External Playlist Albums
 
@@ -138,7 +138,7 @@ In PotPlayer, a playlist in its own format is called an **album**.
 As with YouTube, this extension also allows you to create an album as an "***external playlist***" from a playlist URL on non-YouTube websites.  
 An "*external playlist*" is automatically updated with the latest streaming content whenever you click its album tab to bring it into focus in the playlist panel.  
 
-![2025-08-15_03h58_09](https://github.com/user-attachments/assets/27ebd5fe-de63-449a-9ca1-a5eb2aaefa5e)
+![2025-08-15\_03h58\_09](https://github.com/user-attachments/assets/27ebd5fe-de63-449a-9ca1-a5eb2aaefa5e)
 (For YouTube, you can use an external-playlist album without the yt-dlp extension.)
 
 ## Notes
@@ -158,7 +158,7 @@ However, if yt-dlp.exe is not actually hanging and is only taking a long time to
 Note that PotPlayer or yt-dlp cannot forcibly terminate these processes on their own.  
 You will need to use your system’s **Task Manager** or, preferably, a more user-friendly external tool such as [Process Explorer](https://learn.microsoft.com/sysinternals/downloads/process-explorer) or [System Explorer](https://systemexplorer.net/).  
 
-<img width="959" height="475" alt="2025-08-15_21h14_42" src="https://github.com/user-attachments/assets/6afc599a-1f96-4091-993f-40dad6b4071f" />
+<img width="959" height="475" alt="2025-08-15\_21h14\_42" src="https://github.com/user-attachments/assets/6afc599a-1f96-4091-993f-40dad6b4071f" />
 
 It’s a basic shortcoming that you have to monitor processes with an external tool.  
 This comes from server restrictions, faulty processing of *yt-dlp.exe* and limitations in the design of the PotPlayer extension.  
@@ -216,7 +216,7 @@ You will need to use Firefox and log in to the target websites in advance.
 > Chromium-based browsers (e.g., Chrome, Edge) previously supported automatic cookie extraction, but this stopped working around June 2024 due to security restrictions.
 > In the future, Firefox might also block automatic extraction.
 
-In the extension’s configuration file, set the "*cookie\_browser*" key in the \[COOKIE] section like this:  
+In the extension’s configuration file, set the "*cookie_browser*" key in the [COOKIE] section like this:  
 
 ```
 cookie_browser=firefox
@@ -254,7 +254,7 @@ The one without "LOCALLY" is prohibited as malware.
 3. Use the extension to create a cookie file and save it in a safe folder with no access restrictions.  
 	>For detailed extraction methods, see the next chapter. ([simple method](#simple-method--add-websites-one-by-one) and [stable method](#stable-method--prevent-interference-with-browser))  
 
-4. In the extension’s configuration file, set the "*cookie\_file*" key in the \[COOKIE] section to the cookie file you saved:  
+4. In the extension’s configuration file, set the "*cookie_file*" key in the [COOKIE] section to the cookie file you saved:  
 	>This cookie file is updated by yt-dlp.exe each time it is used.  
 	>Example 1  
 	>```
@@ -278,7 +278,7 @@ The one without "LOCALLY" is prohibited as malware.
 If you log out in your browser, these cookies become invalid and must be re-extracted.  
 For independent cookies unaffected by your browser’s logout status, use the next stable method.  
 
-When saving a cookie file, the **\[Export All Cookies]** button collects all browser cookies in a single step.  
+When saving a cookie file, the **[Export All Cookies]** button collects all browser cookies in a single step.  
 However, this is not recommended for security reasons, as it may include cookies from unrelated sites, such as financial services.  
 While this button is also used in the next “stable method”, it only collects cookies limited to the sessions of a temporary incognito/private window in that case.  
 
@@ -299,7 +299,7 @@ Uses a browser’s Incognito window to store all necessary cookies independently
 	> To avoid the Incognito window closing automatically, open a new tab before closing a website tab.  
 	> Make sure not to log out of the websites; simply close the tabs while logged in.  
 
-4. In the Incognito window, open "*Get cookies.txt LOCALLY*" and click the \[**Export All Cookies**] button to save cookies from all the opened websites into a single file.  
+4. In the Incognito window, open "*Get cookies.txt LOCALLY*" and click the [**Export All Cookies**] button to save cookies from all the opened websites into a single file.  
 	> This file will include cookies for every website opened in step 3.  
 
 5. Close the Incognito window.  

@@ -5,11 +5,11 @@
   Placed in \PotPlayer\Extension\Media\PlayParse\
 *************************************************************/
 
-string SCRIPT_VERSION = "251025";
+string SCRIPT_VERSION = "251029";
 
 
-string YTDLP_EXE = "Module\\yt-dlp.exe";
-	// yt-dlp executable file; relative path to HostGetExecuteFolder(); (required)
+string YTDLP_EXE = "yt-dlp.exe";
+	// yt-dlp executable file; placed in "ytdlp_location"; (required)
 
 string SCRIPT_CONFIG_DEFAULT = "yt-dlp_default.ini";
 	// default configuration file; placed in HostGetScriptFolder(); (required)
@@ -1397,45 +1397,60 @@ class SCH
 		return pos;
 	}
 	
-	string cutoffDesc(string desc, uint len)
+	string cutOffString(string source, uint len)
 	{
-		if (len == 0) return desc;
-		string str;
-		if (desc.size() > len)
+		string cutoff;
+		if (len == 0 || len >= source.size())
 		{
-			int pos = _findCharaTop(desc, len);
-			str = desc.Left(pos);
-			str += "...";
+			cutoff = source;
 		}
 		else
 		{
-			str = desc;
+			int pos = _findCharaTop(source, len);
+			cutoff = source.Left(pos);
+			cutoff += "...";
 		}
-		//str.replace("\n", " ");
-		return str;
+		return cutoff;
 	}
 	
-	bool isCutoffDesc(string str, string desc)
+	bool isCutOffString(string cutoff, string source)
 	{
-		while (str.Right(1) == ".") str.erase(str.size() - 1);
-		str.replace("\n", " ");
-		desc.replace("\n", " ");
-		return (desc.find(str) == 0);
+		// source: abcdefghi
+		// cutoff: abcd...
+		while (cutoff.Right(1) == ".") cutoff = cutoff.Left(cutoff.size() - 1);
+		cutoff.replace("\n", " ");
+		source.replace("\n", " ");
+		return (source.find(cutoff) == 0);
 	}
 	
-	string omitDecimal(string str, string dot, int allowedDigit = -1)
+	string omitDecimal(string desc, string dot, int allowedDigit = -1)
 	{
-		int pos = str.find(dot);
-		if (pos < 0) return str;
-		string decimal = str.substr(pos + dot.size());
+		int pos = desc.find(dot);
+		if (pos < 0) return desc;
+		string decimal = desc.substr(pos + dot.size());
 		if (int(decimal.size()) > allowedDigit)
 		{
-			str = str.Left(pos);
+			desc = desc.Left(pos);
 		}
-		return str;
+		return desc;
 	}
 	
-	string decodeNumericCharRefs(const string input)
+	string decodeEntityName(string desc)
+	{
+		// decode entity name
+		desc.replace("&quot;", "\"");
+		desc.replace("&apos;", "'");
+		desc.replace("&amp;", "&");
+		desc.replace("&lt;", "<");
+		desc.replace("&gt;", ">");
+		desc.replace("&nbsp;", " ");
+		desc.replace("&shy;", " ");
+		desc.replace("&copy;", "©");
+		desc.replace("&reg;", "®");
+		return desc;
+	}
+	
+	string decodeNumericCharRefs(string input)
 	{
 		// decode numeric character references in UTF8
 		// &#84;&#252;&#114;&#107;&#231;&#101; -> Türkçe
@@ -1543,7 +1558,7 @@ class SCH
 		}
 	}
 	
-	int parseHex(const string hex)
+	int parseHex(string hex)
 	{
 		int output = 0;
 		for (uint i = 0; i < hex.length(); i++)
@@ -1716,8 +1731,8 @@ class SHOUTPL
 				{
 					MetaData["url"] = url;
 					MetaData["webUrl"] = url;
-					title = _ReviseDesc(title);
-					title = _CutoffDesc(title);
+					title = _ReviseWebString(title);
+					title = _CutOffString(title);
 					MetaData["title"] = title;
 						// station name; replaced to current music titles after playback starts
 					MetaData["author"] = title + (addLocation ? " @ShoutcastPL" : "");
@@ -1776,11 +1791,25 @@ SHOUTPL shoutpl;
 
 class YTDLP
 {
-	string fileExe = HostGetExecuteFolder() + YTDLP_EXE;
+	string pathExe;
 	string version = "";
-	array<string> errors = {"(OK)", "(NOT FOUND)", "(LOOKS_DUMMY)", "(CRITICAL ERROR!)"};
+	array<string> errors = {"(OK)", "(NOT FOUND)", "(LOOKS INVALID)", "(CRITICAL ERROR!)"};
 	int error = 0;
 	string SCHEME = "dl//";
+	
+	void getPathExe()
+	{
+		string ytdlpLocation = cfg.getStr("MAINTENANCE", "ytdlp_location");
+		if (!ytdlpLocation.empty())
+		{
+			if (ytdlpLocation.Right(1) != "\\") ytdlpLocation += "\\";
+			pathExe = ytdlpLocation + YTDLP_EXE;
+		}
+		else
+		{
+			pathExe = HostGetExecuteFolder() + "Module\\" + YTDLP_EXE;
+		}
+	}
 	
 	string qt(string str)
 	{
@@ -1800,13 +1829,14 @@ class YTDLP
 		{
 			error = 3; return;
 		}
-		if (!HostFileExist(fileExe))
+		getPathExe();
+		if (!HostFileExist(pathExe))
 		{
 			error = 1; return;
 		}
 		
 		FileVersion verInfo;
-		if (!verInfo.Open(fileExe))
+		if (!verInfo.Open(pathExe))
 		{
 			error = 2; return;
 		}
@@ -1860,7 +1890,7 @@ class YTDLP
 		
 		if (!fc.errorDefault && !fc.errorSave)
 		{
-			uintptr fp = HostFileOpen(fileExe);
+			uintptr fp = HostFileOpen(pathExe);
 			string data = HostFileRead(fp, HostFileLength(fp));
 			HostFileClose(fp);
 			string hash = HostHashSHA256(data);
@@ -1873,7 +1903,7 @@ class YTDLP
 				string hash0 = cfg.getStr("MAINTENANCE", "ytdlp_hash");
 				if (hash0.empty())
 				{
-					string msg = "You are using a new [yt-dlp.exe].\r\n\r\n";
+					string msg = "You are using a new \"yt-dlp.exe\".\r\n\r\n";
 					msg += "current version: " + version;
 					HostMessageBox(msg, "[yt-dlp] INFO", 2, 0);
 					cfg.setStr("MAINTENANCE", "ytdlp_hash", hash);
@@ -1884,14 +1914,14 @@ class YTDLP
 					if (error >= 0)
 					{
 						string msg =
-						"Your [yt-dlp.exe] is different from before.\r\n\r\n"
+						"Your \"yt-dlp.exe\" is different from before.\r\n\r\n"
 						"Current version: " + version + "\r\n\r\n"
 						"You can continue playback if you replaced it intentionally.";
 						if (cfg.getInt("MAINTENANCE", "update_ytdlp") > 0)
 						{
 							msg += "\r\nThe [update_ytdlp] setting will be reset.";
 						}
-						HostMessageBox(msg, "[yt-dlp] ALERT", 0, 0);
+						HostMessageBox(msg, "[yt-dlp] INFO", 0, 0);
 						error = -1;
 					}
 					else
@@ -1924,7 +1954,7 @@ class YTDLP
 		error = 3;
 		cfg.setInt("MAINTENANCE", "critical_error", 1, false);
 		cfg.deleteKey("MAINTENANCE", "update_ytdlp");
-		string msg = "Your [yt-dlp.exe] did not work as expected.\r\n";
+		string msg = "Your \"yt-dlp.exe\" did not work as expected.\r\n";
 		HostPrintUTF8("\r\n[yt-dlp] CRITICAL ERROR! " + msg);
 		msg += "After confirming there are no problems, set [critical_error] to 0 in the config file and reload the script.";
 		HostMessageBox(msg, "[yt-dlp] CRITICAL ERROR", 3, 2);
@@ -1935,7 +1965,7 @@ class YTDLP
 		checkFile(false);
 		if (error != 0) return;
 		HostIncTimeOut(10000);
-		string output = HostExecuteProgram(qt(fileExe), " -U");
+		string output = HostExecuteProgram(qt(pathExe), " -U");
 		if (output.find("Latest version:") < 0 && output.find("ERROR:") < 0)
 		{
 			HostPrintUTF8("[yt-dlp] ERROR! No update info.\r\n");
@@ -1944,6 +1974,11 @@ class YTDLP
 		}
 		int pos = output.findLastNotOf("\r\n");
 		output = output.Left(pos + 1);
+		if (output.find("ERROR:") >= 0)
+		{
+			output += "\r\n\r\n";
+			output += "You can also change the [ytdlp_location] setting to a location with write permission.";
+		}
 		HostMessageBox(output, "[yt-dlp] INFO: Update yt-dlp.exe", 2, 1);
 		error = -1;
 		checkFile(true);
@@ -2074,15 +2109,16 @@ class YTDLP
 					if (log.substr(pos1, 7) == "ERROR: ")
 					{
 						msg =
-						"A newer version of [yt-dlp.exe] was found on the website,\r\n"
+						"A newer version of \"yt-dlp.exe\" was found on the website,\r\n"
 						"but the automatic update failed.\r\n\r\n";
 						pos1 += 7;
 						if (sch.findI(log, "Unable to write", pos1) == pos1)
 						{
 							msg +=
-							"Unable to overwrite [yt-dlp.exe] in:\r\n"
-							+ fileExe + "\r\n\r\n"
-							"Replace it manually or try running PotPlayer with administrator privileges.\r\n\r\n";
+							"Unable to overwrite:\r\n"
+							+ pathExe + "\r\n\r\n"
+							"Replace it manually or try running PotPlayer as an administrator.\r\n"
+							"You can also change the [ytdlp_location] setting to a location with write permission.\r\n\r\n";
 						}
 						else
 						{
@@ -2090,7 +2126,7 @@ class YTDLP
 							msg += log.substr(pos1, pos2 - pos1) + "\r\n\r\n";
 						}
 						msg += "The [update_ytdlp] setting will be reset.";
-						HostMessageBox(msg, "[yt-dlp] ERROR: Auto update", 0, 0);
+						HostMessageBox(msg, "[yt-dlp] ALERT: Auto update", 0, 0);
 						cfg.setInt("MAINTENANCE", "update_ytdlp", 0);
 						return -1;
 					}
@@ -2171,7 +2207,7 @@ class YTDLP
 		return false;
 	}
 	
-	array<string> _getEntries(const string str, uint &out posLog)
+	array<string> _getEntries(string str, uint &out posLog)
 	{
 		array<string> entries;
 		posLog = 0;
@@ -2305,7 +2341,7 @@ class YTDLP
 		{
 			options += " -v";
 			options += " -- " + url;
-			output = HostExecuteProgram(qt(fileExe), options);
+			output = HostExecuteProgram(qt(pathExe), options);
 		}
 		else
 		{
@@ -2619,7 +2655,7 @@ class YTDLP
 		{
 			HostIncTimeOut(2000000);
 			uint startTime = HostGetTickCount();
-			output = HostExecuteProgram(qt(fileExe), " -v" + options + " -- " + url);
+			output = HostExecuteProgram(qt(pathExe), " -v" + options + " -- " + url);
 			
 			if (cfg.csl > 0)
 			{
@@ -2663,7 +2699,7 @@ class YTDLP
 				string wholeOption = " -I " + i + ":" + (i + unitIdx - 1);
 				if (i == 1) wholeOption += " -v";
 				wholeOption += options + " -- " + url;
-				string addOutput = HostExecuteProgram(qt(fileExe), wholeOption);
+				string addOutput = HostExecuteProgram(qt(pathExe), wholeOption);
 				uint addCnt = _countJson(addOutput, (i > 1));
 				if (youtubeChannelTop) _eraseYoutubeTabError(addOutput);
 				output.insert(_findJsonEnd(output), addOutput);
@@ -2718,7 +2754,7 @@ class YTDLP
 		{
 			HostIncTimeOut(2000000);
 			uint startTime = HostGetTickCount();
-			output = HostExecuteProgram(qt(fileExe), options + " --" + cnctUrl);
+			output = HostExecuteProgram(qt(pathExe), options + " --" + cnctUrl);
 			
 			if (cfg.csl > 0)
 			{
@@ -2752,7 +2788,7 @@ class YTDLP
 				if (i > 600) unitIdx = 400;
 				HostIncTimeOut(300000);
 				options += " -I " + i + ":" + (i + unitIdx - 1);
-				string addOutput = HostExecuteProgram(qt(fileExe), options + " --" + cnctUrl);
+				string addOutput = HostExecuteProgram(qt(pathExe), options + " --" + cnctUrl);
 				uint addCnt = _countJson(addOutput, false);
 				if (addCnt > 0)
 				{
@@ -2824,7 +2860,7 @@ class YTDLP
 			
 			HostIncTimeOut(2000000);
 			uint startTime = HostGetTickCount();
-			output = HostExecuteProgram(qt(fileExe), options + " --" + cnctUrl);
+			output = HostExecuteProgram(qt(pathExe), options + " --" + cnctUrl);
 			
 			if (cfg.csl > 0)
 			{
@@ -2857,7 +2893,7 @@ class YTDLP
 					cnctUrl += " " + urls[j];
 					if (j >= urls.size() - 1) {complete = 1; break;}
 				}
-				string addOutput = HostExecuteProgram(qt(fileExe), options + " --" + cnctUrl);
+				string addOutput = HostExecuteProgram(qt(pathExe), options + " --" + cnctUrl);
 				uint addCnt = _countJson(addOutput, false);
 				if (addCnt > 0)
 				{
@@ -2899,6 +2935,7 @@ YTDLP ytd;
 void OnInitialize()
 {
 	// Called when loading script at first
+	
 	if (SCRIPT_VERSION.Right(1) == "#") HostOpenConsole();	// debug version
 	cfg.loadFile();
 	ytd.checkFile(false);
@@ -2908,6 +2945,7 @@ void OnInitialize()
 string GetTitle()
 {
 	// Called when loading script and closing the config panel with ok button
+	
 	string scriptName = "yt-dlp " + SCRIPT_VERSION;
 	if (ytd.error > 0)
 	{
@@ -2936,6 +2974,7 @@ string GetTitle()
 string GetConfigFile()
 {
 	// Called when opening the config panel
+	
 	fc.showDialog = true;
 	cfg.loadFile();
 	return SCRIPT_CONFIG_CUSTOM;
@@ -2945,6 +2984,7 @@ string GetConfigFile()
 void ApplyConfigFile()
 {
 	// Called when closing the config panel with ok button
+	
 	if (!cfg.loadFile())
 	{
 		string msg = "The script cannot apply the configuration.";
@@ -2965,6 +3005,7 @@ void ApplyConfigFile()
 string GetDesc()
 {
 	// Called when opening info panel
+	
 	if (cfg.getInt("MAINTENANCE", "update_ytdlp") == 2)
 	{
 		cfg.setInt("MAINTENANCE", "update_ytdlp", 0);
@@ -2982,6 +3023,7 @@ string GetDesc()
 		"<a href=\"" + SITE_DESC + "\">PotPlayer-Extension_yt-dlp (github)</a>\r\n"
 		"\r\n"
 		"yt-dlp.exe version: ";
+	
 	if (ytd.error > 0)
 	{
 		info += "N/A " + ytd.errors[ytd.error];
@@ -2995,19 +3037,20 @@ string GetDesc()
 	{
 		case 1:
 			info += "\r\n\r\n"
-			"| Please place [yt-dlp.exe] in Module folder\r\n"
-			"| under PotPlayer's program folder.\r\n";
+			"| Cannot find \"yt-dlp.exe\".\r\n"
+			"| Place \"yt-dlp.exe\" in [ytdlp_location]\r\n"
+			"| or check the [ytdlp_location] setting.\r\n";
 			break;
 		case 2:
 			info += "\r\n\r\n"
-			"| Your [yt-dlp.exe] may not be valid.\r\n"
-			"| Please check in PotPlayer's Module folder\r\n"
-			"| and replace it with a proper one.\r\n";
+			"| Your \"yt-dlp.exe\" may not be valid.\r\n"
+			"| Replace it with a proper one or\r\n"
+			"| check the [ytdlp_location] folder.\r\n";
 			break;
 		case 3:
 			info += "\r\n\r\n"
-			"| Your [yt-dlp.exe] did not work as expected.\r\n"
-			"| After confirming no issues, reset [critical_error]\r\n"
+			"| Your \"yt-dlp.exe\" did not work as expected.\r\n"
+			"| After checking, reset [critical_error]\r\n"
 			"| in the config file and reload the script.\r\n";
 			break;
 	}
@@ -3389,7 +3432,8 @@ bool _CheckFileExt(string path)
 {
 	string ext = HostGetExtension(path);
 	if (ext.empty()) return true;	// No file extension
-	if (!_IsExtType(ext, 0x11111)) return true;	// unknown file extension
+	if (!_IsExtType(ext, 0x1111)) return true;	// unknown file extension
+//HostPrintUTF8("path: " + path);
 	return false;
 }
 
@@ -3429,7 +3473,6 @@ bool PlaylistCheck(const string &in path)
 		}
 		return false;
 	}
-	//if (!_PlayitemCheckBase2(url)) return false;
 	
 	if (_IsUrlSite(url, "shoutcast")) return true;
 	
@@ -3463,7 +3506,7 @@ bool PlaylistCheck(const string &in path)
 }
 
 
-string _CutoffDesc(string desc)
+string _CutOffString(string desc)
 {
 	int MINI_LENGTH = 30;
 	int titleMaxLen = cfg.getInt("FORMAT", "title_max_length");
@@ -3474,7 +3517,7 @@ string _CutoffDesc(string desc)
 			cfg.setInt("FORMAT", "title_max_length", MINI_LENGTH);
 			titleMaxLen = MINI_LENGTH;
 		}
-		desc = sch.cutoffDesc(desc, uint(titleMaxLen));
+		desc = sch.cutOffString(desc, uint(titleMaxLen));
 	}
 	else if (titleMaxLen < 0)
 	{
@@ -3698,8 +3741,8 @@ dictionary _PlaylistParse(string json, bool forcePlaylist, string imgUrl)
 			{
 				// Consider title as empty if yt-dlp cannot get a substantial title.
 				// Prevent PotPlayer from overwriting the edited title in the playlist panel.
-				title = _ReviseDesc(title);
-				title = _CutoffDesc(title);
+				title = _ReviseWebString(title);
+				title = _CutOffString(title);
 				dic["title"] = title;
 			}
 		}
@@ -3708,8 +3751,8 @@ dictionary _PlaylistParse(string json, bool forcePlaylist, string imgUrl)
 		{
 			if (baseName != playlistTitle + ext2)
 			{
-				playlistTitle = _ReviseDesc(playlistTitle);
-				playlistTitle = _CutoffDesc(playlistTitle);
+				playlistTitle = _ReviseWebString(playlistTitle);
+				playlistTitle = _CutOffString(playlistTitle);
 				dic["playlist_title"] = playlistTitle;
 			}
 		}
@@ -4212,23 +4255,13 @@ string _ReviseUrl(string url)
 }
 
 
-string _ReviseDesc(string desc)
+string _ReviseWebString(string desc)
 {
 	desc.replace("\\r\\n", "\n");
 	desc.replace("\\n", "\n");
 	//desc.replace("+", " ");
 	
-	// decode entity name
-	desc.replace("&quot;", "\"");
-	desc.replace("&apos;", "'");
-	desc.replace("&amp;", "&");
-	desc.replace("&lt;", "<");
-	desc.replace("&gt;", ">");
-	desc.replace("&nbsp;", " ");
-	desc.replace("&shy;", " ");
-	desc.replace("&copy;", "©");
-	desc.replace("&reg;", "®");
-	
+	desc = sch.decodeEntityName(desc);
 	desc = sch.decodeNumericCharRefs(desc);
 	
 	// Remove the top LF
@@ -4473,8 +4506,8 @@ bool _GetRadioInfo(dictionary &inout MetaData, string httpHead, string url)
 				string _s;
 				if ((!MetaData.get("title", _s)) || _s.empty())
 				{
-					title = _ReviseDesc(title);
-					title = _CutoffDesc(title);
+					title = _ReviseWebString(title);
+					title = _CutOffString(title);
 					MetaData["title"] = title;
 					MetaData["author"] = title + " @" +server;
 						// The station name is kept in the author field.
@@ -4486,7 +4519,7 @@ bool _GetRadioInfo(dictionary &inout MetaData, string httpHead, string url)
 				if (!desc.empty()) content = (!content.empty() ? " " : "") + desc;
 				if (!content.empty())
 				{
-					content = _ReviseDesc(content);
+					content = _ReviseWebString(content);
 					MetaData["content"] = content;
 				}
 				int viewCount = parseInt(_GetDataField(data, "Current Listeners"));
@@ -4512,8 +4545,8 @@ bool _GetRadioInfo(dictionary &inout MetaData, string httpHead, string url)
 		string _s;
 		if ((!MetaData.get("title", _s)) || _s.empty())
 		{
-			title = _ReviseDesc(title);
-			title = _CutoffDesc(title);
+			title = _ReviseWebString(title);
+			title = _CutOffString(title);
 			MetaData["title"] = title;
 			MetaData["author"] = title + " @" +server;
 				// The station name is kept in the author field.
@@ -4525,7 +4558,7 @@ bool _GetRadioInfo(dictionary &inout MetaData, string httpHead, string url)
 		if (!desc.empty()) content = (!content.empty() ? " " : "") + desc;
 		if (!content.empty())
 		{
-			content = _ReviseDesc(content);
+			content = _ReviseWebString(content);
 			MetaData["content"] = content;
 		}
 		int viewCount = parseInt(_GetDataField(httpHead, "icy-listeners"));
@@ -4764,8 +4797,8 @@ string PlayitemParse(const string &in path, dictionary &MetaData, array<dictiona
 		if (playlistTitle.empty()) playlistTitle = _GetPlaylistTitle(inUrl);
 		if (!playlistTitle.empty())
 		{
-			playlistTitle = _ReviseDesc(playlistTitle);
-			playlistTitle = _CutoffDesc(playlistTitle);
+			playlistTitle = _ReviseWebString(playlistTitle);
+			playlistTitle = _CutOffString(playlistTitle);
 			MetaData["title"] = playlistTitle;
 		}
 		string note = "";
@@ -4805,7 +4838,7 @@ string PlayitemParse(const string &in path, dictionary &MetaData, array<dictiona
 				title = alt_title;
 			}
 		}
-		title = _ReviseDesc(title);
+		title = _ReviseWebString(title);
 	}
 	
 	string duration = _GetJsonValueString(root, "duration_string");
@@ -4865,7 +4898,7 @@ string PlayitemParse(const string &in path, dictionary &MetaData, array<dictiona
 			}
 		}
 	}
-	if (!author.empty()) author = _ReviseDesc(author);
+	if (!author.empty()) author = _ReviseWebString(author);
 	
 	string _author = author;
 	if (isGeneric)
@@ -4886,7 +4919,7 @@ string PlayitemParse(const string &in path, dictionary &MetaData, array<dictiona
 	if (!date.empty()) MetaData["date"] = date;
 	
 	string desc = _GetJsonValueString(root, "description");
-	desc = _ReviseDesc(desc);
+	desc = _ReviseWebString(desc);
 	
 	string baseName = _GetJsonValueString(root, "webpage_url_basename");
 	string ext2 = HostGetExtension(baseName);	// include the top dot
@@ -4920,7 +4953,7 @@ string PlayitemParse(const string &in path, dictionary &MetaData, array<dictiona
 			pos = title2.findLast(" | ");
 			if (pos >= 0) title2 = title2.Left(pos);
 		}
-		if (!desc.empty() && sch.isCutoffDesc(title2, desc))
+		if (!desc.empty() && sch.isCutOffString(title2, desc))
 		{
 			title2 = "";
 		}
@@ -4950,7 +4983,7 @@ string PlayitemParse(const string &in path, dictionary &MetaData, array<dictiona
 				}
 			}
 		}
-		title2 = _CutoffDesc(title2);
+		title2 = _CutOffString(title2);
 		if (sch.isSameDesc(title2, desc))
 		{
 			desc = "";	// Delete duplicate desc data
