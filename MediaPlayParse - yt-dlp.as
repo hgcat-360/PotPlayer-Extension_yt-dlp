@@ -5,7 +5,7 @@
   Placed in \PotPlayer\Extension\Media\PlayParse\
 *************************************************************/
 
-string SCRIPT_VERSION = "251029";
+string SCRIPT_VERSION = "251107";
 
 
 string YTDLP_EXE = "yt-dlp.exe";
@@ -21,6 +21,10 @@ string SCRIPT_CONFIG_CUSTOM = "Extension\\Media\\PlayParse\\yt-dlp.ini";
 string RADIO_IMAGE_1 = "yt-dlp_radio1.jpg";
 string RADIO_IMAGE_2 = "yt-dlp_radio2.jpg";
 	// radio image files; placed in HostGetScriptFolder()
+
+
+string USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/142.0.0.0 Safari/537.36";	// chrome
+//string USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:144.0) Gecko/20100101 Firefox/144.0";	// firefox
 
 
 class FileConfig
@@ -66,12 +70,12 @@ class FileConfig
 		if (str.find(BOM_UTF8) == 0)
 		{
 			code = "utf8_bom";
-			str = str.substr(BOM_UTF8.size());
+			str = str.substr(BOM_UTF8.length());
 		}
 		else if (str.find(BOM_UTF16LE) == 0)
 		{
 			code = "utf16_le";
-			str = str.substr(BOM_UTF16LE.size());
+			str = str.substr(BOM_UTF16LE.length());
 			str = HostUTF16ToUTF8(str);
 		}
 		else
@@ -173,7 +177,7 @@ class FileConfig
 			{
 				showDialog = false;
 				msg += HostGetScriptFolder() + "\r\n" + SCRIPT_CONFIG_DEFAULT;
-				HostMessageBox(msg, "[yt-dlp] ERROR: Default config file", 0, 0);
+				HostMessageBox(msg, "[yt-dlp] ERROR: Default Config File", 0, 0);
 			}
 		}
 		return str;
@@ -233,7 +237,7 @@ class FileConfig
 				str = _changeFromUtf8Basic(str, codeDef);
 				if (HostFileSetLength(fp, 0) == 0)
 				{
-					if (HostFileWrite(fp, str) == int(str.size()))
+					if (HostFileWrite(fp, str) == int(str.length()))
 					{
 						writeState = 2;
 					}
@@ -264,7 +268,7 @@ class FileConfig
 				"The script cannot create or save the config file.\r\n"
 				"Please ensure this file is writable.\r\n\r\n"
 				+ HostGetConfigFolder() + SCRIPT_CONFIG_CUSTOM;
-				HostMessageBox(msg, "[yt-dlp] ERROR: File save", 0, 0);
+				HostMessageBox(msg, "[yt-dlp] ERROR: File Save", 0, 0);
 			}
 		}
 		return writeState;
@@ -331,7 +335,7 @@ class CFG
 		// Do not use Trim("\"")
 		if (str.Left(1) == "\"" && str.Right(1) == "\"")
 		{
-			str = str.substr(1, str.size() - 2);
+			str = str.substr(1, str.length() - 2);
 		}
 		int pos = 0;
 		int pos0;
@@ -349,7 +353,7 @@ class CFG
 	
 	int _findBlankLine(string str, int pos)
 	{
-		if (pos < 0) pos = str.size();
+		if (pos < 0) pos = str.length();
 		pos = str.findLastNotOf("\r\n", pos);
 		if (pos < 0) pos = 0;
 		int pos0;
@@ -358,7 +362,7 @@ class CFG
 			pos = str.find("\n", pos);
 			if (pos >= 0)
 			{
-				for (pos += 1; uint(pos) < str.size(); pos++)
+				for (pos += 1; uint(pos) < str.length(); pos++)
 				{
 					string c = str.substr(pos, 1);
 					if (c == "\n") return pos + 1;
@@ -366,7 +370,7 @@ class CFG
 				}
 			}
 		} while (pos > pos0);
-		return str.size();
+		return str.length();
 	}
 	
 	string _removeLastBlank(string str)
@@ -388,7 +392,7 @@ class CFG
 	
 	string _getSectionNext(string str, int &inout pos)
 	{
-		if (str.empty() || pos < 0 || uint(pos) >= str.size()) {pos = -1; return "";}
+		if (str.empty() || pos < 0 || uint(pos) >= str.length()) {pos = -1; return "";}
 		
 		string section = "";
 		pos = sch.findRegExp(str, "^\\[([^\n\r\t\\]]*?)\\]", section, pos);
@@ -410,7 +414,7 @@ class CFG
 	
 	string _getKeyNext(string str, int &inout pos)
 	{
-		if (str.empty() || pos < 0 || uint(pos) >= str.size()) {pos = -1; return "";}
+		if (str.empty() || pos < 0 || uint(pos) >= str.length()) {pos = -1; return "";}
 		string key;
 		pos = sch.findRegExp(str, "^(#?\\w+)=", key, pos);
 		if (pos >= 0 && pos <= _findSectionSepaNext(str, pos))
@@ -451,7 +455,7 @@ class CFG
 			pos2 = sch.findRegExp(keyArea, "^\t[^\r\n]*\r\n", line, pos1);
 			if (pos2 >= 0)
 			{
-				keyArea.erase(pos2, line.size());
+				keyArea.erase(pos2, line.length());
 			}
 		}
 		return keyArea;
@@ -489,7 +493,7 @@ class CFG
 				kd.areaStr = keyArea;
 				_parseKeyDataDef(kd);
 				_kds.set(key, kd);
-				pos += keyArea.size();
+				pos += keyArea.length();
 			}
 			else
 			{
@@ -521,7 +525,7 @@ class CFG
 					sectionNamesDef.insertLast(section);
 					__loadDef(str, section, pos);
 				}
-				pos += sectArea.size();
+				pos += sectArea.length();
 			}
 			else
 			{
@@ -529,7 +533,7 @@ class CFG
 			}
 		} while (pos > pos0);
 		
-		if (sectionNamesDef.size() == 0)
+		if (sectionNamesDef.length() == 0)
 		{
 			sectionNamesDef.insertLast("");
 			__loadDef(str, "", 0);
@@ -588,9 +592,9 @@ class CFG
 				match[0].get("str", s1);
 				if (state > 0)
 				{
-					str.erase(keyTop, s1.size());
+					str.erase(keyTop, s1.length());
 					str.insert(keyTop, kd.key + "=");
-					valueTop = keyTop + kd.key.size() + 1;
+					valueTop = keyTop + kd.key.length() + 1;
 				}
 				if (state == 2)
 				{
@@ -617,7 +621,7 @@ class CFG
 					if (!value.empty())
 					{
 						str.insert(keyTop, kd.key + "=" + value + "\r\n");
-						kd.valueTop = keyTop + kd.key.size() + 1;
+						kd.valueTop = keyTop + kd.key.length() + 1;
 					}
 					break;
 				}
@@ -640,7 +644,7 @@ class CFG
 		if (!keyNames.get(section, keys)) return;
 		
 		array<uint> tops;
-		for (uint i = 0; i < keys.size(); i++)
+		for (uint i = 0; i < keys.length(); i++)
 		{
 			string key = keys[i];
 			if (key.Left(1) == "#") key = key.substr(1);	// hidden key
@@ -655,7 +659,7 @@ class CFG
 		}
 		tops.sortAsc();
 		
-		for (uint i = 0; i < keys.size(); i++)
+		for (uint i = 0; i < keys.length(); i++)
 		{
 			KeyData kd;
 			string key = keys[i];
@@ -670,7 +674,7 @@ class CFG
 					{
 						// Find the top of the next keyArea and determine the current keyArea.
 						idx++;	// next key
-						uint _pos = (uint(idx) < tops.size()) ? tops[idx] : sectArea.size();
+						uint _pos = (uint(idx) < tops.length()) ? tops[idx] : sectArea.length();
 						int blnk = _findBlankLine(sectArea, kd.areaTop);
 						if (_pos > uint(blnk)) _pos = blnk;
 						keyArea = sectArea.substr(kd.areaTop, _pos - kd.areaTop);
@@ -704,7 +708,7 @@ class CFG
 		kdsCst = {};
 		sectionNamesCst = {};
 		array<string> sections = sectionNamesDef;
-		if (sections.size() == 1 && sections[0] == "")
+		if (sections.length() == 1 && sections[0] == "")
 		{
 			sectionNamesCst.insertLast("");
 			string sectArea;
@@ -739,12 +743,12 @@ class CFG
 							__loadCst(sectArea, section);
 						}
 					}
-					pos += sectArea.size();
+					pos += sectArea.length();
 				}
 			} while (pos > pos0);
 			
 			// Add the missing section
-			for (uint i = 0; i < sections.size(); i++)
+			for (uint i = 0; i < sections.length(); i++)
 			{
 				string sectAreaDef = _getCfgStrDef(sections[i]);
 				if (!sectAreaDef.empty())
@@ -770,10 +774,10 @@ class CFG
 		{
 			kds = kdsCst; sections = sectionNamesCst;
 		}
-		if (sections.size() == 0 || kds.size() == 0) return "";
+		if (sections.length() == 0 || kds.getSize() == 0) return "";
 		
 		string str = "";
-		for (uint i = 0; i < sections.size(); i++)
+		for (uint i = 0; i < sections.length(); i++)
 		{
 			string section = sections[i];
 			if (!section.empty())
@@ -783,7 +787,7 @@ class CFG
 			array<string> keys;
 			if (keyNames.get(section, keys))
 			{
-				for (uint j = 0; j < keys.size(); j++)
+				for (uint j = 0; j < keys.length(); j++)
 				{
 					string key = keys[j];
 					if (key.Left(1) == "#")	// hidden key
@@ -835,7 +839,7 @@ class CFG
 		{
 			kds = kdsCst; sections = sectionNamesCst;
 		}
-		if (sections.size() == 0 || kds.size() == 0) return "";
+		if (sections.length() == 0 || kds.getSize() == 0) return "";
 		
 		string str = "";
 		if (!section.empty())
@@ -845,7 +849,7 @@ class CFG
 		array<string> keys;
 		if (keyNames.get(section, keys))
 		{
-			for (uint j = 0; j < keys.size(); j++)
+			for (uint j = 0; j < keys.length(); j++)
 			{
 				string key = keys[j];
 				if (key.Left(1) == "#")	// hidden key
@@ -903,7 +907,7 @@ class CFG
 			kds = kdsCst;
 			sections = sectionNamesCst;
 		}
-		if (sections.size() == 0 || kds.size() == 0) return "";
+		if (sections.length() == 0 || kds.getSize() == 0) return "";
 		
 		string str = "";
 		dictionary _kds;
@@ -1111,7 +1115,7 @@ class CFG
 				{
 					if (kd.valueTop >= 0)
 					{
-						kd.areaStr.erase(kd.valueTop, prevValue.size());
+						kd.areaStr.erase(kd.valueTop, prevValue.length());
 						kd.areaStr.insert(kd.valueTop, setValue);
 						kd.value = setValue;
 						kd.state = 1;
@@ -1122,7 +1126,7 @@ class CFG
 					if (kd.keyTop >= 0)
 					{
 						kd.areaStr.insert(kd.keyTop, key + "=" + setValue + "\r\n");
-						kd.valueTop = kd.keyTop + key.size() + 1;
+						kd.valueTop = kd.keyTop + key.length() + 1;
 						kd.value = setValue;
 						kd.state = 1;
 					}
@@ -1182,7 +1186,7 @@ class SCH
 	int findI(array<string> arr, string search)
 	{
 		// Case-insensitive search in array
-		for (uint i = 0; i < arr.size(); i++)
+		for (uint i = 0; i < arr.length(); i++)
 		{
 			if (arr[i].MakeLower() == search.MakeLower()) return i;
 		}
@@ -1192,7 +1196,7 @@ class SCH
 	string escapeReg(string str)
 	{
 		array<string> esc = {"\\", "|", ".", "+", "-", "*", "/", "^", "$", "(", ")", "[", "]", "{", "}"};
-		for (uint i = 0; i < esc.size(); i++)
+		for (uint i = 0; i < esc.length(); i++)
 		{
 			str.replace(esc[i], "\\" + esc[i]);
 		}
@@ -1204,7 +1208,7 @@ class SCH
 		// Avoid regular expressions
 		string _reg = "";
 		uint cnt = 0;
-		for (uint pos = 0; pos < reg.size(); pos++)
+		for (uint pos = 0; pos < reg.length(); pos++)
 		{
 			string c = reg.substr(pos, 1);
 			if (c == "\\")
@@ -1230,7 +1234,7 @@ class SCH
 	{
 		// Modify HostRegExpParse
 		if (str.empty() || reg.empty() || match is null) return -1;
-		if (fromPos < 0 || uint(fromPos) >= str.size()) return -1;
+		if (fromPos < 0 || uint(fromPos) >= str.length()) return -1;
 		string origStr = str;
 		bool caseInsens = false;
 		if (reg.Left(4) == "(?i)")
@@ -1247,11 +1251,11 @@ class SCH
 		if (HostRegExpParse(_str, reg, _match))
 		{
 			int pos0 = -1;
-			for (uint i = 0; i < _match.size(); i++)
+			for (uint i = 0; i < _match.length(); i++)
 			{
 				string s1 = string(_match[i]["first"]);
 				string s2 = string(_match[i]["second"]);
-				int pos = _str.size() - s2.size() - s1.size();
+				int pos = _str.length() - s2.length() - s1.length();
 				pos = fromPos + pos;
 				{
 					dictionary dic;
@@ -1261,7 +1265,7 @@ class SCH
 					}
 					else
 					{
-						dic["str"] = origStr.substr(pos, s1.size());
+						dic["str"] = origStr.substr(pos, s1.length());
 					}
 					dic["pos"] = pos;
 					match.insertLast(dic);
@@ -1279,7 +1283,7 @@ class SCH
 		int pos = regExpParse(str, reg, match, fromPos);
 		if (pos >= 0)
 		{
-			if (match.size() > 1)
+			if (match.length() > 1)
 			{
 				pos = int(match[1]["pos"]);
 			}
@@ -1294,7 +1298,7 @@ class SCH
 		int pos = regExpParse(str, reg, match, fromPos);
 		if (pos >= 0)
 		{
-			if (match.size() > 1)
+			if (match.length() > 1)
 			{
 				pos = int(match[1]["pos"]);
 				getStr = string(match[1]["str"]);
@@ -1315,7 +1319,7 @@ class SCH
 		int pos = regExpParse(str, reg, match, fromPos);
 		if (pos >= 0)
 		{
-			if (match.size() > 1)
+			if (match.length() > 1)
 			{
 				getStr = string(match[1]["str"]);
 			}
@@ -1329,7 +1333,7 @@ class SCH
 	
 	int findLineTop(string str, int pos)
 	{
-		if (pos < 0 || pos > int(str.size())) pos = str.size();
+		if (pos < 0 || pos > int(str.length())) pos = str.length();
 		if (pos == 0) return 0;
 		pos = str.findLastOf("\n", pos - 1);
 		if (pos < 0) return 0;
@@ -1339,17 +1343,28 @@ class SCH
 	int findEol(string str, int pos)
 	{
 		// Does not include EOL characters at the end
-		if (pos < 0 || pos >= int(str.size())) return int(str.size());
+		if (pos < 0 || pos >= int(str.length())) return int(str.length());
 		pos = str.find("\n", pos);
-		if (pos < 0) return int(str.size());
+		if (pos < 0) return int(str.length());
 		if (pos == 0) return 0;
 		if (str.substr(pos - 1, 1) == "\r") pos -= 1;
 		return pos;
 	}
 	
+	string getLine(string str, int pos)
+	{
+		int pos1 = findLineTop(str, pos);
+		int pos2 = findEol(str, pos);
+		if (pos2 - pos1 > 0)
+		{
+			return str.substr(pos1, pos2 - pos1);
+		}
+		return "";
+	}
+	
 	int findNextLineTop(string str, int pos)
 	{
-		if (pos < 0 || pos >= int(str.size())) return -1;
+		if (pos < 0 || pos >= int(str.length())) return -1;
 		pos = str.find("\n", pos);
 		if (pos < 0) return -1;
 		return pos + 1;
@@ -1357,7 +1372,7 @@ class SCH
 	
 	int findPrevLineTop(string str, int pos)
 	{
-		if (pos < 0 || pos > int(str.size())) pos = str.size();
+		if (pos < 0 || pos > int(str.length())) pos = str.length();
 		if (pos == 0) return -1;
 		pos = str.findLast("\n", pos - 1);
 		if (pos < 0) return -1;
@@ -1367,11 +1382,11 @@ class SCH
 	
 	void eraseLine(string &inout str, int pos)
 	{
-		if (pos >= 0 && pos <= int(str.size()))
+		if (pos >= 0 && pos <= int(str.length()))
 		{
 			int pos1 = findLineTop(str, pos);
 			int pos2 = findNextLineTop(str, pos);
-			if (pos2 < 0) pos2 = str.size();
+			if (pos2 < 0) pos2 = str.length();
 			str.erase(pos1, pos2 - pos1);
 		}
 	}
@@ -1400,7 +1415,7 @@ class SCH
 	string cutOffString(string source, uint len)
 	{
 		string cutoff;
-		if (len == 0 || len >= source.size())
+		if (len == 0 || len >= source.length())
 		{
 			cutoff = source;
 		}
@@ -1417,7 +1432,7 @@ class SCH
 	{
 		// source: abcdefghi
 		// cutoff: abcd...
-		while (cutoff.Right(1) == ".") cutoff = cutoff.Left(cutoff.size() - 1);
+		while (cutoff.Right(1) == ".") cutoff = cutoff.Left(cutoff.length() - 1);
 		cutoff.replace("\n", " ");
 		source.replace("\n", " ");
 		return (source.find(cutoff) == 0);
@@ -1427,17 +1442,17 @@ class SCH
 	{
 		int pos = desc.find(dot);
 		if (pos < 0) return desc;
-		string decimal = desc.substr(pos + dot.size());
-		if (int(decimal.size()) > allowedDigit)
+		string decimal = desc.substr(pos + dot.length());
+		if (int(decimal.length()) > allowedDigit)
 		{
 			desc = desc.Left(pos);
 		}
 		return desc;
 	}
 	
-	string decodeEntityName(string desc)
+	string decodeEntityRefs(string desc)
 	{
-		// decode entity name
+		// decode entity names (only often used ones)
 		desc.replace("&quot;", "\"");
 		desc.replace("&apos;", "'");
 		desc.replace("&amp;", "&");
@@ -1450,7 +1465,42 @@ class SCH
 		return desc;
 	}
 	
-	string decodeNumericCharRefs(string input)
+	string decodeUTF16BE(string encoded)
+	{
+		// decoded UTF-16BE -> UTF-8 string
+		// \u092F\u0942\u091F\u094D\u092F\u0942\u092C -> यूट्यूब
+		
+		string output = "";
+		int len = encoded.length();
+		
+		for (int i = 0; i < len; i++)
+		{
+			string pre = encoded.substr(i, 2);
+			if (i < len - 5 && (pre == "\\u" || pre == "U+"))
+			{
+				string hex = encoded.substr(i + 2, 4);
+				int code = _parseHex(hex);
+				if (code < 0)	// error
+				{
+					output += encoded.substr(i, 1);
+				}
+				else
+				{
+					output += _charCodeToString(code);
+					i += 5;
+				}
+			}
+			else
+			{
+				// ordinary character
+				output += encoded.substr(i, 1);
+			}
+		}
+		
+		return output;
+	}
+	
+	string decodeNumericCharRefs(string encoded)
 	{
 		// decode numeric character references in UTF8
 		// &#84;&#252;&#114;&#107;&#231;&#101; -> Türkçe
@@ -1459,66 +1509,89 @@ class SCH
 		string output = "";
 		uint i = 0;
 		
-		while (i < input.length())
+		while (i < encoded.length())
 		{
-			if (i < input.length() - 2 && input[i] == charToCode("&") && input[i + 1] == charToCode("#"))
+			if (i < encoded.length() - 2 && encoded.substr(i, 2) == "&#")
 			{
 				uint start = i;
 				i += 2;
 				
 				bool isHex = false;
-				if (i < input.length() && (input[i] == charToCode("x") || input[i] == charToCode("X")))
+				if (i < encoded.length() && encoded.substr(i, 1).MakeLower() == "x")
 				{
 					isHex = true;
 					i++;
 				}
 				
-				int charCode = 0;
+				int code;
 				uint numStart = i;
-				while (i < input.length() && input[i] != charToCode(";")) i++;
-				if (i < input.length() && input[i] == charToCode(";"))
+				while (i < encoded.length() && encoded.substr(i, 1) != ";") i++;
+				if (i < encoded.length() && encoded.substr(i, 1) == ";")
 				{
-					string numStr = input.substr(numStart, i - numStart);
+					string numStr = encoded.substr(numStart, i - numStart);
 					if (numStr.length() > 0)
 					{
 						if (isHex)
 						{
-							charCode = parseHex(numStr);
+							code = _parseHex(numStr);
 						}
 						else
 						{
-							charCode = parseInt(numStr);
+							code = parseInt(numStr);
 						}
-						if (charCode > 0 && charCode <= 0x10FFFF)
+						if (code >= 0 && code <= 0x10FFFF)
 						{
-							output += charCodeToString(charCode);
-							i++; // skip semicolon
+							output += _charCodeToString(code);
+							i++;	// skip semicolon
 							continue;
 						}
 					}
 				}
-				output += input.substr(start, i - start + 1);
-				i++;
+				output += encoded.substr(start, i - start + 1);
 			}
 			else
 			{
 				// ordinary character
-				output += input.substr(i, 1);
-				i++;
+				output += encoded.substr(i, 1);
 			}
+			i++;
 		}
 		return output;
 	}
 	
-	uint charToCode(string chStr)
+	int _parseHex(string hex)
 	{
-		// Convert only a single byte at the top.
-		if (chStr.size() == 1) return chStr[0];
+		hex.MakeLower();
+		
+		uint output = 0;
+		for (uint i = 0; i < hex.length(); i++)
+		{
+			int digit = 0;
+			uint8 code = hex[i];
+			
+			if (code >= _charToCode("0") && code <= _charToCode("9"))
+				digit = code - _charToCode("0");
+			else if (code >= _charToCode("a") && code <= _charToCode("f"))
+				digit = code - _charToCode("a") + 10;
+			else
+				return -1; // invalid
+			
+			output = output * 16 + digit;
+		}
+		return output;
+	}
+	
+	uint _charToCode(string ch)
+	{
+		// Handle only a single byte string.
+		if (ch.length() == 1) return ch[0];
 		return 0;
 	}
 	
-	string charCodeToString(int code)
+	string _charCodeToString(int code)
 	{
+		// character code -> UTF-8 string
+		
 		string hex = formatInt(code, "x");
 		while (hex.length() < 4) hex = "0" + hex;
 		
@@ -1546,7 +1619,7 @@ class SCH
 			output[2] = 0x80 | (code & 0x3F);
 			return output;
 		}
-		else
+		else if (code <= 0x10FFFF)
 		{
 			// 4 bite code: 11110xxx 10xxxxxx 10xxxxxx 10xxxxxx
 			string output = "    ";
@@ -1556,28 +1629,8 @@ class SCH
 			output[3] = 0x80 | (code & 0x3F);
 			return output;
 		}
-	}
-	
-	int parseHex(string hex)
-	{
-		int output = 0;
-		for (uint i = 0; i < hex.length(); i++)
-		{
-			int digit = 0;
-			uint8 ch = hex[i];
-			
-			if (ch >= charToCode("0") && ch <= charToCode("9"))
-				digit = ch - charToCode("0");
-			else if (ch >= charToCode("a") && ch <= charToCode("f"))
-				digit = ch - charToCode("a") + 10;
-			else if (ch >= charToCode("A") && ch <= charToCode("F"))
-				digit = ch - charToCode("A") + 10;
-			else
-				return -1; // invalid
-			
-			output = output * 16 + digit;
-		}
-		return output;
+		
+		return "";
 	}
 	
 }
@@ -1594,7 +1647,7 @@ class SHOUTPL
 	string _removeNumber(string title)
 	{
 		string hidden = HostRegExpParse(title, "^(\\(#\\d[^)]+\\) ?)");
-		if (!hidden.empty()) title = title.substr(hidden.size());
+		if (!hidden.empty()) title = title.substr(hidden.length());
 		return title;
 	}
 	
@@ -1656,7 +1709,7 @@ class SHOUTPL
 			if (pos < 0) break;
 			
 			string s0 = string(match[0]["str"]);
-			pos += s0.size();
+			pos += s0.length();
 			string title = string(match[1]["str"]);
 			{
 				title = _removeNumber(title);
@@ -1691,7 +1744,7 @@ class SHOUTPL
 			if (pos < 0) break;
 			
 			string s0 = string(match[0]["str"]);
-			pos += s0.size();
+			pos += s0.length();
 			string track = string(match[1]["str"]);
 			string title = HostRegExpParse(track, "<title>(.+?)</title>");
 			{
@@ -1766,7 +1819,7 @@ class SHOUTPL
 			string etrTitle = string(meta["title"]);
 			string etrAuthor = string(meta["author"]);
 			string etrThumb = string(meta["thumbnail"]);
-			for (uint i = 0; i < dicsMeta.size(); i++)
+			for (uint i = 0; i < dicsMeta.length(); i++)
 			{
 				dictionary dic;
 				string etrUrl = string(dicsMeta[i]["url"]);
@@ -1776,7 +1829,7 @@ class SHOUTPL
 				dic["thumbnail"] = etrThumb;
 				dicsEntry.insertLast(dic);
 			}
-			return dicsMeta.size();
+			return dicsMeta.length();
 		}
 		return 0;
 	}
@@ -1905,7 +1958,7 @@ class YTDLP
 				{
 					string msg = "You are using a new \"yt-dlp.exe\".\r\n\r\n";
 					msg += "current version: " + version;
-					HostMessageBox(msg, "[yt-dlp] INFO", 2, 0);
+					HostMessageBox(msg, "[yt-dlp] INFO: New yt-dlp", 2, 0);
 					cfg.setStr("MAINTENANCE", "ytdlp_hash", hash);
 					error = 0;
 				}
@@ -1921,7 +1974,7 @@ class YTDLP
 						{
 							msg += "\r\nThe [update_ytdlp] setting will be reset.";
 						}
-						HostMessageBox(msg, "[yt-dlp] INFO", 0, 0);
+						HostMessageBox(msg, "[yt-dlp] INFO: Replace yt-dlp", 0, 0);
 						error = -1;
 					}
 					else
@@ -1955,7 +2008,7 @@ class YTDLP
 		cfg.setInt("MAINTENANCE", "critical_error", 1, false);
 		cfg.deleteKey("MAINTENANCE", "update_ytdlp");
 		string msg = "Your \"yt-dlp.exe\" did not work as expected.\r\n";
-		HostPrintUTF8("\r\n[yt-dlp] CRITICAL ERROR! " + msg);
+		//HostPrintUTF8("\r\n[yt-dlp] CRITICAL ERROR! " + msg);
 		msg += "After confirming there are no problems, set [critical_error] to 0 in the config file and reload the script.";
 		HostMessageBox(msg, "[yt-dlp] CRITICAL ERROR", 3, 2);
 	}
@@ -1968,7 +2021,9 @@ class YTDLP
 		string output = HostExecuteProgram(qt(pathExe), " -U");
 		if (output.find("Latest version:") < 0 && output.find("ERROR:") < 0)
 		{
-			HostPrintUTF8("[yt-dlp] ERROR! No update info.\r\n");
+			string msg = "No update info.";
+			HostPrintUTF8("[yt-dlp] CRITICAL ERROR! " + msg + "\r\n");
+			HostMessageBox(msg, "[yt-dlp] CRITICAL ERROR: Update", 3, 1);
 			criticalError();
 			return;
 		}
@@ -1986,97 +2041,58 @@ class YTDLP
 	
 	bool _checkLogCommand(string log)
 	{
-		string errMsg = "\nyt-dlp.exe: error: ";
-		int pos1 = sch.findI(log, errMsg);
-		if (pos1 >= 0)
+		string words = "\nyt-dlp.exe: error: ";
+		int pos = sch.findI(log, words);
+		if (pos >= 0)
 		{
-			pos1 += errMsg.size();
-			int pos2 = sch.findEol(log, pos1);
-			string msg = log.substr(pos1, pos2 - pos1);
-			if (sch.findI(msg, "unsupported browser") >= 0)
-			{
-				string browser = cfg.getStr("COOKIE", "cookie_browser");
-				if (!browser.empty())
-				{
-					msg =
-					browser + " is not supported as a browser.\r\n"
-					"Use Firefox as [cookie_browser] or use [cookie_file] option.\r\n\r\n"
-					"The [cookie_browser] setting will be commented out.";
-					HostMessageBox(msg, "[yt-dlp] ERROR: Command", 0, 0);
-					cfg.cmtoutKey("COOKIE", "cookie_browser");
-					return true;
-				}
-			}
-			msg = log.substr(pos1, pos2 - pos1);
-			HostMessageBox(msg, "[yt-dlp] ERROR: Command", 0, 0);
+			pos += words.length();
+			string msg = sch.getLine(log, pos);
+			if (cfg.csl > 0) HostPrintUTF8("[yt-dlp] ERROR! " + msg + "\r\n");
+			HostMessageBox(msg, "[yt-dlp] ERROR: Cpmmand", 0, 0);
 			return true;
 		}
 		if (sch.findI(log, "[debug] Command-line config:") < 0)
 		{
-			HostPrintUTF8("[yt-dlp] ERROR! No command line info.\r\n");
+			string msg = "No command line info.";
+			HostPrintUTF8("[yt-dlp] CRITICAL ERROR! " + msg + "\r\n");
+			HostMessageBox(msg, "[yt-dlp] CRITICAL ERROR: Cpmmand", 3, 1);
 			criticalError();
 			return true;
 		}
-		
 		return false;
 	}
 	
 	bool _checkLogVersion(string log)
 	{
-		int pos1 = log.find("\n[debug] yt-dlp version");
-		if (pos1 >= 0)
+		int pos = log.find("\n[debug] yt-dlp version");
+		if (pos >= 0)
 		{
-			pos1 += 1;
-			int pos2 = sch.findEol(log, pos1);
-			string str = log.substr(pos1, pos2 - pos1);
-			if (str.find(version) >= 0)
+			pos += 1;
+			string line = sch.getLine(log, pos);
+			if (line.find(version) >= 0)
 			{
 				return false;
 			}
 		}
-		HostPrintUTF8("[yt-dlp] ERROR! Wrong version.\r\n");
+		string msg = "Incorrect yt-dlp version.";
+		HostPrintUTF8("[yt-dlp] CRITICAL ERROR! " + msg + "\r\n");
+		HostMessageBox(msg, "[yt-dlp] CRITICAL ERROR: Version", 3, 1);
 		criticalError();
 		return true;
 	}
 	
 	bool _checkLogBrowser(string log)
 	{
-		string msg = "";
-		string op;
-		int pos1 = sch.findRegExp(log, "(?i)^error: could not ([^\r\n]+?) cookies? database", op);
-		if (pos1 >= 0)
+		bool error = false;
+		if (sch.findRegExp(log, "(?i)^ERROR: Could not [^\r\n]+? cookies? database") >= 0) error = true;
+		if (sch.findRegExp(log, "(?i)^ERROR: Failed to decrypt with DPAPI") >= 0) error = true;
+		if (error)
 		{
-			string browser = cfg.getStr("COOKIE", "cookie_browser");
-			if (!browser.empty())
-			{
-				if (op.find("copy") >= 0)
-				{
-					msg =
-					"Cannot copy cookie database from " + browser + ".\r\n"
-					"Use Firefox as [cookie_browser] or use [cookie_file] option.\r\n";
-				}
-				else if (op.find("find") >= 0)
-				{
-					msg = "Cannot find cookie database of " + browser + ".\r\n";
-				}
-			}
-			if (msg.empty())
-			{
-				pos1 = sch.findLineTop(log, pos1);
-				int pos2 = sch.findEol(log, pos1);
-				msg = log.substr(pos1, pos2 - pos1) + "\r\n";
-			}
-		}
-		if (cfg.getStr("COOKIE", "cookie_browser").MakeLower() == "safari")
-		{
-			msg =
-			"Safari is not a supported browser on Windows.\r\n"
-			"Use Firefox as [cookie_browser] or use [cookie_file] option.\r\n";
-		}
-		if (!msg.empty())
-		{
-			msg += "\r\nThe [cookie_browser] setting will be commented out.";
-			HostMessageBox(msg, "[yt-dlp] ERROR: Cookie browser", 0, 0);
+			string msg = "Check your [cookie_browser] setting.";
+			if (cfg.csl > 0) HostPrintUTF8("[yt-dlp] ERROR! " + msg + "\r\n");
+			msg += "\r\nIt will be commented out.";
+			HostMessageBox(msg, "[yt-dlp] ERROR: Cookie Browser", 0, 0);
+			
 			cfg.cmtoutKey("COOKIE", "cookie_browser");
 			return true;
 		}
@@ -2087,76 +2103,71 @@ class YTDLP
 	{
 		if (sch.findRegExp(log, "(?i)Error: [^\r\n]* not available [^\r\n]+ geo restriction") >= 0)
 		{
-			string msg = "This video/sound is not available from your location due to geo restriction.\r\n\r\n" + url;
-			HostMessageBox(msg, "[yt-dlp] INFO", 2, 0);
+			string msg = "This content is not available from your location due to geo restriction.";
+			if (cfg.csl > 0) HostPrintUTF8("[yt-dlp] " + msg + " - " + qt(url) + "\r\n");
+			HostMessageBox(msg + "\r\n" + url, "[yt-dlp] INFO: Geo Restriction", 2, 1);
 			return true;
 		}
 		return false;
 	}
 	
-	int _checkLogUpdate(string log)
-	{
-		if (cfg.getInt("MAINTENANCE", "update_ytdlp") == 1)
-		{
-			int pos1 = log.find("\n[debug] Downloading yt-dlp.exe ");
-			if (pos1 >= 0)
-			{
-				pos1 = log.find("\n", pos1 + 1);
-				if (pos1 >= 0)
-				{
-					pos1 += 1;
-					string msg;
-					if (log.substr(pos1, 7) == "ERROR: ")
-					{
-						msg =
-						"A newer version of \"yt-dlp.exe\" was found on the website,\r\n"
-						"but the automatic update failed.\r\n\r\n";
-						pos1 += 7;
-						if (sch.findI(log, "Unable to write", pos1) == pos1)
-						{
-							msg +=
-							"Unable to overwrite:\r\n"
-							+ pathExe + "\r\n\r\n"
-							"Replace it manually or try running PotPlayer as an administrator.\r\n"
-							"You can also change the [ytdlp_location] setting to a location with write permission.\r\n\r\n";
-						}
-						else
-						{
-							int pos2 = sch.findEol(log, pos1);
-							msg += log.substr(pos1, pos2 - pos1) + "\r\n\r\n";
-						}
-						msg += "The [update_ytdlp] setting will be reset.";
-						HostMessageBox(msg, "[yt-dlp] ALERT: Auto update", 0, 0);
-						cfg.setInt("MAINTENANCE", "update_ytdlp", 0);
-						return -1;
-					}
-					else
-					{
-						int pos2 = sch.findEol(log, pos1);
-						msg = log.substr(pos1, pos2 - pos1);
-						HostMessageBox(msg, "[yt-dlp] INFO: Auto update", 2, 0);
-						error = -1;
-						checkFile(true);
-						return 1;
-					}
-				}
-			}
-		}
-		return 0;
-	}
-	
-	bool _checkLiveOffline(string log, string url)
+	bool _checkLogLiveOffline(string log, string url)
 	{
 		if (sch.findRegExp(log, "(?i)^ERROR: [^\r\n]* (not currently live|off ?line)") >= 0)
 		{
-			string msg = "This channel is not live now.\r\n\r\n" + url;
-			HostMessageBox(msg, "[yt-dlp] INFO", 2, 0);
+			string msg = "This channel is not live now.";
+			if (cfg.csl > 0) HostPrintUTF8("[yt-dlp] " + msg + " - " + qt(url) + "\r\n");
+			HostMessageBox(msg + "\r\n" + url, "[yt-dlp] INFO: No Live", 2, 1);
 			return true;
 		}
 		return false;
 	}
 	
-	bool _checkLiveFromStart(string log, string options)
+	bool _checkLogServerBlock(string log, string url)
+	{
+		int pos = sch.findRegExp(log, "(?i)^ERROR: [^\r\n]* wait and try later");
+		if (pos >= 0)
+		{
+			string msg = sch.getLine(log, pos);
+			msg = msg.substr(7);
+			if (cfg.csl > 0) HostPrintUTF8("[yt-dlp] " + msg + " - " + qt(url) + "\r\n");
+			HostMessageBox(msg + "\r\n" + url, "[yt-dlp] INFO: Server", 2, 1);
+			return true;
+		}
+		return false;
+	}
+	
+	void _checkLog(string log, string url)
+	{
+		if (_checkLogCommand(log)) return;
+		if (_checkLogVersion(log)) return;
+		if (_checkLogBrowser(log)) return;
+		if (_checkLogGeoRestriction(log, url)) return;
+		if (_checkLogServerBlock(log, url)) return;
+		if (_checkLogLiveOffline(log, url)) return;
+		
+		string msg;
+		if (log.find("ERROR") >= 0)
+		{
+			msg = "Unsupported.";
+			if (cfg.csl > 0) HostPrintUTF8("[yt-dlp] " + msg + " - " + qt(url) + "\r\n");
+			//HostMessageBox(msg + "\r\n" + url, "[yt-dlp] INFO: Unsupport", 2, 1);
+			return;
+		}
+		else if (sch.findI(log, "downloading 0 items") >= 0)
+		{
+			msg = "No entries in this playlist.";
+			if (cfg.csl > 0) HostPrintUTF8("[yt-dlp] " + msg + " - " + qt(url) + "\r\n");
+			//HostMessageBox(msg + "\r\n" + url, "[yt-dlp] INFO: No Entries", 2, 1);
+			return;
+		}
+		msg = "No data or info.";
+		if (cfg.csl > 0) HostPrintUTF8("[yt-dlp] ERROR! " + msg + " - " + qt(url) + "\r\n");
+		HostMessageBox(msg + "\r\n" + url, "[yt-dlp] ERROR: No Info", 0, 0);
+		return;
+	}
+	
+	bool _checkLogLiveFromStart(string log, string options)
 	{
 		if (sch.findRegExp(log, "(?i)^ERROR: ?\\[twitch:stream\\][^\r\n]*--live-from-start") >= 0)
 		{
@@ -2166,6 +2177,55 @@ class YTDLP
 			}
 		}
 		return false;
+	}
+	
+	int _checkLogUpdate(string log)
+	{
+		if (cfg.getInt("MAINTENANCE", "update_ytdlp") == 1)
+		{
+			int pos = log.find("\n[debug] Downloading yt-dlp.exe ");
+			if (pos >= 0)
+			{
+				pos = log.find("\n", pos + 1);
+				if (pos >= 0)
+				{
+					pos += 1;
+					string msg;
+					if (log.substr(pos, 7) == "ERROR: ")
+					{
+						msg =
+						"A newer version of \"yt-dlp.exe\" was found on the website,\r\n"
+						"but the automatic update failed.\r\n\r\n";
+						pos += 7;
+						if (sch.findI(log, "Unable to write", pos) == pos)
+						{
+							msg +=
+							"Unable to overwrite:\r\n"
+							+ pathExe + "\r\n\r\n"
+							"Replace it manually or try running PotPlayer as an administrator.\r\n"
+							"You can also change the [ytdlp_location] setting to a location with write permission.\r\n\r\n";
+						}
+						else
+						{
+							msg += sch.getLine(log, pos) + "\r\n\r\n";
+						}
+						msg += "The [update_ytdlp] setting will be reset.";
+						HostMessageBox(msg, "[yt-dlp] ALERT: Auto Update", 0, 0);
+						cfg.setInt("MAINTENANCE", "update_ytdlp", 0);
+						return -1;
+					}
+					else
+					{
+						msg += sch.getLine(log, pos);
+						HostMessageBox(msg, "[yt-dlp] INFO: Auto Update", 2, 0);
+						error = -1;
+						checkFile(true);
+						return 1;
+					}
+				}
+			}
+		}
+		return 0;
 	}
 	
 	string _extractLines(string log)
@@ -2180,13 +2240,15 @@ class YTDLP
 			pos1 = sch.findRegExp(log, "(?i)(error|warning)", pos1);
 			if (pos1 >= 0)
 			{
-				pos1 = sch.findLineTop(log, pos1);
-				int pos2 = sch.findEol(log, pos1);
-				if (sch.findI(log, "[debug]", pos1) != pos1 && sch.findI(log, "  File \"", pos1) != pos1)
+				string line = sch.getLine(log, pos1);
+				if (sch.findI(line, "[debug]") != 0)
 				{
-					outStr += log.substr(pos1, pos2 - pos1) + "\r\n";
+					if (sch.findI(line, "  File \"") != 0)
+					{
+						outStr += line + "\r\n";
+					}
 				}
-				pos1 = pos2;
+				pos1 = sch.findNextLineTop(log, pos1);
 			}
 		} while (pos1 > pos0);
 		
@@ -2201,16 +2263,16 @@ class YTDLP
 		int pos = sch.findRegExp(log, reg, _s);
 		if (pos >= 0)
 		{
-			log.erase(pos, _s.size());
+			log.erase(pos, _s.length());
 			return true;
 		}
 		return false;
 	}
 	
-	array<string> _getEntries(string str, uint &out posLog)
+	array<string> _getEntries(string str, uint &out logPos)
 	{
 		array<string> entries;
-		posLog = 0;
+		logPos = 0;
 		
 		int pos = -1;
 		if (str.Left(1) == "{") pos = 0;
@@ -2225,20 +2287,26 @@ class YTDLP
 			pos2 += 1;
 			string entry = str.substr(pos, pos2 - pos);
 			entries.insertLast(entry);
-			posLog = pos2 + 1;
+			logPos = pos2 + 1;
 			pos = str.find("\n{", pos2);
 		} while (pos > top0);
 		
 		return entries;
 	}
 	
-	array<string> exec(string url, int playlistMode)
+	array<string> _getEntries(string str)
+	{
+		uint logPos;
+		return _getEntries(str, logPos);
+	}
+	
+	array<string> exec(string url, int playlistMode, string &out log)
 	{
 		checkFile(true);
 		if (error != 0) return {};
 		
 		bool checkBiliPart = false;
-		if (_isPotentialBiliPart(url))
+		if (_IsPotentialBiliPart(url))
 		{
 			if (playlistMode == 1)
 			{
@@ -2326,6 +2394,8 @@ class YTDLP
 			options += " --extractor-args " + qt(youtubeArgs);
 		}
 		
+		//options += " --encoding \"utf8\"";	// prevent garbled text
+		
 		_addOptionsNetwork(options);
 		
 		if (cfg.getInt("MAINTENANCE", "update_ytdlp") == 1)
@@ -2341,6 +2411,7 @@ class YTDLP
 		{
 			options += " -v";
 			options += " -- " + url;
+			HostIncTimeOut(30000);
 			output = HostExecuteProgram(qt(pathExe), options);
 		}
 		else
@@ -2348,9 +2419,16 @@ class YTDLP
 			output = _extractPlaylist(url, options);
 		}
 		
-		uint posLog = 0;
-		array<string> entries = _getEntries(output, posLog);
-		string log = output.substr(posLog).TrimLeft("\r\n");
+		uint logPos = 0;
+		array<string> entries = _getEntries(output, logPos);
+		log = output.substr(logPos).TrimLeft("\r\n");
+		
+		if (_checkLogLiveFromStart(log, options))
+		{
+			return exec(url, -1, log);	// Retry without --live-from-start
+		}
+		
+		_checkLogUpdate(log);
 		
 		if (cfg.csl == 1)
 		{
@@ -2365,68 +2443,41 @@ class YTDLP
 			HostPrintUTF8(output);
 		}
 		
-		if (_checkLogCommand(log)) return {};
-		if (_checkLogVersion(log)) return {};
-		if (_checkLogBrowser(log)) return {};
-		if (_checkLogGeoRestriction(log, url)) return {};
-		if (_checkLiveOffline(log, url)) return {};
-		
-		if (_checkLiveFromStart(log, options))
-		{
-			return exec(url, -1);	// Retry without --live-from-start
-		}
-		
-		_checkLogUpdate(log);
-		
-		if (entries.size() == 0)
-		{
-			if (output.find("ERROR") >= 0)
-			{
-				if (cfg.csl > 0) HostPrintUTF8("[yt-dlp] Unsupported. - " + qt(url) + "\r\n");
-			}
-			else if (sch.findI(output, "downloading 0 items") >= 0)
-			{
-				if (cfg.csl > 0) HostPrintUTF8("[yt-dlp] No entries in this playlist. - " + qt(url) + "\r\n");
-			}
-			else
-			{
-				HostPrintUTF8("[yt-dlp] ERROR! No data or info.\r\n");
-				// criticalError();
-			}
-		}
+		if (entries.length() == 0) _checkLog(log, url);
 		
 		return entries;
 	}
 	
+	
 	array<string> exec2(array<string> urls, int singleMode)
 	{
-		if (urls.size() == 0) return {};
+		if (urls.length() == 0) return {};
 		
 		if (cfg.csl > 0)
 		{
 			string msg;
 			msg += "\r\n[yt-dlp] ";
-			if (singleMode == 4)	// BilibiliPart
-			{
-				msg += "Collecting playlist thumbnails... - ";
-			}
-			else if (singleMode > 0)
-			{
-				msg += "Collecting playlist metadata... - ";
-			}
-			else
+			if (singleMode == 0)
 			{
 				msg += "Extracting nested playlist entries... - ";
 			}
+			if (singleMode == -1 || singleMode == 4)
+			{
+				msg += "Collecting playlist thumbnails... - ";
+			}
+			else
+			{
+				msg += "Collecting playlist metadata... - ";
+			}
 			msg += qt(urls[0]);
-			if (urls.size() == 2) msg += " and " + qt(urls[1]) + ".\r\n";
-			else if (urls.size() > 2) msg += " and " + (urls.size() - 1) + " URLs.\r\n";
+			if (urls.length() == 2) msg += " and " + qt(urls[1]) + ".\r\n";
+			else if (urls.length() > 2) msg += " and " + (urls.length() - 1) + " URLs.\r\n";
 			HostPrintUTF8(msg);
 		}
 		
 		string options = "";
 		
-		//if (singleMode < 2)
+		if (singleMode >= 0)
 		{
 			options += " --flat-playlist";
 		}
@@ -2438,11 +2489,12 @@ class YTDLP
 		}
 		else
 		{
-			if (singleMode > 0) options += " -I 1";
+			if (singleMode != 0) options += " -I 1";
 			options += " --no-playlist";
 		}
 		
 		options += " -R 3 --ignore-no-formats-error";
+		//options += " --encoding \"utf8\"";	// prevent garbled text
 		
 		_addOptionsNetwork(options);
 		
@@ -2458,17 +2510,16 @@ class YTDLP
 		
 		// execute
 		string output;
-		if (singleMode > 0)
-		{
-			output = _getMetadata(urls, options, singleMode);
-		}
-		else
+		if (singleMode == 0)
 		{
 			output = _extractPlaylist2(urls, options);
 		}
+		else
+		{
+			output = _getMetadata(urls, options, singleMode);
+		}
 		
-		uint posLog = 0;
-		array<string> entries = _getEntries(output, posLog);
+		array<string> entries = _getEntries(output);
 		
 		if (cfg.csl == 3)
 		{
@@ -2476,6 +2527,41 @@ class YTDLP
 		}
 		
 		return entries;
+	}
+	
+	uint countItemsAll(string joinedUrl)
+	{
+		// Count all items in playlist urls.
+		
+		string options;
+		options += " -I -1";	// specify the last item to count up
+		options += " -j";
+		options += " --flat-playlist";
+		options += " -R 3 --ignore-no-formats-error";
+		bool hasCookie = _addOptionsCookie(options);
+		string youtubeArgs = _getYoutubeArgs(hasCookie);
+		options += " --extractor-args " + qt(youtubeArgs);
+		_addOptionsNetwork(options);
+		options += " -- " + joinedUrl;
+		
+		HostIncTimeOut(60000);
+		string output = HostExecuteProgram(qt(pathExe), options);
+		
+		array<string> entries = _getEntries(output);
+		
+		string msg = "";
+		int totalCnt = 0;
+		
+		for (uint i = 0; i < entries.length(); i++)
+		{
+			int cnt = _GetJsonPlaylistCount(entries[i]);
+			if (cnt > 0) totalCnt += cnt;
+			msg += (i == 0) ? "  " : " + ";
+			msg += cnt;
+		}
+		
+		if (cfg.csl > 0) HostPrintUTF8(msg + "\r\n");
+		return totalCnt;
 	}
 	
 	bool _addOptionsCookie(string &inout options)
@@ -2616,7 +2702,7 @@ class YTDLP
 			{
 				pos1 = sch.findNextLineTop(data, pos1);
 			}
-		} while (pos1 >= 0 && pos1 < int(data.size()));
+		} while (pos1 >= 0 && pos1 < int(data.length()));
 		return cnt;
 	}
 	
@@ -2673,13 +2759,13 @@ class YTDLP
 		}
 		else	// waitTime > 0
 		{
-			bool youtubeChannelTop = _isYoutubeChannelTop(url);
-			if (youtubeChannelTop)
+			// for devided downloads
+			bool youtubeChannelTop = false;
+			string joinedUrl = _ChangeUrlYoutubeChannelTop(url);
+			if (joinedUrl != url)
 			{
-				// Devide the youtube channel top into video-type tabs
-				// for devided downloads.
-				if (url.Right(1) != "/") url += "/";
-				url = url + "videos " + url + "streams " + url + "shorts";
+				youtubeChannelTop = true;
+				url = joinedUrl;
 			}
 			
 			if (cfg.csl > 0)
@@ -2744,17 +2830,17 @@ class YTDLP
 	
 	string _extractPlaylist2(array<string> urls, string options)
 	{
-		if (urls.size() == 0) return "";
+		if (urls.length() == 0) return "";
 		string output;
-		string cnctUrl = "";
-		for (uint i = 0; i < urls.size(); i++) cnctUrl += " " + urls[i];
+		string joinedUrl = "";
+		for (uint i = 0; i < urls.length(); i++) joinedUrl += " " + urls[i];
 		
 		int waitTime = cfg.getInt("TARGET", "playlist_items_timeout");
 		if (waitTime == 0)
 		{
 			HostIncTimeOut(2000000);
 			uint startTime = HostGetTickCount();
-			output = HostExecuteProgram(qt(pathExe), options + " --" + cnctUrl);
+			output = HostExecuteProgram(qt(pathExe), options + " --" + joinedUrl);
 			
 			if (cfg.csl > 0)
 			{
@@ -2763,11 +2849,11 @@ class YTDLP
 				if (elapsedTime < 0) elapsedTime = -1;
 				string msg;
 				{
-					msg = "  count: " + cnt;
+					msg += "  count: " + cnt;
 					msg += "\t\ttime: " + elapsedTime + " sec";
-					HostPrintUTF8(msg);
-					if (cnt == 0) msg = "  Failed to get.\r\n";
-					else msg = "  Complete.\r\n";
+					msg += "\r\n";
+					msg += (cnt == 0) ? "  Failed to get." : "  Complete.";
+					msg += "\r\n";
 				}
 				HostPrintUTF8(msg);
 			}
@@ -2788,7 +2874,7 @@ class YTDLP
 				if (i > 600) unitIdx = 400;
 				HostIncTimeOut(300000);
 				options += " -I " + i + ":" + (i + unitIdx - 1);
-				string addOutput = HostExecuteProgram(qt(pathExe), options + " --" + cnctUrl);
+				string addOutput = HostExecuteProgram(qt(pathExe), options + " --" + joinedUrl);
 				uint addCnt = _countJson(addOutput, false);
 				if (addCnt > 0)
 				{
@@ -2826,11 +2912,10 @@ class YTDLP
 	
 	string _getMetadata(array<string> urls, string options, int singleMode)
 	{
-		if (urls.size() == 0) return "";
+		if (urls.length() == 0) return "";
 		string output;
 		
 		int waitTime;
-		string msg1;
 		if (singleMode >= 2)
 		{
 			waitTime = cfg.getInt("TARGET", "playlist_metadata_timeout");
@@ -2839,61 +2924,64 @@ class YTDLP
 				cfg.setInt("TARGET", "playlist_metadata_timeout", 0);
 				waitTime = 0;
 			}
-			msg1 = "  playlist_metadata_timeout: " + waitTime + " sec";
 		}
 		else if (singleMode == 1)
 		{
 			// for responsive websites like youtube
 			waitTime = cfg.getInt("TARGET", "playlist_items_timeout");
-			msg1 = "  playlist_items_timeout: " + waitTime + " sec";
 		}
-		else
+		else	// singleMode == -1
 		{
-			return "";
+			waitTime = 0;
 		}
 		
 		uint unitIdx = 10;
-		if (waitTime == 0 || urls.size() <= unitIdx)
+		if (waitTime == 0 || urls.length() <= unitIdx)
 		{
-			string cnctUrl = "";
-			for (uint i = 0; i < urls.size(); i++) cnctUrl += " " + urls[i];
+			string joinedUrl = "";
+			for (uint i = 0; i < urls.length(); i++) joinedUrl += " " + urls[i];
 			
 			HostIncTimeOut(2000000);
 			uint startTime = HostGetTickCount();
-			output = HostExecuteProgram(qt(pathExe), options + " --" + cnctUrl);
+			output = HostExecuteProgram(qt(pathExe), options + " --" + joinedUrl);
 			
 			if (cfg.csl > 0)
 			{
 				uint cnt = _countJson(output, false);
 				int elapsedTime = (HostGetTickCount() - startTime)/1000;
 				if (elapsedTime < 0) elapsedTime = -1;
-				string msg;
+				string msg = "";
 				{
-					msg = "  count: " + cnt;
+					msg += "  count: " + cnt;
 					msg += "\t\ttime: " + elapsedTime + " sec";
-					HostPrintUTF8(msg);
-					if (cnt == 0) msg = "  Failed to get.\r\n";
-					else msg = "  Complete.\r\n";
+					msg += "\r\n";
+					msg += (cnt == 0) ? "  Failed to get." : "  Complete.";
+					msg += "\r\n";
 				}
 				HostPrintUTF8(msg);
 			}
 		}
 		else	// waitTime > 0
 		{
-			if (cfg.csl > 0) HostPrintUTF8(msg1);
+			if (cfg.csl > 0)
+			{
+				string msg1 = (singleMode >= 2) ? "  playlist_metadata_timeout: " : "  playlist_items_timeout: ";
+				msg1 += waitTime + " sec";
+				HostPrintUTF8(msg1);
+			}
 			uint cnt = 0;
 			int complete = 0;
 			uint startTime = HostGetTickCount();
-			for (uint i = 0; i < urls.size(); i += unitIdx)
+			for (uint i = 0; i < urls.length(); i += unitIdx)
 			{
 				HostIncTimeOut(300000);
-				string cnctUrl = "";
+				string joinedUrl = "";
 				for (uint j = i; j < i + unitIdx; j++)
 				{
-					cnctUrl += " " + urls[j];
-					if (j >= urls.size() - 1) {complete = 1; break;}
+					joinedUrl += " " + urls[j];
+					if (j >= urls.length() - 1) {complete = 1; break;}
 				}
-				string addOutput = HostExecuteProgram(qt(pathExe), options + " --" + cnctUrl);
+				string addOutput = HostExecuteProgram(qt(pathExe), options + " --" + joinedUrl);
 				uint addCnt = _countJson(addOutput, false);
 				if (addCnt > 0)
 				{
@@ -2988,7 +3076,7 @@ void ApplyConfigFile()
 	if (!cfg.loadFile())
 	{
 		string msg = "The script cannot apply the configuration.";
-		HostMessageBox(msg, "[yt-dlp] ERROR: Default config file", 3, 0);
+		HostMessageBox(msg, "[yt-dlp] ERROR: Default Config File", 3, 0);
 	}
 	if (noCurl == 1)
 	{
@@ -2997,7 +3085,7 @@ void ApplyConfigFile()
 		"CURL command not found.\r\n"
 		"Some features do not work if they need \"curl.exe\".\r\n"
 		"Please place \"curl.exe\" in the system32 folder or in any folder accessible to the extension.";
-		HostMessageBox(msg, "[yt-dlp] CAUTION: No CURL Command", 0, 1);
+		HostMessageBox(msg, "[yt-dlp] CAUTION: No Curl Command", 0, 1);
 	}
 }
 
@@ -3069,38 +3157,38 @@ bool _IsExtType(string ext, int type)
 		if (type & 0x1 > 0)	// image
 		{
 			array<string> extsImage = {"jpg", "jpeg", "png", "gif", "webp"};
-			exts.insertAt(exts.size(), extsImage);
+			exts.insertAt(exts.length(), extsImage);
 		}
 		if (type & 0x10 > 0)	// video
 		{
 			array<string> extsVideo = {"avi", "wmv", "wmp", "wm", "asf", "mpg", "mpeg", "mpe", "m1v", "m2v", "mpv2", "mp2v", "ts", "tp", "tpr", "trp", "vob", "ifo", "ogm", "ogv", "mp4", "m4v", "m4p", "m4b", "3gp", "3gpp", "3g2", "3gp2", "mkv", "rm", "ram", "rmvb", "rpm", "flv", "swf", "mov", "qt", "amr", "nsv", "dpg", "m2ts", "m2t", "mts", "dvr-ms", "k3g", "skm", "evo", "nsr", "amv", "divx", "webm", "wtv", "f4v", "mxf"};
-			exts.insertAt(exts.size(), extsVideo);
+			exts.insertAt(exts.length(), extsVideo);
 		}
 		if (type & 0x100 > 0)	// audio
 		{
 			array<string> extsAudio = {"wav", "wma", "mpa", "mp2", "m1a", "m2a", "mp3", "ogg", "m4a", "aac", "mka", "ra", "flac", "ape", "mpc", "mod", "ac3", "eac3", "dts", "dtshd", "wv", "tak", "cda", "dsf", "tta", "aiff", "aif", "aifc" "opus", "amr"};
-			exts.insertAt(exts.size(), extsAudio);
+			exts.insertAt(exts.length(), extsAudio);
 		}
 		if (type & 0x1000 > 0)	// playlist
 		{
 			array<string> extsPlaylist = {"m3u8", "m3u", "asx", "pls", "wvx", "wax", "wmx", "cue", "mpls", "mpl", "xspf", "mpd", "dpl"};
 				// exclude "xml", "rss"
-			exts.insertAt(exts.size(), extsPlaylist);
+			exts.insertAt(exts.length(), extsPlaylist);
 		}
 		if (type & 0x10000 > 0)	// subtitles
 		{
 			array<string> extsSubtitles = {"smi", "srt", "idx", "sub", "sup", "psb", "ssa", "ass", "txt", "usf", "xss.*.ssf", "rt", "lrc", "sbv", "vtt", "ttml", "srv"};
-			exts.insertAt(exts.size(), extsSubtitles);
+			exts.insertAt(exts.length(), extsSubtitles);
 		}
 		if (type & 0x100000 > 0)	// compressed
 		{
 			array<string> extsCompressed = {"zip", "rar", "tar", "7z", "gz", "xz", "cab", "bz2", "lzma", "rpm"};
-			exts.insertAt(exts.size(), extsCompressed);
+			exts.insertAt(exts.length(), extsCompressed);
 		}
 		if (type & 0x1000000 > 0)	// xml, rss
 		{
 			array<string> extsXml = {"xml", "rss"};
-			exts.insertAt(exts.size(), extsXml);
+			exts.insertAt(exts.length(), extsXml);
 		}
 	}
 	
@@ -3149,38 +3237,89 @@ bool _IsUrlSite(string url, string website)
 }
 
 
-string _getYoutubeChannelUrl(string url)
+string _ReviseUrl(string url)
 {
-	if (url.find(" ") >= 0) return "";
-	string channel;
-	bool isChannel = false;
-	if (sch.findRegExp(url, "(?i)^https?://www\\.youtube\\.com/@[^/?#]+", channel) == 0) isChannel = true;
-	else if (sch.findRegExp(url, "(?i)^https?://www\\.youtube\\.com/channel/[-\\w]+", channel) == 0) isChannel = true;
-	if (isChannel) return channel;
+	//url = HostUrlDecode(url);
+	
+	if (url.Left(1) == "<")
+	{
+		// Remove the time range if exists
+		int pos = url.find(">", 0);
+		if (pos >= 0) url = url.substr(pos + 1);
+	}
+	
+	if (url.Left(ytd.SCHEME.length()) == ytd.SCHEME)
+	{
+		url = url.substr(ytd.SCHEME.length());
+	}
+	
+	return url;
+}
+
+
+string _GetYoutubeVideoId(string url)
+{
+	if (_IsUrlSite(url, "youtube"))
+	{
+		string idStr = HostRegExpParse(url, "[?&]v=([-\\w]+)");
+		return idStr;
+	}
 	return "";
 }
 
-bool _isYoutubeChannelTop(string url)
+string _GetYoutubeChannelUrl(string url)
 {
-	string channel = _getYoutubeChannelUrl(url);
+	int pos = url.find("://");
+	if (pos < 0) return "";	// no URL
+	pos = url.find("://", pos + 3);
+	if (pos >= 0) return "";	// multiple URL
+	
+	string channel = sch.getRegExp(url, "(?i)^https?://www\\.youtube\\.com/@[^/?#]+");
+	if (channel.empty())
+	{
+		channel = sch.getRegExp(url, "(?i)^https?://www\\.youtube\\.com/channel/[-\\w]+");
+	}
+	if (!channel.empty()) return channel;
+	return "";
+}
+
+bool _IsYoutubeChannelTop(string url)
+{
+	string channel = _GetYoutubeChannelUrl(url);
 	if (!channel.empty())
 	{
 		channel += "/";
 		if (url.Right(1) != "/") url += "/";
-		if (url.size() == channel.size()) return true;
+		if (url.length() == channel.length()) return true;
 	}
 	return false;
 }
 
-string _getYoutubeChannelTab(string url)
+string _ChangeUrlYoutubeChannelTop(string url)
 {
-	string channel = _getYoutubeChannelUrl(url);
+	// YouTube channel top url -> 3 YouTube tabs
+	if (_IsYoutubeChannelTop(url))
+	{
+		if (url.Right(1) != "/") url += "/";
+		string joinedUrl = "";
+		joinedUrl += url + "videos ";
+		joinedUrl += url + "streams ";
+		joinedUrl += url + "shorts";
+		return joinedUrl;
+	}
+	return url;
+}
+
+
+string _GetYoutubeChannelTab(string url)
+{
+	string channel = _GetYoutubeChannelUrl(url);
 	if (!channel.empty())
 	{
-		if(url.substr(channel.size(), 1) == "/")
+		if(url.substr(channel.length(), 1) == "/")
 		{
-			string tab = url.substr(channel.size() + 1);
-			if (tab.findFirstOf("/?& ") < 0)
+			string tab = url.substr(channel.length() + 1);
+			if (tab.findFirstOf("/ ") < 0)
 			{
 				tab.MakeLower();
 				return tab;
@@ -3190,10 +3329,10 @@ string _getYoutubeChannelTab(string url)
 	return "";
 }
 
-bool _isYoutubeTabPlaylistType(string url)
+bool _IsYoutubeTabPlaylistType(string url)
 {
 	array<string> playlistTabs = {"featured", "playlists", "releases", "podcasts"};
-	string tab = _getYoutubeChannelTab(url);
+	string tab = _GetYoutubeChannelTab(url);
 	if (!tab.empty())
 	{
 		if (playlistTabs.find(tab) >= 0) return true;
@@ -3202,7 +3341,7 @@ bool _isYoutubeTabPlaylistType(string url)
 }
 
 
-int _checkBilibiliPart(string url)
+int _CheckBilibiliPart(string url)
 {
 	url.MakeLower();
 	if (HostRegExpParse(url, "^https://www\\.bilibili\\.com/video/\\w+", {}))
@@ -3222,10 +3361,43 @@ int _checkBilibiliPart(string url)
 	return -1;
 }
 
-bool _isPotentialBiliPart(string url)
+bool _IsPotentialBiliPart(string url)
 {
-	if (_checkBilibiliPart(url) == 0) return true;
+	if (_CheckBilibiliPart(url) == 0) return true;
 	return false;
+}
+
+string _GetChatUrl(string url)
+{
+	string chatUrl = "";
+	
+	string videoId = _GetYoutubeVideoId(url);
+	if (!videoId.empty())
+	{
+		chatUrl = "https://www.youtube.com/live_chat?v=" + videoId + "&is_popout=1";
+	}
+	else if (_IsUrlSite(url, "twitch.tv"))
+	{
+		chatUrl = url;
+		chatUrl.replace("twitch.tv/", "twitch.tv/popout/");
+		int pos = chatUrl.find("?");
+		if (pos > 0) chatUrl = chatUrl.Left(pos);
+		if (chatUrl.Right(1) != "/") chatUrl += "/";
+		chatUrl += "chat?popout=";
+	}
+	else if (_IsUrlSite(url, "rumble"))
+	{
+		string data = HostUrlGetString(url, USER_AGENT);
+		if (data.length() > 1000)
+		{
+			string numId = HostRegExpParse(data, "\\{[^}]*\"video_id\": ?(\\d+)");
+			if (!numId.empty())
+			{
+				chatUrl = "https://rumble.com/chat/popup/" + numId;
+			}
+		}
+	}
+	return chatUrl;
 }
 
 string _GetUrlExtension(string url)
@@ -3262,6 +3434,7 @@ string _GetHttpContent(string url, int maxTime, int range, bool isInsecure)
 		options += " -k";
 	}
 	options += " -L --max-redirs 3";	// redirect
+	//options += " -A " + USER_AGENT;
 	options += " -s";
 	options += " \"" + url + "\"";
 	string data = HostExecuteProgram("curl", options);
@@ -3389,13 +3562,13 @@ int _WebsitePlaylistMode(string url)
 			dic["mode"] = parseInt(string(match[2]["str"]));
 			dicsMode.insertLast(dic);
 			string _s = string(match[0]["str"]);
-			pos2 += _s.size();
+			pos2 += _s.length();
 			if (data.substr(pos2, 1) != ",") break;
 		}
 	}
 	
 	string domain = _GetUrlDomain(url);
-	for (uint i = 0; i < dicsMode.size(); i++)
+	for (uint i = 0; i < dicsMode.length(); i++)
 	{
 		string name = string(dicsMode[i]["name"]);
 		if (domain.find(name) >= 0)
@@ -3499,7 +3672,8 @@ bool PlaylistCheck(const string &in path)
 	if (_IsUrlSite(url, "youtube"))
 	{
 		int enableYoutube = cfg.getInt("YOUTUBE", "enable_youtube");
-		if (enableYoutube != 2 && enableYoutube != 3) return false;
+		if (enableYoutube == 2 || enableYoutube == 3) return true;
+		return false;
 	}
 	
 	return (_WebsitePlaylistMode(url) > 0);
@@ -3592,17 +3766,16 @@ bool _CheckRss(string url, string &out imgUrl)
 }
 
 
-bool _checkUrlPlaylist(dictionary dic)
+bool _CheckUrlPlaylist(dictionary dic)
 {
-	int playlistSelfCnt = int(dic["playlist_self_count"]);
+	int playlistSelfCnt = int(dic["playlistSelfCount"]);
 	if (playlistSelfCnt > 0) return true;
 	
 	string url = string(dic["url"]);
 	if (_IsUrlSite(url, "youtube"))
 	{
-		url.MakeLower();
-		if (url.find("?list=") > 0) return true;
-		string channel = _getYoutubeChannelUrl(url);
+		if (sch.findI(url, "?list=") > 0) return true;
+		string channel = _GetYoutubeChannelUrl(url);
 		if (!channel.empty()) return true;
 	}
 	
@@ -3622,10 +3795,24 @@ int _GetJsonPlaylistCount(string jsonData)
 	return playlistCnt;
 }
 
+array<string> _RemoveEntryYoutubeTab(array<string> entries)
+{
+	array<string> outEntries = {};
+	for (uint i = 0; i < entries.length(); i++)
+	{
+		string url = _GetJsonUrl(entries[i]);
+		if (_GetYoutubeChannelTab(url).empty())
+		{
+			outEntries.insertLast(entries[i]);
+		}
+	}
+	return outEntries;
+}
+
 array<string> _MakeUrlArrayAll(array<string> entries)
 {
 	array<string> urls = {};
-	for (uint i = 0; i < entries.size(); i++)
+	for (uint i = 0; i < entries.length(); i++)
 	{
 		string url = _GetJsonUrl(entries[i]);
 		if (!url.empty()) urls.insertLast(url);
@@ -3633,11 +3820,26 @@ array<string> _MakeUrlArrayAll(array<string> entries)
 	return urls;
 }
 
+string _MakeUrlJoinAll(array<string> entries)
+{
+	string joinedUrl = "";
+	for (uint i = 0; i < entries.length(); i++)
+	{
+		string url = _GetJsonUrl(entries[i]);
+		if (!url.empty())
+		{
+			if (!joinedUrl.empty()) joinedUrl += " ";
+			joinedUrl += url;
+		}
+	}
+	return joinedUrl;
+}
+
 array<string> _MakeUrlArrayMetadata(array<dictionary> dicsEntry, array<uint> &inout arrIdx)
 {
 	array<string> urls = {};
 	arrIdx = {};
-	for (uint i = 0; i < dicsEntry.size(); i++)
+	for (uint i = 0; i < dicsEntry.length(); i++)
 	{
 		bool make = false;
 		if (string(dicsEntry[i]["title"]).empty())
@@ -3654,7 +3856,7 @@ array<string> _MakeUrlArrayMetadata(array<dictionary> dicsEntry, array<uint> &in
 			make = true;
 		}
 		*/
-		else if (_checkUrlPlaylist(dicsEntry[i]))
+		else if (_CheckUrlPlaylist(dicsEntry[i]))
 		{
 			make = true;
 		}
@@ -3672,11 +3874,11 @@ array<string> _MakeUrlArrayMetadata2(array<dictionary> dicsEntry, array<uint> &i
 {
 	array<string> urls = {};
 	arrIdx = {};
-	for (uint i = 0; i < dicsEntry.size(); i++)
+	for (uint i = 0; i < dicsEntry.length(); i++)
 	{
 		if (!string(dicsEntry[i]["title"]).empty())
 		{
-			if (_checkUrlPlaylist(dicsEntry[i]))
+			if (_CheckUrlPlaylist(dicsEntry[i]))
 			{
 				urls.insertLast(string(dicsEntry[i]["url"]));
 				arrIdx.insertLast(i);
@@ -3811,8 +4013,167 @@ dictionary _PlaylistParse(string json, bool forcePlaylist, string imgUrl)
 			}
 		}
 		if (!duration.empty()) dic["duration"] = duration;
+		
+		string author = _GetJsonValueString(root, "channel");
+		if (author.empty())
+		{
+			author = _GetJsonValueString(root, "uploader");
+			if (author.empty())
+			{
+				author = _GetJsonValueString(root, "uploader_id");
+				if (author.Left(1) == "@")	// youtube
+				{
+					author = author.substr(1);
+					author.replace("_", " ");
+				}
+				if (author.empty())
+				{
+					author = _GetJsonValueString(root, "atrist");
+				}
+			}
+		}
+		if (!author.empty())
+		{
+			author = _ReviseWebString(author);
+			dic["author"] = author + " @" + extractor;
+		}
 	}
 	return dic;
+}
+
+string _GetPageTitle(string url)
+{
+	string data = HostUrlGetString(url, USER_AGENT);
+	//string data = _GetHttpContent(url, 3, 8000);
+	if (!data.empty())
+	{
+		string head = HostRegExpParse(data, "<head\\b.*?>([\\S\\s]*?)</head>");
+		if (head.empty()) head = HostRegExpParse(data, "<head\\b.*?>([\\S\\s]*)$");
+		if (!head.empty())
+		{
+			string title = HostRegExpParse(head, "<title\\b.*?>(.*?)</title>");
+			return title;
+		}
+	}
+	return "";
+}
+
+
+string _PlaylistParseNotExtract(string url, dictionary &inout MetaData)
+{
+	if (cfg.csl > 0)
+	{
+		HostPrintUTF8("\r\n[yt-dlp] Counting playlist items... - \"" + url + "\"" );
+	}
+	uint startTime = HostGetTickCount();
+	
+	string thumb = string(MetaData["thumbnail"]);
+	
+	string extractor;
+	string playlistTitle;
+	uint playlistSelfCnt = 0;
+	string joinedUrl = _ChangeUrlYoutubeChannelTop(url);
+	if (joinedUrl != url)
+	{
+		// YouTube channel top
+		extractor = "Youtube";
+		playlistTitle = _GetPageTitle(url);
+		playlistSelfCnt = ytd.countItemsAll(joinedUrl);
+	}
+	else if (_IsYoutubeTabPlaylistType(url) && cfg.getInt("YOUTUBE", "keep_tab_playlist") != 1)
+	{
+		// Count all nested playlists in a YouTube tab.
+		array<string> entries = ytd.exec2({url}, 0);
+		if (entries.length() > 0)
+		{
+			dictionary dic = _PlaylistParse(entries[0], true, "");
+			
+			extractor = "Youtube";
+			
+			playlistTitle = string(dic["playlist_title"]);
+			if (playlistTitle.empty())
+			{
+				playlistTitle = _GetPageTitle(url);
+			}
+			
+			joinedUrl = _MakeUrlJoinAll(entries);
+			playlistSelfCnt = ytd.countItemsAll(joinedUrl);
+		}
+	}
+	else
+	{
+		array<string> entries = ytd.exec2({url}, 3);
+		if (entries.length() == 1)
+		{
+			dictionary dic = _PlaylistParse(entries[0], true, "");
+			
+			extractor = string(dic["extractor"]);
+			
+			playlistTitle = string(dic["playlist_title"]);
+			if (playlistTitle.empty())
+			{
+				playlistTitle = _GetPageTitle(url);
+			}
+			
+			playlistSelfCnt = int(dic["playlist_count"]);
+		}
+	}
+	
+	if (extractor.empty()) return "";
+	
+	int elapsedTime = (HostGetTickCount() - startTime)/1000;
+	if (elapsedTime < 0) elapsedTime = -1;
+	if (cfg.csl > 0)
+	{
+		string msg;
+		msg += "  count: " + playlistSelfCnt;
+		msg += "\t\ttime: " + elapsedTime + " sec";
+		msg += "\r\n";
+		msg += (playlistSelfCnt == 0 || elapsedTime < 0) ? "  Failed to get." : "  Complete.";
+		msg += "\r\n\r\n";
+		HostPrintUTF8(msg);
+	}
+	
+	if (thumb.empty())
+	{
+		array<string> entries = ytd.exec2({url}, -1);
+		if (entries.length() == 1)
+		{
+			dictionary dic = _PlaylistParse(entries[0], true, "");
+			thumb = string(dic["thumbnail"]);
+		}
+	}
+	
+	MetaData["url"] = url;
+	MetaData["webUrl"] = url;
+	
+	if (!playlistTitle.empty())
+	{
+		playlistTitle = _ReviseWebString(playlistTitle);
+		playlistTitle = _CutOffString(playlistTitle);
+		MetaData["title"] = playlistTitle;
+	}
+	
+	if (playlistSelfCnt > 0)
+	{
+		MetaData["playlistSelfCount"] = playlistSelfCnt;
+	}
+	
+	string note = "";
+	{
+		note += "<Playlist";
+		if (playlistSelfCnt > 0) note += ": " + playlistSelfCnt;
+		note += ">";
+		if (!_isGeneric(extractor)) note += " @" + extractor;
+	}
+	MetaData["author"] = note;
+	
+	MetaData["duration"] = "";
+	
+	if (thumb.empty()) thumb = url;
+	MetaData["thumbnail"] = thumb;
+	
+	return thumb;
 }
 
 
@@ -3879,10 +4240,43 @@ array<dictionary> PlaylistParse(const string &in path)
 	
 	int playlistMode = _WebsitePlaylistMode(plUrl);
 	
-	array<string> entries = ytd.exec(plUrl, playlistMode);
-	if (entries.size() == 0) return {};
+	if (playlistMode == 0)
+	{
+		// particular case with YouTube (need no actual extracting)
+		
+		dictionary dic;
+		_PlaylistParseNotExtract(plUrl, dic);
+		
+		if (_CheckStartTime(startTimeLocal, path)) return {};
+		
+		if (string(dic["title"]).find("验证码") >= 0)
+		{
+			// Reject by bilibili server
+			return {};
+		}
+		
+		dicsEntry.insertLast(dic);
+		return dicsEntry;
+	}
+	
+	// Execute yt-dlp
+	string log;
+	array<string> entries = ytd.exec(plUrl, playlistMode, log);
+	if (entries.length() == 0) return {};
 	
 	if (_CheckStartTime(startTimeLocal, path)) return {};
+	
+	if (_IsYoutubeTabPlaylistType(plUrl))
+	{
+		entries = _RemoveEntryYoutubeTab(entries);
+		if (cfg.getInt("YOUTUBE", "keep_tab_playlist") != 1)
+		{
+			// Extract all nested playlists.
+			array<string> urls = _MakeUrlArrayAll(entries);
+			entries = ytd.exec2(urls, 0);
+		}
+		if (_CheckStartTime(startTimeLocal, path)) return {};
+	}
 	
 	bool forcePlaylist = false;
 	if (_IsUrlSite(plUrl, "youtube")) forcePlaylist = true;;
@@ -3910,18 +4304,7 @@ array<dictionary> PlaylistParse(const string &in path)
 		}
 	}
 	
-	if (_isYoutubeTabPlaylistType(plUrl))
-	{
-		if (cfg.getInt("YOUTUBE", "keep_tab_playlist") != 1)
-		{
-			// Extract all nested playlists.
-			array<string> urls = _MakeUrlArrayAll(entries);
-			entries = ytd.exec2(urls, 0);
-		}
-		if (_CheckStartTime(startTimeLocal, path)) return {};
-	}
-	
-	for (uint i = 0; i < entries.size(); i++)
+	for (uint i = 0; i < entries.length(); i++)
 	{
 		dictionary dic = _PlaylistParse(entries[i], forcePlaylist, imgUrl);
 		dicsEntry.insertLast(dic);
@@ -3929,20 +4312,22 @@ array<dictionary> PlaylistParse(const string &in path)
 	
 	array<uint> arrIdx = {};
 	array<string> urls = _MakeUrlArrayMetadata(dicsEntry, arrIdx);
-	if (urls.size() > 0)
+	if (urls.length() > 0)
 	{
 		bool noTitle = string(dicsEntry[0]["title"]).empty();
 		int singleMode = noTitle ? 2 : 1;
-		if (_isPotentialBiliPart(urls[0])) singleMode = 3;
+		if (_IsPotentialBiliPart(urls[0])) singleMode = 3;
 		
 		array<string> _entries = ytd.exec2(urls, singleMode);
 		
 		if (_CheckStartTime(startTimeLocal, path)) return {};
 		
-		for (uint i = 0; i < _entries.size(); i++)
+		for (uint i = 0; i < _entries.length(); i++)
 		{
 			dictionary dic1 = _PlaylistParse(_entries[i], true, imgUrl);
 			dictionary @dic0 = dicsEntry[arrIdx[i]];
+			
+			string extractor = string(dic1["extractor"]);
 			
 			int playlistIdx = int(dic1["playlist_index"]);
 			bool selfPlaylist = (playlistIdx > 0);
@@ -3951,7 +4336,7 @@ array<dictionary> PlaylistParse(const string &in path)
 				int playlistSelfCnt = int(dic1["playlist_count"]);
 				if (playlistSelfCnt > 0)
 				{
-					dic0["playlist_self_count"] = playlistSelfCnt;
+					dic0["playlistSelfCount"] = playlistSelfCnt;
 				}
 				
 				string note;
@@ -3962,13 +4347,23 @@ array<dictionary> PlaylistParse(const string &in path)
 						note += ": " + playlistSelfCnt;
 					}
 					note += ">";
-					string extractor = string(dic1["extractor"]);
 					if  (!_isGeneric(extractor))
 					{
 						note += " @" + extractor;
 					}
 				}
 				dic0["author"] = note;
+			}
+			else
+			{
+				if (string(dic0["author"]).empty())
+				{
+					string author = string(dic1["author"]);
+					if  (!author.empty())
+					{
+						dic0["author"] = author;
+					}
+				}
 			}
 			
 			if (string(dic0["title"]).empty())
@@ -4019,11 +4414,12 @@ array<dictionary> PlaylistParse(const string &in path)
 					dic0["duration"] = "";
 				}
 			}
+			
 		}
 		
 		if (cfg.getInt("TARGET", "playlist_without_metadata") != 1)
 		{
-			for (int i = 0; i < int(dicsEntry.size()); i++)
+			for (int i = 0; i < int(dicsEntry.length()); i++)
 			{
 				if (string(dicsEntry[uint(i)]["title"]).empty())
 				{
@@ -4037,11 +4433,11 @@ array<dictionary> PlaylistParse(const string &in path)
 		{
 			array<uint> arrIdx2 = {};
 			array<string> urls2 = _MakeUrlArrayMetadata2(dicsEntry, arrIdx2);
-			if (urls2.size() > 0)
+			if (urls2.length() > 0)
 			{
 				array<string> _entries2 = ytd.exec2(urls2, 4);
 				if (_CheckStartTime(startTimeLocal, path)) return {};
-				for (uint i = 0; i < _entries2.size(); i++)
+				for (uint i = 0; i < _entries2.length(); i++)
 				{
 					dictionary dic2 = _PlaylistParse(_entries2[i], true, "");
 					dictionary @dic0 = dicsEntry[arrIdx2[i]];
@@ -4158,8 +4554,8 @@ string _FormatDate(string date)
 		month = string(match[2]["str"]);
 		year = string(match[3]["str"]);
 		month = formatInt(sch.findI(arrMonth, month) + 1);
-		if (month.size() == 1) month = "0" + month;
-		if (day.size() == 1) day = "0" + day;
+		if (month.length() == 1) month = "0" + month;
+		if (day.length() == 1) day = "0" + day;
 		return year + "-" + month + "-" + day;
 	}
 	return "";
@@ -4168,9 +4564,9 @@ string _FormatDate(string date)
 
 string _ReviseDate(string date)
 {
-	if (date.size() != 8) return date;
+	if (date.length() != 8) return date;
 	string outDate = HostRegExpParse(date, "^(\\d+)$");
-	if (outDate.size() != 8) return date;
+	if (outDate.length() != 8) return date;
 	outDate = outDate.substr(0, 4) + "-" + outDate.substr(4, 2) + "-" + outDate.substr(6, 2);
 	return outDate;
 }
@@ -4214,9 +4610,9 @@ string _GetUrlDomain(string url)
 				string s1 = string(match[1]["first"]);
 				string s2 = string(match[2]["first"]);
 				string s3 = string(match[3]["first"]);
-				if (s3.size() == 2)	// country code top level domain
+				if (s3.length() == 2)	// country code top level domain
 				{
-					if (s2.size() < 4)
+					if (s2.length() < 4)
 					{
 						if (!s1.empty() && s1 != "www.")
 						{
@@ -4237,31 +4633,14 @@ string _GetUrlDomain(string url)
 }
 
 
-string _ReviseUrl(string url)
-{
-	if (url.Left(1) == "<")
-	{
-		// Remove the time range if exists
-		int pos = url.find(">", 0);
-		if (pos >= 0) url = url.substr(pos + 1);
-	}
-	
-	if (url.Left(ytd.SCHEME.size()) == ytd.SCHEME)
-	{
-		url = url.substr(ytd.SCHEME.size());
-	}
-	
-	return url;
-}
-
-
 string _ReviseWebString(string desc)
 {
 	desc.replace("\\r\\n", "\n");
 	desc.replace("\\n", "\n");
 	//desc.replace("+", " ");
 	
-	desc = sch.decodeEntityName(desc);
+	desc = sch.decodeEntityRefs(desc);
+	desc = sch.decodeUTF16BE(desc);
 	desc = sch.decodeNumericCharRefs(desc);
 	
 	// Remove the top LF
@@ -4292,7 +4671,7 @@ bool _SelectAutoSub(string code, array<dictionary> dicsSub)
 	
 	if (lang.empty()) return false;
 	
-	for (uint i = 0; i <dicsSub.size(); i++)
+	for (uint i = 0; i <dicsSub.length(); i++)
 	{
 		string code1;
 		if (dicsSub[i].get("langCode", code1))
@@ -4317,7 +4696,7 @@ bool __IsSameQuality(dictionary dic1, dictionary dic0)
 		//"type3D"
 	};
 	
-	for (uint j = 0; j < keys.size(); j++)
+	for (uint j = 0; j < keys.length(); j++)
 	{
 		if (keys[j].empty()) break;
 		
@@ -4360,7 +4739,7 @@ bool __IsSameQuality(dictionary dic1, dictionary dic0)
 
 bool _IsSameQuality(dictionary dic, array<dictionary> dics)
 {
-	for (int i =dics.size() - 1; i >= 0; i--)
+	for (int i =dics.length() - 1; i >= 0; i--)
 	{
 		if (__IsSameQuality(dic, dics[i])) return true;
 	}
@@ -4493,7 +4872,7 @@ bool _GetRadioInfo(dictionary &inout MetaData, string httpHead, string url)
 	{
 		// XSPF metadata for icecast
 		string url2 = url;
-		if (url2.Right(1) == "/") url2.erase(url2.size() - 1);
+		if (url2.Right(1) == "/") url2.erase(url2.length() - 1);
 		url2 += ".xspf";
 		string data = _GetHttpContent(url2, 5, 2047);
 		if (!data.empty())
@@ -4642,23 +5021,6 @@ string _GetFileType(string httpHead)
 }
 
 
-string _GetPlaylistTitle(string url)
-{
-	string data = _GetHttpContent(url, 3, 8000);
-	if (!data.empty())
-	{
-		string head = HostRegExpParse(data, "<head\\b.*?>([\\S\\s]*?)</head>");
-		if (head.empty()) head = HostRegExpParse(data, "<head\\b.*?>([\\S\\s]*)$");
-		if (!head.empty())
-		{
-			string title = HostRegExpParse(head, "<title\\b.*?>(.*?)</title>");
-			return title;
-		}
-	}
-	return "";
-}
-
-
 string PlayitemParse(const string &in path, dictionary &MetaData, array<dictionary> &QualityList)
 {
 	// Called after PlayitemCheck if it returns true
@@ -4706,8 +5068,10 @@ string PlayitemParse(const string &in path, dictionary &MetaData, array<dictiona
 	
 	if (_CheckStartTime(startTimeLocal, path)) return "";
 	
-	array<string> entries = ytd.exec(inUrl, 0);
-	if (entries.size() == 0) return "";
+	// Execute yt-dlp
+	string log;
+	array<string> entries = ytd.exec(inUrl, 0, log);
+	if (entries.length() == 0) return "";
 	
 	if (_CheckStartTime(startTimeLocal, path)) return "";
 	
@@ -4716,13 +5080,13 @@ string PlayitemParse(const string &in path, dictionary &MetaData, array<dictiona
 	JsonValue root;
 	if (!reader.parse(json, root) || !root.isObject())
 	{
-		HostPrintUTF8("[yt-dlp] ERROR! JSON data corrupted.\r\n");
+		HostPrintUTF8("[yt-dlp] CRITICAL ERROR! JSON data corrupted.\r\n");
 		ytd.criticalError(); return "";
 	}
 	JsonValue jVersion = root["_version"];
 	if (!jVersion.isObject())
 	{
-		HostPrintUTF8("[yt-dlp] ERROR! No version info.\r\n");
+		HostPrintUTF8("[yt-dlp] CRITICAL ERROR! No version info.\r\n");
 		ytd.criticalError(); return "";
 	}
 	else
@@ -4730,7 +5094,7 @@ string PlayitemParse(const string &in path, dictionary &MetaData, array<dictiona
 		string version = _GetJsonValueString(jVersion, "version");
 		if (version.empty())
 		{
-			HostPrintUTF8("[yt-dlp] ERROR! No version info.\r\n");
+			HostPrintUTF8("[yt-dlp] CRITICAL ERROR! No version info.\r\n");
 			ytd.criticalError(); return "";
 		}
 	}
@@ -4738,7 +5102,7 @@ string PlayitemParse(const string &in path, dictionary &MetaData, array<dictiona
 	if (extractor.empty()) extractor = _GetJsonValueString(root, "extractor");
 	if (extractor.empty())
 	{
-		HostPrintUTF8("[yt-dlp] ERROR! No extractor.\r\n");
+		HostPrintUTF8("[yt-dlp] CRITICAL ERROR! No extractor.\r\n");
 		ytd.criticalError(); return "";
 	}
 	bool isGeneric = _isGeneric(extractor);
@@ -4746,7 +5110,7 @@ string PlayitemParse(const string &in path, dictionary &MetaData, array<dictiona
 	outUrl = _GetJsonValueString(root, "webpage_url");
 	if (outUrl.empty())
 	{
-		HostPrintUTF8("[yt-dlp] ERROR! No webpage URL.\r\n");
+		HostPrintUTF8("[yt-dlp] CRITICAL ERROR! No webpage URL.\r\n");
 		ytd.criticalError(); return "";
 	}
 	MetaData["webUrl"] = outUrl;
@@ -4761,10 +5125,26 @@ string PlayitemParse(const string &in path, dictionary &MetaData, array<dictiona
 		string liveStatus = _GetJsonValueString(root, "live_status");
 		if (liveStatus == "is_live") isLive = true;
 	}
-	if (isLive && isYoutube && cfg.getInt("YOUTUBE", "youtube_live") != 1)
+	if (isLive)
 	{
-		if (cfg.csl > 0) HostPrintUTF8("[yt-dlp] YouTube Live was passed through according to the \"youtube_live\" setting. - " + ytd.qt(inUrl) +"\r\n");
-		return "";
+		if (isYoutube)
+		{
+			if (cfg.getInt("YOUTUBE", "youtube_live") != 1)
+			{
+				if (cfg.csl > 0) HostPrintUTF8("[yt-dlp] YouTube Live was passed through according to the \"youtube_live\" setting. - " + ytd.qt(inUrl) +"\r\n");
+				return "";
+			}
+		}
+		
+		// support live chat
+		if (cfg.getInt("[TARGET]", "live_chat") == 1)
+		{
+			string chatUrl = _GetChatUrl(inUrl);
+			if (!chatUrl.empty())
+			{
+				MetaData["chatUrl"] = chatUrl;
+			}
+		}
 	}
 	
 	string ext = _GetJsonValueString(root, "ext");
@@ -4776,8 +5156,38 @@ string PlayitemParse(const string &in path, dictionary &MetaData, array<dictiona
 	if (thumb.Right(4) == ".svg")
 	{
 		// .svg -> .png (PotPlayer does not support svg)
-		thumb = thumb.Left(thumb.size() - 4) + ".png";
+		thumb = thumb.Left(thumb.length() - 4) + ".png";
 	}
+	
+	if (_CheckStartTime(startTimeLocal, path)) return "";
+	
+	int playlistIdx = _GetJsonValueInt(root, "playlist_index");
+	if (playlistIdx > 0 && inUrl != outUrl)
+	{
+		// playlist url
+		if (cfg.csl > 0) HostPrintUTF8("[yt-dlp] This URL is for a playlist.\r\n");
+		
+		MetaData["thumbnail"] = thumb;
+		outUrl = _PlaylistParseNotExtract(inUrl, MetaData);
+		
+		if (_CheckStartTime(startTimeLocal, path)) return "";
+		
+		if (_WebsitePlaylistMode(inUrl) > 0)
+		{
+			if (string(MetaData["title"]).find("验证码") >= 0)
+			{
+				// Reject by bilibili server
+				if (cfg.csl > 0) HostPrintUTF8("[yt-dlp] Verification code required for extracting.");
+			}
+			else
+			{
+				_PotPlayerAddList(inUrl, 0);
+			}
+		}
+		
+		return outUrl;
+	}
+	
 	if (thumb.empty())
 	{
 		if (!isAudioExt)
@@ -4786,46 +5196,6 @@ string PlayitemParse(const string &in path, dictionary &MetaData, array<dictiona
 		}
 	}
 	if (!thumb.empty()) MetaData["thumbnail"] = thumb;
-	
-	if (_CheckStartTime(startTimeLocal, path)) return "";
-	
-	int playlistIdx = _GetJsonValueInt(root, "playlist_index");
-	if (playlistIdx > 0 && inUrl != outUrl)
-	{
-		// playlist url
-		string playlistTitle = _GetJsonValueString(root, "playlist_title");
-		if (playlistTitle.empty()) playlistTitle = _GetPlaylistTitle(inUrl);
-		if (!playlistTitle.empty())
-		{
-			playlistTitle = _ReviseWebString(playlistTitle);
-			playlistTitle = _CutOffString(playlistTitle);
-			MetaData["title"] = playlistTitle;
-		}
-		string note = "";
-		{
-			int playlistSelfCnt = _GetJsonValueInt(root, "playlist_count");
-			if (playlistSelfCnt < 1)
-			{
-				array<string> _entries = ytd.exec2({inUrl}, 3);
-				if (_entries.size() == 1) playlistSelfCnt = _GetJsonPlaylistCount(_entries[0]);
-			}
-			note += "<Playlist";
-			if (playlistSelfCnt > 0) note += ": " + playlistSelfCnt;
-			note += ">";
-			if (!_isGeneric(extractor)) note += " @" + extractor;
-		}
-		if (_CheckStartTime(startTimeLocal, path)) return "";
-		
-		MetaData["author"] = note;
-		MetaData["duration"] = "";
-		outUrl = thumb;
-		if (isYoutube || _WebsitePlaylistMode(inUrl) > 0)
-		{
-			_PotPlayerAddList(inUrl, 0);
-		}
-		if (cfg.csl > 0) HostPrintUTF8("[yt-dlp] This URL is for a playlist.\r\n");
-		return outUrl;
-	}
 	
 	string title = _GetJsonValueString(root, "title");
 	if (!title.empty())
@@ -4863,11 +5233,6 @@ string PlayitemParse(const string &in path, dictionary &MetaData, array<dictiona
 	else
 	{
 		author = _GetJsonValueString(root, "uploader");
-		if (sch.findI(extractor, "facebook") >= 0)	// facebook
-		{
-			int pos = title.findLast(" | ");
-			if (pos >= 0) author = title.substr(pos + 3);
-		}
 		if (!author.empty()) author2 = author;
 		else
 		{
@@ -4940,7 +5305,7 @@ string PlayitemParse(const string &in path, dictionary &MetaData, array<dictiona
 		{
 			if (title2.find(author + " - ") == 0)
 			{
-				title2 = title2.substr(author.size() + 3);
+				title2 = title2.substr(author.length() + 3);
 			}
 		}
 		if (sch.findI(extractor, "facebook") >= 0)	// facebook
@@ -4949,7 +5314,7 @@ string PlayitemParse(const string &in path, dictionary &MetaData, array<dictiona
 			int pos = title2.findFirst(" | ");
 			if (pos >= 0) title2 = title2.substr(pos + 3);
 			
-			// Remove the uploader name
+			// Remove the uploader's name
 			pos = title2.findLast(" | ");
 			if (pos >= 0) title2 = title2.Left(pos);
 		}
@@ -4970,7 +5335,7 @@ string PlayitemParse(const string &in path, dictionary &MetaData, array<dictiona
 		}
 		if (title2.find(author) == 0)
 		{
-			string _date = sch.getRegExp(title2.substr(author.size()), "(?i)^ \\(live\\) (\\d{4}\\-\\d{2}\\-\\d{2}.*)$");
+			string _date = sch.getRegExp(title2.substr(author.length()), "(?i)^ \\(live\\) (\\d{4}\\-\\d{2}\\-\\d{2}.*)$");
 			if (!_date.empty())
 			{
 				if (!desc.empty())
@@ -5262,7 +5627,7 @@ string PlayitemParse(const string &in path, dictionary &MetaData, array<dictiona
 		if (jSubtitles.isObject())
 		{
 			array<string> subs = jSubtitles.getKeys();
-			for (uint i = 0; i < subs.size(); i++)
+			for (uint i = 0; i < subs.length(); i++)
 			{
 				string langCode = subs[i];
 				JsonValue jSub = jSubtitles[langCode];
@@ -5313,7 +5678,7 @@ string PlayitemParse(const string &in path, dictionary &MetaData, array<dictiona
 		if (jSubtitles.isObject())
 		{
 			array<string> subs = jSubtitles.getKeys();
-			for (uint i = 0; i < subs.size(); i++)
+			for (uint i = 0; i < subs.length(); i++)
 			{
 				string langCode = subs[i];
 				if (_SelectAutoSub(langCode, dicsSub))
@@ -5358,7 +5723,7 @@ string PlayitemParse(const string &in path, dictionary &MetaData, array<dictiona
 				}
 			}
 		}
-		if (dicsSub.size() > 0) MetaData["subtitle"] = dicsSub;
+		if (dicsSub.length() > 0) MetaData["subtitle"] = dicsSub;
 		
 		array<dictionary> dicsChapter;
 		JsonValue jChapters = root["chapters"];
@@ -5396,7 +5761,7 @@ string PlayitemParse(const string &in path, dictionary &MetaData, array<dictiona
 				}
 			}
 		}
-		if (dicsChapter.size() > 0) MetaData["chapter"] = dicsChapter;
+		if (dicsChapter.length() > 0) MetaData["chapter"] = dicsChapter;
 	}
 	if (_CheckStartTime(startTimeLocal, path)) return "";
 	

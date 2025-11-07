@@ -163,7 +163,7 @@ You will need to use your system’s **Task Manager** or, preferably, a more use
 It’s a basic shortcoming that you have to monitor processes with an external tool.  
 This comes from server restrictions, faulty processing of *yt-dlp.exe* and limitations in the design of the PotPlayer extension.  
 
-### Options Selection Criteria
+### Option Selection Criteria
 
 PotPlayer generally plays only direct links to media content, with some exceptions.  
 For websites other than YouTube and KakaoTV, yt-dlp must basically support them.  
