@@ -5,7 +5,7 @@
   Placed in \PotPlayer\Extension\Media\PlayParse\
 *************************************************************/
 
-string SCRIPT_VERSION = "251120";
+string SCRIPT_VERSION = "251122";
 
 
 string YTDLP_EXE = "yt-dlp.exe";
@@ -2512,15 +2512,21 @@ class YTDLP
 			}
 			if (singleMode == -1 || singleMode == 4)
 			{
-				msg += "Collecting playlist thumbnails... - ";
+				msg += "Collecting thumbnails... - ";
 			}
 			else
 			{
-				msg += "Collecting playlist metadata... - ";
+				msg += "Collecting metadata... - ";
 			}
 			msg += qt(urls[0]);
-			if (urls.length() == 2) msg += " and " + qt(urls[1]) + ".\r\n";
-			else if (urls.length() > 2) msg += " and " + (urls.length() - 1) + " URLs.\r\n";
+			if (urls.length() == 2)
+			{
+				msg += " and " + qt(urls[1]) + ".\r\n";
+			}
+			else if (urls.length() > 2)
+			{
+				msg += " and " + (urls.length() - 1) + " URLs.\r\n";
+			}
 			HostPrintUTF8(msg);
 		}
 		
@@ -3845,6 +3851,14 @@ int _GetJsonPlaylistCount(string jsonData)
 	int playlistCnt = parseInt(HostRegExpParse(jsonData, "\"playlist_count\": ?(\\d+),"));
 	return playlistCnt;
 }
+
+string _GetJsonThumbnail(string jsonData)
+{
+	// Not support for "thumbnails" (not accurate when playlist data)
+	string thumb = HostRegExpParse(jsonData, "\"thumbnail\": ?\"([^\"]+)\"");
+	return thumb;
+}
+
 
 array<string> _RemoveEntryYoutubeTab(array<string> entries)
 {
@@ -5273,6 +5287,19 @@ string PlayitemParse(const string &in path, dictionary &MetaData, array<dictiona
 	}
 	
 	if (_CheckStartTime(startTimeLocal, path)) return "";
+	
+	if (thumb.empty())
+	{
+		if (isLive && sch.findI(extractor, "TwitchVod") == 0)
+		{
+			// No thumbnail if using the --live-from-start option
+			array<string> entries2 = ytd.exec2({inUrl}, -1);
+			if (entries2.length() == 1)
+			{
+				thumb = _GetJsonThumbnail(entries2[0]);
+			}
+		}
+	}
 	
 	int playlistIdx = _GetJsonValueInt(root, "playlist_index");
 	if (playlistIdx > 0 && inUrl != webUrl)
