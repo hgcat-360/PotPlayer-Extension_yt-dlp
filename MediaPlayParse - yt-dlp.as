@@ -5,22 +5,22 @@
   Placed in \PotPlayer\Extension\Media\PlayParse\
 *************************************************************/
 
-string SCRIPT_VERSION = "251112";
+string SCRIPT_VERSION = "251120";
 
 
 string YTDLP_EXE = "yt-dlp.exe";
-	// yt-dlp executable file; placed in "ytdlp_location"; (required)
+	// yt-dlp executable file. Placed in "ytdlp_location". (required)
 
 string SCRIPT_CONFIG_DEFAULT = "yt-dlp_default.ini";
-	// default configuration file; placed in HostGetScriptFolder(); (required)
+	// Default configuration file. Placed in HostGetScriptFolder(). (required)
 
 string SCRIPT_CONFIG_CUSTOM = "Extension\\Media\\PlayParse\\yt-dlp.ini";
-	// configuration file; relative path to HostGetConfigFolder()
-	// created automatically with this script
+	// Configuration file. Relative path to HostGetConfigFolder().
+	// Created automatically with this script.
 
 string RADIO_IMAGE_1 = "yt-dlp_radio1.jpg";
 string RADIO_IMAGE_2 = "yt-dlp_radio2.jpg";
-	// radio image files; placed in HostGetScriptFolder()
+	// Radio image files. Placed in HostGetScriptFolder().
 
 
 string USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/142.0.0.0 Safari/537.36";	// chrome
@@ -1682,11 +1682,11 @@ class SHOUTPL
 			}
 			string fmtUrl = _GetDataField(data, "File" + (i + 1), "=");
 			if (fmtUrl.empty()) break;
+			if (outUrl.empty()) outUrl = fmtUrl;
 			
 			if (@QualityList !is null)
 			{
 				dictionary dic;
-				if (outUrl.empty()) outUrl = fmtUrl;
 				dic["url"] = fmtUrl;
 				dic["format"] = _getFormat(fmtUrl, i);
 				dic["itag"] = _setItag();
@@ -1716,11 +1716,12 @@ class SHOUTPL
 				if (i == 0) getTitle = title;
 				else if (title != getTitle) break;
 			}
+			string fmtUrl = string(match[2]["str"]);
+			if (outUrl.empty()) outUrl = fmtUrl;
+			
 			if (@QualityList !is null)
 			{
 				dictionary dic;
-				string fmtUrl = string(match[2]["str"]);
-				if (outUrl.empty()) outUrl = fmtUrl;
 				dic["url"] = fmtUrl;
 				dic["format"] = _getFormat(fmtUrl, i);
 				dic["itag"] = _setItag();
@@ -1752,11 +1753,12 @@ class SHOUTPL
 				if (i == 0) getTitle = title;
 				else if (title != getTitle) break;
 			}
+			string fmtUrl = HostRegExpParse(track, "<location>(.+?)</location>");
+			if (outUrl.empty()) outUrl = fmtUrl;
+			
 			if (@QualityList !is null)
 			{
 				dictionary dic;
-				string fmtUrl = HostRegExpParse(track, "<location>(.+?)</location>");
-				if (outUrl.empty()) outUrl = fmtUrl;
 				dic["url"] = fmtUrl;
 				dic["format"] = _getFormat(fmtUrl, i);
 				dic["itag"] = _setItag();
@@ -2039,15 +2041,6 @@ class YTDLP
 		checkFile(true);
 	}
 	
-	bool _checkLogLiveFromStart(string log)
-	{
-		if (sch.findRegExp(log, "(?i)^ERROR: ?\\[twitch:stream\\][^\r\n]*--live-from-start") >= 0)
-		{
-			return true;
-		}
-		return false;
-	}
-	
 	int _checkLogUpdate(string log)
 	{
 		if (cfg.getInt("MAINTENANCE", "update_ytdlp") == 1)
@@ -2062,6 +2055,7 @@ class YTDLP
 					string msg;
 					if (log.substr(pos, 7) == "ERROR: ")
 					{
+						if (cfg.csl > 0) HostPrintUTF8("[yt-dlp] Auto update failed.\r\n");
 						msg =
 						"A newer version of \"yt-dlp.exe\" was found on the website,\r\n"
 						"but the automatic update failed.\r\n\r\n";
@@ -2085,6 +2079,7 @@ class YTDLP
 					}
 					else
 					{
+						if (cfg.csl > 0) HostPrintUTF8("[yt-dlp] Auto update successful.\r\n");
 						msg += sch.getLine(log, pos);
 						HostMessageBox(msg, "[yt-dlp] INFO: Auto Update", 2, 0);
 						error = -1;
@@ -2162,6 +2157,7 @@ class YTDLP
 		int pos = sch.findRegExp(log, "(?i)\nERROR: \\[youtube\\] [^\r\n]*(Unsupported language code:)");
 		if (pos >= 0)
 		{
+			if (cfg.csl > 0) HostPrintUTF8("[yt-dlp] ERROR! Your language code [base_lang] is not supported for the menu label on YouTube.\r\n");
 			string msg;
 			string str = log.substr(pos);
 			pos = sch.findEol(str, 0);
@@ -2225,6 +2221,15 @@ class YTDLP
 			msg = msg.substr(7);
 			if (cfg.csl > 0) HostPrintUTF8("[yt-dlp] " + msg + " - " + qt(url) + "\r\n");
 			HostMessageBox(msg + "\r\n" + url, "[yt-dlp] INFO: Server", 2, 1);
+			return true;
+		}
+		return false;
+	}
+	
+	bool _checkLogLiveFromStart(string log)
+	{
+		if (sch.findRegExp(log, "(?i)^ERROR: ?\\[twitch:stream\\][^\r\n]*--live-from-start") >= 0)
+		{
 			return true;
 		}
 		return false;
@@ -2419,7 +2424,7 @@ class YTDLP
 			options += " --extractor-args " + qt(youtubeArgs);
 		}
 		
-		//options += " --encoding \"utf8\"";	// prevent garbled text
+		options += " --encoding \"utf8\"";	// prevent garbled text
 		
 		_addOptionsNetwork(options);
 		
@@ -2538,7 +2543,7 @@ class YTDLP
 		}
 		
 		options += " -R 3";
-		//options += " --encoding \"utf8\"";	// prevent garbled text
+		options += " --encoding \"utf8\"";	// prevent garbled text
 		
 		_addOptionsNetwork(options);
 		
@@ -5169,7 +5174,7 @@ string PlayitemParse(const string &in path, dictionary &MetaData, array<dictiona
 	}
 	else if (outUrl.empty())
 	{
-		if (_CheckRadioServer(httpHead)) return "";
+		if (_CheckRadioServer(httpHead)) outUrl = inUrl;
 	}
 	if (!outUrl.empty()) return outUrl;
 	
@@ -5215,13 +5220,13 @@ string PlayitemParse(const string &in path, dictionary &MetaData, array<dictiona
 	}
 	bool isGeneric = _isGeneric(extractor);
 	
-	outUrl = _GetJsonValueString(root, "webpage_url");
-	if (outUrl.empty())
+	string webUrl = _GetJsonValueString(root, "webpage_url");
+	if (webUrl.empty())
 	{
 		HostPrintUTF8("[yt-dlp] CRITICAL ERROR! No webpage URL.\r\n");
 		ytd.criticalError(); return "";
 	}
-	MetaData["webUrl"] = outUrl;
+	MetaData["webUrl"] = webUrl;
 	
 	bool isYoutube = _IsUrlSite(inUrl, "youtube");
 	
@@ -5270,7 +5275,7 @@ string PlayitemParse(const string &in path, dictionary &MetaData, array<dictiona
 	if (_CheckStartTime(startTimeLocal, path)) return "";
 	
 	int playlistIdx = _GetJsonValueInt(root, "playlist_index");
-	if (playlistIdx > 0 && inUrl != outUrl)
+	if (playlistIdx > 0 && inUrl != webUrl)
 	{
 		// playlist url
 		if (cfg.csl > 0) HostPrintUTF8("[yt-dlp] This URL is for a playlist.\r\n");
@@ -5466,7 +5471,7 @@ string PlayitemParse(const string &in path, dictionary &MetaData, array<dictiona
 		{
 			MetaData["content"] = desc;
 		}
-//HostMessageBox("------ title2 ------\n" + title2 + "\n\n\n" + "------ desc ------\n" + desc, "", 2, 0);
+//HostPrintUTF8("------ title2 ------\r\n" + title2 + "\r\n\r\n" + "------ desc ------\r\n" + desc + "\r\n\r\n");
 	}
 	
 	int viewCount = 0;
@@ -5497,6 +5502,7 @@ string PlayitemParse(const string &in path, dictionary &MetaData, array<dictiona
 	uint vaCount = 0;
 	uint vCount = 0;
 	uint aCount = 0;
+	string vaOutUrl, vOutUrl, aOutUrl;
 	for (int i = jFormats.size() - 1; i >= 0 ; i--)
 	{
 		JsonValue jFormat = jFormats[i];
@@ -5507,75 +5513,74 @@ string PlayitemParse(const string &in path, dictionary &MetaData, array<dictiona
 			continue;
 		}
 		
-		int qualityIdx = _GetJsonValueInt(jFormat, "quality");
-		
 		string fmtUrl = _GetJsonValueString(jFormat, "url");
 //HostPrintUTF8("fmtUrl: " + fmtUrl);
 		if (fmtUrl.empty()) continue;
 		
-		if (@QualityList !is null)
+		string fmtExt = _GetJsonValueString(jFormat, "ext");
+		string vExt = _GetJsonValueString(jFormat, "video_ext");
+		string aExt = _GetJsonValueString(jFormat, "audio_ext");
+		if (fmtExt.empty() || vExt.empty() || aExt.empty()) continue;
+		
+		string vcodec = _GetJsonValueString(jFormat, "vcodec");
+		vcodec = sch.omitDecimal(vcodec, ".", 1);
+		
+		string acodec = _GetJsonValueString(jFormat, "acodec");
+		acodec = sch.omitDecimal(acodec, ".", 1);
+		
+		string va;
+		if (vExt != "none" || vcodec != "none")
 		{
-			string fmtExt = _GetJsonValueString(jFormat, "ext");
-			string vExt = _GetJsonValueString(jFormat, "video_ext");
-			string aExt = _GetJsonValueString(jFormat, "audio_ext");
-			if (fmtExt.empty() || vExt.empty() || aExt.empty()) continue;
-			
-			string vcodec = _GetJsonValueString(jFormat, "vcodec");
-			vcodec = sch.omitDecimal(vcodec, ".", 1);
-			
-			string acodec = _GetJsonValueString(jFormat, "acodec");
-			acodec = sch.omitDecimal(acodec, ".", 1);
-			
-			string va;
-			if (vExt != "none" || vcodec != "none")
+			if (aExt != "none" || acodec != "none")
 			{
-				if (aExt != "none" || acodec != "none")
-				{
-					va = "va";	// video with audio
-				}
-				else
-				{
-					va = "v";	// video only
-				}
+				va = "va";	// video with audio
 			}
 			else
 			{
-				if (qualityIdx == -1 && !isLive) continue;	// audio for non-merged on youtube
-				if (aExt != "none" || acodec != "none")
-				{
-					va = "a";	// audio only
-				}
-				else
-				{
-					continue;
-				}
+				va = "v";	// video only
 			}
-			
-			int height = _GetJsonValueInt(jFormat, "height");
-			int width = _GetJsonValueInt(jFormat, "width");
-			float vbr = _GetJsonValueFloat(jFormat, "vbr");
-			float tbr = _GetJsonValueFloat(jFormat, "tbr");
-			float abr = _GetJsonValueFloat(jFormat, "abr");
-			
-			if (cfg.getInt("FORMAT", "reduce_low_quality") == 1)
+		}
+		else
+		{
+			int qualityIdx = _GetJsonValueInt(jFormat, "quality");
+			if (qualityIdx == -1 && !isLive) continue;	// audio for non-merged on youtube
+			if (aExt != "none" || acodec != "none")
 			{
-				int _count = (va == "v" ? vCount : va == "va" ? vaCount : 0);
-				if (_count > 0)
+				va = "a";	// audio only
+			}
+			else
+			{
+				continue;
+			}
+		}
+		
+		int height = _GetJsonValueInt(jFormat, "height");
+		int width = _GetJsonValueInt(jFormat, "width");
+		int longSize = (width < height ? height : width);
+		float vbr = _GetJsonValueFloat(jFormat, "vbr");
+		float tbr = _GetJsonValueFloat(jFormat, "tbr");
+		float abr = _GetJsonValueFloat(jFormat, "abr");
+		
+		if (cfg.getInt("FORMAT", "reduce_low_quality") == 1)
+		{
+			int _count = (va == "v" ? vCount : va == "va" ? vaCount : 0);
+			if (_count > 0)
+			{
+				if (longSize > 0)
 				{
-					int _width = (width < height ? height : width);
-					if (_width > 0)
-					{
-						if (_width < 640 && _count >= 3) continue;
-						if (_width < 850 && _count >= 6) continue;
-						if (_width < 1280 && _count >= 10) continue;
-					}
-				}
-				else if (va == "a" && abr > 0)
-				{
-					if (abr < 100 && aCount >= 2) continue;
+					if (longSize < 640 && _count >= 3) continue;
+					if (longSize < 850 && _count >= 6) continue;
+					if (longSize < 1280 && _count >= 10) continue;
 				}
 			}
-			
+			else if (va == "a" && abr > 0)
+			{
+				if (abr < 100 && aCount >= 2) continue;
+			}
+		}
+		
+		if (@QualityList !is null)
+		{
 			string bitrate;
 			if (tbr > 0) bitrate = HostFormatBitrate(int(tbr * 1000));
 			else if (vbr > 0 && abr > 0) bitrate = HostFormatBitrate(int((abr + vbr) * 1000));
@@ -5715,13 +5720,40 @@ string PlayitemParse(const string &in path, dictionary &MetaData, array<dictiona
 			
 //HostPrintUTF8("itag: " + itag + "\tquality: " + quality + "\tformat: " + format + "\tfps: " + fps);
 			
-			if (va == "v") vCount++;
-			else if (va == "a") aCount++;
-			else if (va == "va") vaCount++;
-			
 			QualityList.insertLast(dic);
 		}
+		
+		if (va == "va")
+		{
+			vaCount++;
+			if (vaOutUrl.empty() || (longSize >= 1200))
+			{
+				// get if longSize is near 1200
+				vaOutUrl = fmtUrl;
+			}
+		}
+		else if (va == "v")
+		{
+			vCount++;
+			if (vOutUrl.empty() || (longSize >= 1200))
+			{
+				// get if longSize is near 1200
+				vOutUrl = fmtUrl;
+			}
+		}
+		else if (va == "a")
+		{
+			aCount++;
+			if (aOutUrl.empty())
+			{
+				aOutUrl = fmtUrl;
+			}
+		}
 	}
+	if (!vaOutUrl.empty()) outUrl = vaOutUrl;
+	else if (!vOutUrl.empty()) outUrl = vOutUrl;
+	else if (!aOutUrl.empty()) outUrl = aOutUrl;
+	
 	if (_CheckStartTime(startTimeLocal, path)) return "";
 	
 	if (@QualityList !is null)

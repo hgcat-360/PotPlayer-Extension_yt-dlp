@@ -6,9 +6,11 @@
 With this yt-dlp extension, when opening a URL, PotPlayer temporarily runs yt-dlp.exe to obtain a playable link.  
 
 The supported websites and services are largely the same as those supported by yt-dlp.exe, with some exceptions.  
-As a general rule, yt-dlp does not support sites that are obviously pirated, and it also cannot be expected to handle paid content (usually protected with DRM).  
+As a general rule, yt-dlp does not support sites that are obviously pirated.  
+It also cannot be expected to handle paid content (usually protected with DRM).  
+However, if it is DRM-free, yt-dlp can sometimes access it by logging in with a paid account.  
 
-For YouTube, PotPlayer can generally play YouTube videos without this extension, 
+For YouTube, PotPlayer can generally play YouTube videos without this extension,  
 but it can be useful when YouTube restricts access from external applications.  
 Although YouTube sometimes requires users to log in, PotPlayer has no built-in login feature for standard playback.  
 This extension uses yt-dlp to handle web cookies and login authentication, allowing PotPlayer to bypass certain restrictions.  
