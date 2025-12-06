@@ -19,14 +19,26 @@ This extension uses yt-dlp to handle web cookies and login authentication, allow
 
 PotPlayer is a Windows-only media player, so this extension is intended for use on Windows.  
 
-This repository does not include the following applications. You must obtain them separately.  
+The following applications are **not** included in this repository. Please obtain them separately.  
 
-* [PotPlayer (**250226 or later**)](https://potplayer.tv/)
-* [yt-dlp.exe](https://github.com/yt-dlp/yt-dlp/)
+* [PotPlayer (**250226 or later**)](https://potplayer.tv/)  
 
-This extension also uses **curl.exe** to retrieve server data,  
-Some features may not work on Windows versions earlier than 10, which do not include the curl command by default.  
-In that case, you can download [**curl.exe**](https://curl.se/windows/) and place it in the *system32* folder or in any folder included in the system's PATH.  
+* [yt-dlp.exe](https://github.com/yt-dlp/yt-dlp/)  
+
+Always using the latest versions is recommended for proper website support.  
+
+In addition, you may need the following commands:  
+
+* [deno.exe](https://github.com/denoland/deno) -- Required for full YouTube support  
+	At present, **yt-dlp** cannot fully support YouTube without an external JavaScript runtime such as **deno**.  
+	See: https://github.com/yt-dlp/yt-dlp/issues/15012  
+	When using **deno**, download ***deno-x86_64-pc-windows-msvc.zip*** from the release page.  
+	Place *deno.exe* in the same folder as *yt-dlp.exe*.  
+
+* [curl.exe](https://curl.se/windows/) -- Used to retrieve server data  
+	Some features of this extension do not work without **curl**.  
+	**On windows versions earlier than 10, manual setup is required** (Windows 10 and later include **curl** by default).  
+	Place *curl.exe* in the *system32* folder or in any folder included in the system PATH.  
 
 ## Installation
 

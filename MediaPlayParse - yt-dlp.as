@@ -5,7 +5,7 @@
   Placed in \PotPlayer\Extension\Media\PlayParse\
 *************************************************************/
 
-string SCRIPT_VERSION = "251125";
+string SCRIPT_VERSION = "251206";
 
 
 string YTDLP_EXE = "yt-dlp.exe";
@@ -1423,6 +1423,7 @@ class SCH
 		{
 			int pos = _findCharaTop(source, len);
 			cutoff = source.Left(pos);
+			if (source.substr(pos, 3) == "...") cutoff += " ";
 			cutoff += "...";
 		}
 		return cutoff;
@@ -1432,10 +1433,31 @@ class SCH
 	{
 		// source: abcdefghi
 		// cutoff: abcd...
-		while (cutoff.Right(1) == ".") cutoff = cutoff.Left(cutoff.length() - 1);
-		cutoff.replace("\n", " ");
-		source.replace("\n", " ");
-		return (source.find(cutoff) == 0);
+		if (cutoff.Right(3) == "..." && !source.empty())
+		{
+			cutoff.replace("\n", " ");
+			source.replace("\n", " ");
+			if (source.find(cutoff) != 0)
+			{
+				cutoff = cutoff.Left(cutoff.length() - 3);
+				if (source.find(cutoff) == 0)
+				{
+					return true;
+				}
+				else if (cutoff.Right(1) == " ")
+				{
+					cutoff = cutoff.Left(cutoff.length() - 1);
+					if (source.substr(cutoff.length(), 3) == "...")
+					{
+						if (source.find(cutoff) == 0)
+						{
+							return true;
+						}
+					}
+				}
+			}
+		}
+		return false;
 	}
 	
 	string omitDecimal(string desc, string dot, int allowedDigit = -1)
@@ -1789,7 +1811,7 @@ class SHOUTPL
 					title = _ReviseWebString(title);
 					title = _CutOffString(title);
 					MetaData["title"] = title;
-						// station name; replaced to current music titles after playback starts
+						// station name that will be replaced to a current music title after playback starts
 					MetaData["author"] = title + (addLocation ? " @ShoutcastPL" : "");
 					MetaData["vid"] = HostRegExpParse(url, "\\?id=(\\d+)");
 					MetaData["fileExt"] = ext;
@@ -1846,23 +1868,23 @@ SHOUTPL shoutpl;
 
 class YTDLP
 {
-	string pathExe;
+	string exePath;
 	string version = "";
 	array<string> errors = {"(OK)", "(NOT FOUND)", "(LOOKS INVALID)", "(CRITICAL ERROR!)"};
 	int error = 0;
 	string SCHEME = "dl//";
 	
-	void getPathExe()
+	void getExePath()
 	{
 		string ytdlpLocation = cfg.getStr("MAINTENANCE", "ytdlp_location");
 		if (!ytdlpLocation.empty())
 		{
 			if (ytdlpLocation.Right(1) != "\\") ytdlpLocation += "\\";
-			pathExe = ytdlpLocation + YTDLP_EXE;
+			exePath = ytdlpLocation + YTDLP_EXE;
 		}
 		else
 		{
-			pathExe = HostGetExecuteFolder() + "Module\\" + YTDLP_EXE;
+			exePath = HostGetExecuteFolder() + "Module\\" + YTDLP_EXE;
 		}
 	}
 	
@@ -1884,14 +1906,14 @@ class YTDLP
 		{
 			error = 3; return;
 		}
-		getPathExe();
-		if (!HostFileExist(pathExe))
+		getExePath();
+		if (!HostFileExist(exePath))
 		{
 			error = 1; return;
 		}
 		
 		FileVersion verInfo;
-		if (!verInfo.Open(pathExe))
+		if (!verInfo.Open(exePath))
 		{
 			error = 2; return;
 		}
@@ -1945,7 +1967,7 @@ class YTDLP
 		
 		if (!fc.errorDefault && !fc.errorSave)
 		{
-			uintptr fp = HostFileOpen(pathExe);
+			uintptr fp = HostFileOpen(exePath);
 			string data = HostFileRead(fp, HostFileLength(fp));
 			HostFileClose(fp);
 			string hash = HostHashSHA256(data);
@@ -2020,7 +2042,7 @@ class YTDLP
 		checkFile(false);
 		if (error != 0) return;
 		HostIncTimeOut(10000);
-		string output = HostExecuteProgram(qt(pathExe), " -U");
+		string output = HostExecuteProgram(qt(exePath), " -U");
 		if (output.find("Latest version:") < 0 && output.find("ERROR:") < 0)
 		{
 			string msg = "No update info.";
@@ -2064,7 +2086,7 @@ class YTDLP
 						{
 							msg +=
 							"Unable to overwrite:\r\n"
-							+ pathExe + "\r\n\r\n"
+							+ exePath + "\r\n\r\n"
 							"Replace it manually or try running PotPlayer as an administrator.\r\n"
 							"You can also change the [ytdlp_location] setting to a location with write permission.\r\n\r\n";
 						}
@@ -2239,6 +2261,15 @@ class YTDLP
 		return false;
 	}
 	
+	bool checkLogJsChallenge(string log)
+	{
+		if (sch.findRegExp(log, "(?i)WARNING: \\[youtube\\] [^\r\n]*challenge solving failed") >= 0)
+		{
+			return true;
+		}
+		return false;
+	}
+	
 	void _printNoEntries(string log, string url)
 	{
 		if (cfg.csl > 0)
@@ -2351,7 +2382,7 @@ class YTDLP
 		return errIds;
 	}
 	
-	array<string> exec(string url, int playlistMode)
+	array<string> exec(string url, int playlistMode, string &out log)
 	{
 		checkFile(true);
 		if (error != 0) return {};
@@ -2463,7 +2494,7 @@ class YTDLP
 			options += " -v";
 			options += " -- " + url;
 			HostIncTimeOut(30000);
-			output = HostExecuteProgram(qt(pathExe), options);
+			output = HostExecuteProgram(qt(exePath), options);
 		}
 		else
 		{
@@ -2472,7 +2503,7 @@ class YTDLP
 		
 		uint logPos = 0;
 		array<string> entries = _getEntries(output, logPos);
-		string log = output.substr(logPos).TrimLeft("\r\n");
+		log = output.substr(logPos).TrimLeft("\r\n");
 		
 		if (cfg.csl == 1)
 		{
@@ -2519,6 +2550,12 @@ class YTDLP
 		}
 		
 		return entries;
+	}
+	
+	array<string> exec(string url, int playlistMode)
+	{
+		string log;
+		return exec(url, playlistMode, log);
 	}
 	
 	
@@ -2645,7 +2682,7 @@ class YTDLP
 		options += " -- " + joinedUrl;
 		
 		HostIncTimeOut(60000);
-		string output = HostExecuteProgram(qt(pathExe), options);
+		string output = HostExecuteProgram(qt(exePath), options);
 		
 		array<string> entries = _getEntries(output);
 		
@@ -2841,7 +2878,7 @@ class YTDLP
 		{
 			HostIncTimeOut(2000000);
 			uint startTime = HostGetTickCount();
-			output = HostExecuteProgram(qt(pathExe), " -v" + options + " -- " + url);
+			output = HostExecuteProgram(qt(exePath), " -v" + options + " -- " + url);
 			
 			if (cfg.csl > 0)
 			{
@@ -2885,7 +2922,7 @@ class YTDLP
 				string wholeOption = " -I " + i + ":" + (i + unitIdx - 1);
 				if (i == 1) wholeOption += " -v";
 				wholeOption += options + " -- " + url;
-				string addOutput = HostExecuteProgram(qt(pathExe), wholeOption);
+				string addOutput = HostExecuteProgram(qt(exePath), wholeOption);
 				uint addCnt = _countJson(addOutput, (i > 1));
 				if (youtubeChannelTop) _eraseYoutubeTabError(addOutput);
 				output.insert(_findJsonEnd(output), addOutput);
@@ -2940,7 +2977,7 @@ class YTDLP
 		{
 			HostIncTimeOut(2000000);
 			uint startTime = HostGetTickCount();
-			output = HostExecuteProgram(qt(pathExe), options + " --" + joinedUrl);
+			output = HostExecuteProgram(qt(exePath), options + " --" + joinedUrl);
 			
 			if (cfg.csl > 0)
 			{
@@ -2974,7 +3011,7 @@ class YTDLP
 				if (i > 600) unitIdx = 400;
 				HostIncTimeOut(300000);
 				options += " -I " + i + ":" + (i + unitIdx - 1);
-				string addOutput = HostExecuteProgram(qt(pathExe), options + " --" + joinedUrl);
+				string addOutput = HostExecuteProgram(qt(exePath), options + " --" + joinedUrl);
 				uint addCnt = _countJson(addOutput, false);
 				int elapsedTime = (HostGetTickCount() - startTime)/1000;
 				if (elapsedTime < 0) elapsedTime = -1;
@@ -3037,7 +3074,7 @@ class YTDLP
 			
 			HostIncTimeOut(2000000);
 			uint startTime = HostGetTickCount();
-			output = HostExecuteProgram(qt(pathExe), options + " --" + joinedUrl);
+			output = HostExecuteProgram(qt(exePath), options + " --" + joinedUrl);
 			
 			if (cfg.csl > 0)
 			{
@@ -3075,7 +3112,7 @@ class YTDLP
 					joinedUrl += " " + urls[j];
 					if (j >= urls.length() - 1) {complete = true; break;}
 				}
-				string addOutput = HostExecuteProgram(qt(pathExe), options + " --" + joinedUrl);
+				string addOutput = HostExecuteProgram(qt(exePath), options + " --" + joinedUrl);
 				uint addCnt = _countJson(addOutput, false);
 				int elapsedTime = (HostGetTickCount() - startTime)/1000;
 				if (elapsedTime < 0) elapsedTime = -1;
@@ -3289,6 +3326,16 @@ bool _IsExtType(string ext, int type)
 	return false;
 }
 
+bool _IsTypicalMediaExt(string path)
+{
+	string ext = HostGetExtension(path);
+	if (_IsExtType(ext, 0x1111))
+	{
+		return true;
+	}
+	return false;
+}
+
 
 bool _IsUrlSite(string url, string website)
 {
@@ -3471,12 +3518,25 @@ string _GetChatUrl(string url)
 	}
 	else if (_IsUrlSite(url, "twitch.tv"))
 	{
-		chatUrl = url;
-		chatUrl.replace("twitch.tv/", "twitch.tv/popout/");
-		int pos = chatUrl.find("?");
-		if (pos > 0) chatUrl = chatUrl.Left(pos);
-		if (chatUrl.Right(1) != "/") chatUrl += "/";
-		chatUrl += "chat?popout=";
+		if (url.replace("twitch.tv/", "twitch.tv/popout/") > 0)
+		{
+			int pos = url.find("?");
+			if (pos > 0) url = url.Left(pos);
+			if (url.Right(1) != "/") url += "/";
+			url += "chat";
+			chatUrl = url;
+		}
+	}
+	else if (_IsUrlSite(url, "kick.com"))
+	{
+		if (url.replace("kick.com/", "kick.com/popout/") > 0)
+		{
+			int pos = url.find("?");
+			if (pos > 0) url = url.Left(pos);
+			if (url.Right(1) != "/") url += "/";
+			url += "chat";
+			chatUrl = url;
+		}
 	}
 	else if (_IsUrlSite(url, "rumble"))
 	{
@@ -3696,22 +3756,27 @@ bool _PlayitemCheckBase(string url)
 }
 
 
-bool _CheckFileExt(string path)
+uint g_startTime = 0;
+
+void PlaylistCancel()
 {
-	string ext = HostGetExtension(path);
-	if (ext.empty()) return true;	// No file extension
-	if (!_IsExtType(ext, 0x1111)) return true;	// unknown file extension
-//HostPrintUTF8("path: " + path);
-	return false;
+	// Treat only online content
+//HostPrintUTF8("PlaylistCancel");
+	g_startTime = 0;
 }
 
-uint startTimeGlobal = 0;
-
-bool _CheckStartTime(uint startTimeLocal, string url)
+void PlayitemCancel()
 {
-	if (startTimeLocal != startTimeGlobal)
+	// Treat only online content
+//HostPrintUTF8("PlayitemCancel");
+	g_startTime = 0;
+}
+
+bool _CheckStartTime(uint startTime, string url)
+{
+	if (startTime != g_startTime)
 	{
-		// startTimeGlobal has been changed because the user started another task,
+		// g_startTime has been changed because the user started another task,
 		// so the current process will stop.
 		if (cfg.csl > 0)
 		{
@@ -3735,10 +3800,9 @@ bool PlaylistCheck(const string &in path)
 	
 	if (!_PlayitemCheckBase(url))
 	{
-		if (!_CheckFileExt(url))
-		{
-			startTimeGlobal = 0;
-		}
+		// Reset g_startTime only if a local clip is opened.
+		// Online content calls this function not only when being opened, but also when just reloading the thumbnail.
+		if (_IsTypicalMediaExt(url)) g_startTime = 0;
 		return false;
 	}
 	
@@ -4163,6 +4227,7 @@ dictionary _PlaylistParse(string json, bool forcePlaylist, string imgUrl)
 			author = _ReviseWebString(author);
 			dic["author"] = author + " @" + extractor;
 		}
+		
 	}
 	return dic;
 }
@@ -4308,8 +4373,8 @@ array<dictionary> PlaylistParse(const string &in path)
 	// Called after PlaylistCheck if it returns true
 //HostPrintUTF8("PlaylistParse - " + path);
 	
-	uint startTimeLocal = HostGetTickCount();
-	startTimeGlobal = startTimeLocal;
+	uint startTime = HostGetTickCount();
+	g_startTime = startTime;
 	
 	if (cfg.csl > 0) HostOpenConsole();
 	
@@ -4322,6 +4387,10 @@ array<dictionary> PlaylistParse(const string &in path)
 		if (cfg.getInt("TARGET", "shoutcast_playlist") == 1)
 		{
 			shoutpl.passPlaylist(plUrl, dicsEntry);
+			if (cfg.csl > 0)
+			{
+				HostPrintUTF8("[yt-dlp] Shoutcast playlist was not extracted according to the \"shoutcast_playlist\" setting. - " + ytd.qt(plUrl) + "\r\n\r\n");
+			}
 		}
 		else
 		{
@@ -4362,7 +4431,7 @@ array<dictionary> PlaylistParse(const string &in path)
 		return {};
 	}
 	
-	if (_CheckStartTime(startTimeLocal, path)) return {};
+	if (_CheckStartTime(startTime, path)) return {};
 	
 	int playlistMode = _WebsitePlaylistMode(plUrl);
 	
@@ -4373,7 +4442,7 @@ array<dictionary> PlaylistParse(const string &in path)
 		dictionary dic;
 		_PlaylistParseNotExtract(plUrl, dic);
 		
-		if (_CheckStartTime(startTimeLocal, path)) return {};
+		if (_CheckStartTime(startTime, path)) return {};
 		
 		dicsEntry.insertLast(dic);
 		return dicsEntry;
@@ -4394,7 +4463,7 @@ array<dictionary> PlaylistParse(const string &in path)
 		}
 	}
 	
-	if (_CheckStartTime(startTimeLocal, path)) return {};
+	if (_CheckStartTime(startTime, path)) return {};
 	
 	bool forcePlaylist = false;
 	bool isYoutube = _IsUrlSite(plUrl, "youtube");
@@ -4441,7 +4510,7 @@ array<dictionary> PlaylistParse(const string &in path)
 		array<string> errIds = {};
 		array<string> _entries = ytd.exec2(urls, singleMode, errIds);
 		
-		if (_CheckStartTime(startTimeLocal, path)) return {};
+		if (_CheckStartTime(startTime, path)) return {};
 		
 		errCnt = errIds.length();	// errCnt = 0 if YouTube
 		
@@ -4576,7 +4645,7 @@ array<dictionary> PlaylistParse(const string &in path)
 			{
 				array<string> _entries2 = ytd.exec2(urls2, -1);
 				
-				if (_CheckStartTime(startTimeLocal, path)) return {};
+				if (_CheckStartTime(startTime, path)) return {};
 				
 				for (uint i = 0; i < _entries2.length(); i++)
 				{
@@ -4636,12 +4705,9 @@ bool PlayitemCheck(const string &in path)
 	
 	if (!_PlayitemCheckBase(url))
 	{
-		// Reset startTimeGlobal only if a local clip is opened.
+		// Reset g_startTime only if a local clip is opened.
 		// Online content calls this function not only when being opened, but also when just reloading the thumbnail.
-		if (!_CheckFileExt(url))
-		{
-			startTimeGlobal = 0;
-		}
+		if (_IsTypicalMediaExt(url)) g_startTime = 0;
 		return false;
 	}
 	
@@ -5230,8 +5296,8 @@ string PlayitemParse(const string &in path, dictionary &MetaData, array<dictiona
 	// Called after PlayitemCheck if it returns true
 //HostPrintUTF8("PlayitemParse - " + path);
 	
-	uint startTimeLocal = HostGetTickCount();
-	startTimeGlobal = startTimeLocal;
+	uint startTime = HostGetTickCount();
+	g_startTime = startTime;
 	
 	if (cfg.csl > 0) HostOpenConsole();
 	
@@ -5250,6 +5316,10 @@ string PlayitemParse(const string &in path, dictionary &MetaData, array<dictiona
 		if (cfg.getInt("TARGET", "direct_file_info") == 1)
 		{
 			_SetFileInfo(MetaData, inUrl, httpHead, (fileType != "audio"));
+			if (cfg.csl > 0)
+			{
+				HostPrintUTF8("[yt-dlp] Got matadata for a direct media file. - " + ytd.qt(inUrl) + "\r\n\r\n");
+			}
 			return inUrl;
 		}
 		return "";
@@ -5258,25 +5328,43 @@ string PlayitemParse(const string &in path, dictionary &MetaData, array<dictiona
 	if (_IsUrlSite(inUrl, "shoutcast"))
 	{
 		outUrl = shoutpl.parse(inUrl, MetaData, QualityList, true);
+		if (!outUrl.empty())
+		{
+			if (cfg.csl > 0)
+			{
+				HostPrintUTF8("[yt-dlp] Parsed Shoutcast playlist. - " + ytd.qt(inUrl) + "\r\n\r\n");
+			}
+		}
 	}
 	if (cfg.getInt("TARGET", "radio_info") == 1)
 	{
 		string _url = !outUrl.empty() ? outUrl : inUrl;
-		if (_GetRadioInfo(MetaData, httpHead, _url)) outUrl = _url;
+		if (_GetRadioInfo(MetaData, httpHead, _url))
+		{
+			outUrl = _url;
+			if (cfg.csl > 0)
+			{
+				HostPrintUTF8("[yt-dlp] Got metadata for a streaming radio. - " + ytd.qt(inUrl) + "\r\n\r\n");
+			}
+		}
 	}
 	else if (outUrl.empty())
 	{
 		if (_CheckRadioServer(httpHead)) outUrl = inUrl;
 	}
-	if (!outUrl.empty()) return outUrl;
+	if (!outUrl.empty())
+	{
+		return outUrl;
+	}
 	
-	if (_CheckStartTime(startTimeLocal, path)) return "";
+	if (_CheckStartTime(startTime, path)) return "";
 	
 	// Execute yt-dlp
-	array<string> entries = ytd.exec(inUrl, 0);
+	string log;
+	array<string> entries = ytd.exec(inUrl, 0, log);
 	if (entries.length() == 0) return "";
 	
-	if (_CheckStartTime(startTimeLocal, path)) return "";
+	if (_CheckStartTime(startTime, path)) return "";
 	
 	string json = entries[0];
 	JsonReader reader;
@@ -5364,8 +5452,6 @@ string PlayitemParse(const string &in path, dictionary &MetaData, array<dictiona
 		thumb = thumb.Left(thumb.length() - 4) + ".png";
 	}
 	
-	if (_CheckStartTime(startTimeLocal, path)) return "";
-	
 	if (thumb.empty())
 	{
 		if (isLive && sch.findI(extractor, "TwitchVod") == 0)
@@ -5388,7 +5474,7 @@ string PlayitemParse(const string &in path, dictionary &MetaData, array<dictiona
 		MetaData["thumbnail"] = thumb;
 		outUrl = _PlaylistParseNotExtract(inUrl, MetaData);
 		
-		if (_CheckStartTime(startTimeLocal, path)) return "";
+		if (_CheckStartTime(startTime, path)) return "";
 		
 		if (_WebsitePlaylistMode(inUrl) > 0)
 		{
@@ -5397,15 +5483,6 @@ string PlayitemParse(const string &in path, dictionary &MetaData, array<dictiona
 		
 		return outUrl;
 	}
-	
-	if (thumb.empty())
-	{
-		if (!isAudioExt)
-		{
-			thumb = inUrl;
-		}
-	}
-	if (!thumb.empty()) MetaData["thumbnail"] = thumb;
 	
 	string title = _GetJsonValueString(root, "title");
 	if (!title.empty())
@@ -5499,7 +5576,7 @@ string PlayitemParse(const string &in path, dictionary &MetaData, array<dictiona
 	string baseName = _GetJsonValueString(root, "webpage_url_basename");
 	string ext2 = HostGetExtension(baseName);	// include the top dot
 	
-	if (_CheckStartTime(startTimeLocal, path)) return "";
+	if (_CheckStartTime(startTime, path)) return "";
 	
 	string title2;	// substantial title
 	{
@@ -5576,7 +5653,8 @@ string PlayitemParse(const string &in path, dictionary &MetaData, array<dictiona
 		{
 			MetaData["content"] = desc;
 		}
-//HostPrintUTF8("------ title2 ------\r\n" + title2 + "\r\n\r\n" + "------ desc ------\r\n" + desc + "\r\n\r\n");
+//HostPrintUTF8("------ title ------\r\n" + title + "\r\n\r\n" + "------ desc ------\r\n" + desc + "\r\n\r\n");
+//HostPrintUTF8("------ title2 ------\r\n" + title2 + "\r\n\r\n");
 	}
 	
 	int viewCount = 0;
@@ -5601,7 +5679,7 @@ string PlayitemParse(const string &in path, dictionary &MetaData, array<dictiona
 		if (cfg.csl > 0) HostPrintUTF8("[yt-dlp] No formats data...\r\n");
 	}
 	
-	if (_CheckStartTime(startTimeLocal, path)) return "";
+	if (_CheckStartTime(startTime, path)) return "";
 	
 	int needPlaybackCookie = 0;
 	uint vaCount = 0;
@@ -5859,7 +5937,16 @@ string PlayitemParse(const string &in path, dictionary &MetaData, array<dictiona
 	else if (!vOutUrl.empty()) outUrl = vOutUrl;
 	else if (!aOutUrl.empty()) outUrl = aOutUrl;
 	
-	if (_CheckStartTime(startTimeLocal, path)) return "";
+	if (thumb.empty())
+	{
+		if (!isAudioExt)
+		{
+			thumb = outUrl;
+		}
+	}
+	if (!thumb.empty()) MetaData["thumbnail"] = thumb;
+	
+	if (_CheckStartTime(startTime, path)) return "";
 	
 	if (@QualityList !is null)
 	{
@@ -5980,7 +6067,7 @@ string PlayitemParse(const string &in path, dictionary &MetaData, array<dictiona
 					{
 						dictionary dic;
 						dic["title"] = cptTitle;
-						float startTime = _GetJsonValueFloat(jChapter, "start_time");
+						float cptStartTime = _GetJsonValueFloat(jChapter, "start_time");
 						if (isLive)
 						{
 							// For Twitch with --live-from-start
@@ -5989,14 +6076,14 @@ string PlayitemParse(const string &in path, dictionary &MetaData, array<dictiona
 							if (secDuration > 0)
 							{
 								// Negative number means past time
-								startTime -= secDuration;
+								cptStartTime -= secDuration;
 							}
 							else
 							{
-								startTime = 0;
+								cptStartTime = 0;
 							}
 						}
-						dic["time"] = formatInt(int(startTime * 1000));	// milli-second
+						dic["time"] = formatInt(int(cptStartTime * 1000));	// milli-second
 						dicsChapter.insertLast(dic);
 					}
 				}
@@ -6004,7 +6091,7 @@ string PlayitemParse(const string &in path, dictionary &MetaData, array<dictiona
 		}
 		if (dicsChapter.length() > 0) MetaData["chapter"] = dicsChapter;
 	}
-	if (_CheckStartTime(startTimeLocal, path)) return "";
+	if (_CheckStartTime(startTime, path)) return "";
 	
 	if (cfg.csl > 0)
 	{
@@ -6012,9 +6099,17 @@ string PlayitemParse(const string &in path, dictionary &MetaData, array<dictiona
 		
 		if (needPlaybackCookie > 0)
 		{
-			string msg = "[yt-dlp] PotPlayer cannot play this stream. The cookies are required during playback.";
-			msg += " - " + ytd.qt(inUrl) +"\r\n";
-			HostPrintUTF8(msg);
+			bool checkJsChallenge = isYoutube ? ytd.checkLogJsChallenge(log) : false;
+			if (!isYoutube || checkJsChallenge)
+			{
+				string msg = "[yt-dlp] PotPlayer cannot play this stream. The cookies are required during playback.";
+				msg += " - " + ytd.qt(inUrl) + "\r\n";
+				if (checkJsChallenge)
+				{
+					msg += "[yt-dlp] Try placing \"deno.exe\" in the same folder as \"yt-dlp.exe\".\r\n";
+				}
+				HostPrintUTF8(msg);
+			}
 		}
 	}
 	
