@@ -5,7 +5,7 @@
   Placed in \PotPlayer\Extension\Media\PlayParse\
 *************************************************************/
 
-string SCRIPT_VERSION = "251212";
+string SCRIPT_VERSION = "251212.1";
 
 
 string YTDLP_EXE = "yt-dlp.exe";
@@ -31,11 +31,11 @@ string USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.3
 // The lower a category is on the list, the higher its priority.
 array<string> SB_CATEGORIES = {
 	"Non-Music",	// music_offtopic
-	"Tangents/Jokes",	// filler
-	"Preview/Recap",	// preview
-	"Hook/Greetings",	// hook
 	"Intermission/Intro Animation",	// intro
 	"Endcards/Credits",		// outro
+	"Preview/Recap",	// preview
+	"Hook/Greetings",	// hook
+	"Tangents/Jokes",	// filler
 	"Unpaid/Self Promotion",	// selfpromo
 	"Interaction Reminder",	// interaction
 	"Sponsor",	// sponsor
@@ -6231,7 +6231,11 @@ string PlayitemParse(const string &in path, dictionary &MetaData, array<dictiona
 			JsonValue jSBChapters = root["sponsorblock_chapters"];
 			if (jSBChapters.isArray())
 			{
-				string mainChapterTitle = "<main>";
+				string untitledChptName = "<Untitled Chapter>";
+				if (dicsChapter.length() > 0 && string(dicsChapter[0]["title"]) == "<Untitled Chapter 1>")
+				{
+					dicsChapter[0]["title"] = untitledChptName;
+				}
 				
 				for(uint i = 0; i < SB_CATEGORIES.length(); i++)
 				{
@@ -6252,7 +6256,7 @@ string PlayitemParse(const string &in path, dictionary &MetaData, array<dictiona
 								{
 									string chptTitle2;
 									_RemoveChptRange(dicsChapter, msTime1, msTime2, chptTitle2);
-									if (chptTitle2.empty()) chptTitle2 = mainChapterTitle;
+									if (chptTitle2.empty()) chptTitle2 = untitledChptName;
 									
 									dictionary dic1;
 									dic1["title"] = chptTitle1;
@@ -6296,13 +6300,13 @@ string PlayitemParse(const string &in path, dictionary &MetaData, array<dictiona
 					if (!existFirst)
 					{
 						dictionary dic;
-						dic["title"] = mainChapterTitle;
+						dic["title"] = untitledChptName;
 						dic["time"] = "0";
 						dicsChapter.insertAt(0, dic);
 						
 						if (cfg.csl > 1)
 						{
-							HostPrintUTF8("SB chapter start: 0: " + mainChapterTitle);
+							HostPrintUTF8("SB chapter start: 0: " + untitledChptName);
 						}
 					}
 				}
