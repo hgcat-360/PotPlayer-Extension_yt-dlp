@@ -5,7 +5,7 @@
   Placed in \PotPlayer\Extension\Media\PlayParse\
 *************************************************************/
 
-string SCRIPT_VERSION = "251206";
+string SCRIPT_VERSION = "251212";
 
 
 string YTDLP_EXE = "yt-dlp.exe";
@@ -25,6 +25,26 @@ string RADIO_IMAGE_2 = "yt-dlp_radio2.jpg";
 
 string USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/142.0.0.0 Safari/537.36";	// chrome
 //string USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:144.0) Gecko/20100101 Firefox/144.0";	// firefox
+
+
+// For SponsorBlock
+// The lower a category is on the list, the higher its priority.
+array<string> SB_CATEGORIES = {
+	"Non-Music",	// music_offtopic
+	"Tangents/Jokes",	// filler
+	"Preview/Recap",	// preview
+	"Hook/Greetings",	// hook
+	"Intermission/Intro Animation",	// intro
+	"Endcards/Credits",		// outro
+	"Unpaid/Self Promotion",	// selfpromo
+	"Interaction Reminder",	// interaction
+	"Sponsor",	// sponsor
+	"Highlight"	// poi_highlight
+};
+
+int SB_THSH_TIME = 2000;
+	// Threshold time (millisecond) for SponsorBlock
+
 
 
 class FileConfig
@@ -2382,10 +2402,12 @@ class YTDLP
 		return errIds;
 	}
 	
-	array<string> exec(string url, int playlistMode, string &out log)
+	array<string> exec1(string url, int playlistMode, string &out log)
 	{
 		checkFile(true);
 		if (error != 0) return {};
+		
+		bool isYoutube = _IsUrlSite(url, "youtube");
 		
 		bool checkBiliPart = false;
 		if (_IsPotentialBiliPart(url))
@@ -2431,7 +2453,7 @@ class YTDLP
 					}
 				}
 				/*
-				else if (_IsUrlSite(url, "youtube"))
+				else if (isYoutube)
 				{
 					if (cfg.getInt("YOUTUBE", "youtube_live") == 2)
 					{
@@ -2440,6 +2462,15 @@ class YTDLP
 					}
 				}
 				*/
+			}
+			
+			if (isYoutube)
+			{
+				string spbl = cfg.getStr("YOUTUBE", "sponsor_block");
+				if (!spbl.empty())
+				{
+					options += " --sponsorblock-mark " + qt(spbl);
+				}
 			}
 		}
 		else
@@ -2470,7 +2501,7 @@ class YTDLP
 		
 		bool hasCookie = _addOptionsCookie(options);
 		
-		if (_IsUrlSite(url, "youtube"))
+		if (isYoutube)
 		{
 			string youtubeArgs = _getYoutubeArgs(hasCookie);
 			options += " --extractor-args " + qt(youtubeArgs);
@@ -2540,7 +2571,7 @@ class YTDLP
 			if (options.find(" --live-from-start") >= 0)
 			{
 				// Retry without --live-from-start
-				return exec(url, -1);
+				return exec1(url, -1);
 			}
 		}
 		
@@ -2552,10 +2583,10 @@ class YTDLP
 		return entries;
 	}
 	
-	array<string> exec(string url, int playlistMode)
+	array<string> exec1(string url, int playlistMode)
 	{
 		string log;
-		return exec(url, playlistMode, log);
+		return exec1(url, playlistMode, log);
 	}
 	
 	
@@ -2620,6 +2651,8 @@ class YTDLP
 		{
 			string youtubeArgs = _getYoutubeArgs(hasCookie);
 			options += " --extractor-args " + qt(youtubeArgs);
+			
+			//options += " --no-js-runtimes";	// Don't use Deno
 		}
 		
 		options += " -j";	// "-j" must be in lower case
@@ -2678,6 +2711,7 @@ class YTDLP
 		bool hasCookie = _addOptionsCookie(options);
 		string youtubeArgs = _getYoutubeArgs(hasCookie);
 		options += " --extractor-args " + qt(youtubeArgs);
+		
 		_addOptionsNetwork(options);
 		options += " -- " + joinedUrl;
 		
@@ -2757,6 +2791,7 @@ class YTDLP
 				potokenGvs = cfg.getStr("YOUTUBE", "potoken_gvs");
 			}
 		}
+		
 		string potokenSubs = cfg.getStr("YOUTUBE", "potoken_subs");
 		if (!potokenGvs.empty())
 		{
@@ -2777,6 +2812,7 @@ class YTDLP
 				youtubeArgs += ";" + bgutil;
 			}
 		}
+		
 		return youtubeArgs;
 	}
 	
@@ -3511,10 +3547,10 @@ string _GetChatUrl(string url)
 {
 	string chatUrl = "";
 	
-	string videoId = _GetYoutubeVideoId(url);
-	if (!videoId.empty())
+	string youtubeId = _GetYoutubeVideoId(url);
+	if (!youtubeId.empty())
 	{
-		chatUrl = "https://www.youtube.com/live_chat?v=" + videoId + "&is_popout=1";
+		chatUrl = "https://www.youtube.com/live_chat?v=" + youtubeId + "&is_popout=1";
 	}
 	else if (_IsUrlSite(url, "twitch.tv"))
 	{
@@ -3550,10 +3586,12 @@ string _GetChatUrl(string url)
 			}
 		}
 	}
+	/*
 	else if (_IsUrlSite(url, "sooplive.co.kr"))	// new Africa TV
 	{
 		chatUrl = url + "?vtype=chat";
 	}
+	*/
 	return chatUrl;
 }
 
@@ -4015,7 +4053,7 @@ string _MakeUrlJoinAll(array<string> entries)
 	return joinedUrl;
 }
 
-array<string> _MakeUrlArrayMetadata(array<dictionary> dicsEntry, array<uint> &inout arrIdx)
+array<string> _MakeUrlArrayMetadata1(array<dictionary> dicsEntry, array<uint> &inout arrIdx)
 {
 	array<string> urls = {};
 	arrIdx = {};
@@ -4389,7 +4427,7 @@ array<dictionary> PlaylistParse(const string &in path)
 			shoutpl.passPlaylist(plUrl, dicsEntry);
 			if (cfg.csl > 0)
 			{
-				HostPrintUTF8("[yt-dlp] Shoutcast playlist was not extracted according to the \"shoutcast_playlist\" setting. - " + ytd.qt(plUrl) + "\r\n\r\n");
+				HostPrintUTF8("[yt-dlp] Shoutcast playlist was not expanded according to the \"shoutcast_playlist\" setting. - " + ytd.qt(plUrl) + "\r\n\r\n");
 			}
 		}
 		else
@@ -4449,7 +4487,7 @@ array<dictionary> PlaylistParse(const string &in path)
 	}
 	
 	// Execute yt-dlp
-	array<string> entries = ytd.exec(plUrl, playlistMode);
+	array<string> entries = ytd.exec1(plUrl, playlistMode);
 	if (entries.length() == 0) return {};
 	
 	if (_IsYoutubeTabPlaylistType(plUrl))
@@ -4500,11 +4538,13 @@ array<dictionary> PlaylistParse(const string &in path)
 	
 	uint errCnt = 0;
 	array<uint> arrIdx = {};
-	array<string> urls = _MakeUrlArrayMetadata(dicsEntry, arrIdx);
+	array<string> urls = _MakeUrlArrayMetadata1(dicsEntry, arrIdx);
 	if (urls.length() > 0)
 	{
+		int singleMode = 1;
 		bool noTitle = string(dicsEntry[0]["title"]).empty();
-		int singleMode = noTitle ? 2 : 1;
+		bool isYoutubeShort = (isYoutube && urls[0].find("/shorts/") > 0);
+		if (noTitle || isYoutubeShort) singleMode = 2;
 		if (_IsPotentialBiliPart(urls[0])) singleMode = 3;
 		
 		array<string> errIds = {};
@@ -4626,12 +4666,15 @@ array<dictionary> PlaylistParse(const string &in path)
 		// Remove items, matadata of which has not been collected yet
 		if (cfg.getInt("TARGET", "playlist_without_metadata") != 1)
 		{
-			for (int i = 0; i < int(dicsEntry.length()); i++)
+			for (uint i = 0; i < dicsEntry.length();)
 			{
 				if (string(dicsEntry[uint(i)]["title"]).empty())
 				{
 					dicsEntry.removeAt(i);
-					i--;
+				}
+				else
+				{
+					i++;
 				}
 			}
 		}
@@ -4663,14 +4706,17 @@ array<dictionary> PlaylistParse(const string &in path)
 	if (isYoutube)
 	{
 		errCnt = 0;
-		for (int i = 0; i < int(dicsEntry.length()); i++)
+		for (uint i = 0; i < dicsEntry.length();)
 		{
 			string thumb = string(dicsEntry[uint(i)]["thumbnail"]);
 			if (thumb.find("no_thumbnail.") >= 0)
 			{
 				dicsEntry.removeAt(i);
 				errCnt++;
-				i--;
+			}
+			else
+			{
+				i++;
 			}
 		}
 	}
@@ -4836,6 +4882,13 @@ string _ReviseDate(string date)
 }
 
 
+string _ReviseSBChapter(string chptTitle)
+{
+	// For SponsorBlock
+	chptTitle = "<SB/" + chptTitle + ">";
+	return chptTitle;
+}
+
 bool _isGeneric(string extractor)
 {
 	if (sch.findRegExp(extractor, "(?i)(generic|html5)") == 0)
@@ -4952,6 +5005,83 @@ bool _SelectAutoSub(string code, array<dictionary> dicsSub)
 	return true;
 }
 
+
+uint _RemoveChptRange(array<dictionary> &inout dicsChapter, int msTime1, int msTime2, string &out chptTitle2)
+{
+	int nearTime1 = _findChptNear(dicsChapter, msTime1);
+	if (nearTime1 < 0) nearTime1 = msTime1;
+	int nearTime2 = _findChptNear(dicsChapter, msTime2, chptTitle2);
+	if (nearTime2 < 0) nearTime2 = msTime2;
+	
+	uint cnt = 0;
+	for (uint i = 0; i < dicsChapter.length();)
+	{
+		dictionary dic = dicsChapter[i];
+		int time0 = parseInt(string(dic["time"]));
+		if (time0 >= nearTime1 && time0 <= nearTime2)
+		{
+			dicsChapter.removeAt(i);
+			if (cfg.csl > 1)
+			{
+				string title0 = string(dic["title"]);
+				HostPrintUTF8("SB chapter remove: " + time0 + ": " + title0);
+			}
+			cnt++;
+		}
+		else
+		{
+			i++;
+		}
+	}
+	return cnt;
+}
+
+int _findChptNear(array<dictionary> dicsChapter, int time)
+{
+	// time: millisecond
+	int nearTime = -1;
+	int d0 = -1;
+	for (uint i = 0; i < dicsChapter.length(); i++)
+	{
+		dictionary dic = dicsChapter[i];
+		int time0 = parseInt(string(dic["time"]));
+		if (time0 > time - SB_THSH_TIME && time0 < time + SB_THSH_TIME)
+		{
+			int d = time - time0;
+			if (d < 0) d *= -1;
+			if (d0 < 0 || d < d0)
+			{
+				d0 = d;
+				nearTime = time0;
+			}
+		}
+	}
+	return nearTime;
+}
+
+int _findChptNear(array<dictionary> dicsChapter, int time, string &out inheritTitle)
+{
+	// time: millisecond
+	int nearTime = -1;
+	int d0 = -1;
+	for (uint i = 0; i < dicsChapter.length(); i++)
+	{
+		dictionary dic = dicsChapter[i];
+		int time0 = parseInt(string(dic["time"]));
+		if (time0 < time + SB_THSH_TIME)
+		{
+			int d = time - time0;
+			if (d < 0) d *= -1;
+			if (d0 < 0 || d < d0)
+			{
+				d0 = d;
+				inheritTitle = string(dic["title"]);
+				if (d < SB_THSH_TIME) nearTime = time0;
+			}
+		}
+	}
+	return nearTime;
+}
 
 bool __IsSameQuality(dictionary dic1, dictionary dic0)
 {
@@ -5361,7 +5491,7 @@ string PlayitemParse(const string &in path, dictionary &MetaData, array<dictiona
 	
 	// Execute yt-dlp
 	string log;
-	array<string> entries = ytd.exec(inUrl, 0, log);
+	array<string> entries = ytd.exec1(inUrl, 0, log);
 	if (entries.length() == 0) return "";
 	
 	if (_CheckStartTime(startTime, path)) return "";
@@ -5499,12 +5629,12 @@ string PlayitemParse(const string &in path, dictionary &MetaData, array<dictiona
 	}
 	
 	string duration = _GetJsonValueString(root, "duration_string");
+	float dcmDuration = _GetJsonValueFloat(root, "duration");	// treat as a decimal
 	if (duration.empty())
 	{
-		int secDuration = _GetJsonValueInt(root, "duration");
-		if (secDuration > 0)
+		if (dcmDuration > 0)
 		{
-			duration = "0:" + secDuration;
+			duration = "0:" + int(dcmDuration);
 			// Convert to format "hh:mm:ss" with adding "0:" to the top
 		}
 	}
@@ -5653,9 +5783,9 @@ string PlayitemParse(const string &in path, dictionary &MetaData, array<dictiona
 		{
 			MetaData["content"] = desc;
 		}
-//HostPrintUTF8("------ title ------\r\n" + title + "\r\n\r\n" + "------ desc ------\r\n" + desc + "\r\n\r\n");
-//HostPrintUTF8("------ title2 ------\r\n" + title2 + "\r\n\r\n");
 	}
+//HostPrintUTF8("------ title ------\r\n" + title + "\r\n\r\n" + "------ desc ------\r\n" + desc + "\r\n\r\n");
+	if (cfg.csl > 0) HostPrintUTF8("Title: " + title2 + "\r\n");
 	
 	int viewCount = 0;
 	if (concurrentViewCount > 0)
@@ -6062,35 +6192,130 @@ string PlayitemParse(const string &in path, dictionary &MetaData, array<dictiona
 				JsonValue jChapter = jChapters[i];
 				if (jChapter.isObject())
 				{
-					string cptTitle = _GetJsonValueString(jChapter, "title");
-					if (!cptTitle.empty())
+					string chptTitle = _GetJsonValueString(jChapter, "title");
+					if (!chptTitle.empty())
 					{
-						dictionary dic;
-						dic["title"] = cptTitle;
-						float cptStartTime = _GetJsonValueFloat(jChapter, "start_time");
-						if (isLive)
+						int msTime = int(_GetJsonValueFloat(jChapter, "start_time") * 1000);	// millisecond
+						if (msTime >= 0)
 						{
-							// For Twitch with --live-from-start
-							// Generally PotPlayer cannot reflect chapter positions on live stream.
-							float secDuration = _GetJsonValueFloat(root, "duration");
-							if (secDuration > 0)
+							dictionary dic;
+							dic["title"] = chptTitle;
+							if (isLive)
 							{
-								// Negative number means past time
-								cptStartTime -= secDuration;
+								// For Twitch with --live-from-start
+								// Generally PotPlayer cannot reflect chapter positions on live stream.
+								if (dcmDuration > 0)
+								{
+									int msDuration = int(dcmDuration * 1000);
+									msTime -= msDuration;
+									// Negative number means the past
+								}
+								else
+								{
+									msTime = 0;
+								}
 							}
-							else
+							dic["time"] = formatInt(msTime);
+							dicsChapter.insertLast(dic);
+							if (cfg.csl > 1)
 							{
-								cptStartTime = 0;
+								HostPrintUTF8("chapter: " + msTime + ": " + chptTitle);
 							}
 						}
-						dic["time"] = formatInt(int(cptStartTime * 1000));	// milli-second
-						dicsChapter.insertLast(dic);
 					}
 				}
 			}
 		}
-		if (dicsChapter.length() > 0) MetaData["chapter"] = dicsChapter;
+		if (isYoutube && !isLive && !cfg.getStr("YOUTUBE", "sponsor_block").empty())
+		{
+			JsonValue jSBChapters = root["sponsorblock_chapters"];
+			if (jSBChapters.isArray())
+			{
+				string mainChapterTitle = "<main>";
+				
+				for(uint i = 0; i < SB_CATEGORIES.length(); i++)
+				{
+					string category = SB_CATEGORIES[i];
+					
+					for(int j = 0; j < jSBChapters.size(); j++)
+					{
+						JsonValue jSBChapter = jSBChapters[j];
+						if (jSBChapter.isObject())
+						{
+							string chptTitle1 = _GetJsonValueString(jSBChapter, "title");
+							if (chptTitle1.find(category) >= 0)
+							{
+								chptTitle1 = _ReviseSBChapter(chptTitle1);
+								int msTime1 = int(_GetJsonValueFloat(jSBChapter, "start_time") * 1000);	// millisecond
+								int msTime2 = int(_GetJsonValueFloat(jSBChapter, "end_time") * 1000);	// millisecond
+								if (msTime1 >= 0 && msTime2 > msTime1)
+								{
+									string chptTitle2;
+									_RemoveChptRange(dicsChapter, msTime1, msTime2, chptTitle2);
+									if (chptTitle2.empty()) chptTitle2 = mainChapterTitle;
+									
+									dictionary dic1;
+									dic1["title"] = chptTitle1;
+									dic1["time"] = formatInt(msTime1);
+									dicsChapter.insertLast(dic1);
+									if (cfg.csl > 1)
+									{
+										HostPrintUTF8("SB chapter start: " + msTime1 + ": " + chptTitle1);
+									}
+									
+									dictionary dic2;
+									int msDuration = int(dcmDuration * 1000);
+									if (msDuration <= 0 || msDuration > msTime2 + SB_THSH_TIME)
+									{
+										dic2["title"] = chptTitle2;
+										dic2["time"] = formatInt(msTime2);
+										dicsChapter.insertLast(dic2);
+										if (cfg.csl > 1)
+										{
+											HostPrintUTF8("SB chapter end: " + msTime2 + ": " + chptTitle2);
+										}
+									}
+								}
+							}
+						}
+					}
+				}
+				
+				if (dicsChapter.length() > 0)
+				{
+					bool existFirst = false;
+					for (uint i = 0; i < dicsChapter.length(); i++)
+					{
+						int msTime = parseInt(string(dicsChapter[i]["time"]));
+						if (msTime == 0)
+						{
+							existFirst = true;
+							break;
+						}
+					}
+					if (!existFirst)
+					{
+						dictionary dic;
+						dic["title"] = mainChapterTitle;
+						dic["time"] = "0";
+						dicsChapter.insertAt(0, dic);
+						
+						if (cfg.csl > 1)
+						{
+							HostPrintUTF8("SB chapter start: 0: " + mainChapterTitle);
+						}
+					}
+				}
+			}
+		}
+		if (dicsChapter.length() > 0)
+		{
+			MetaData["chapter"] = dicsChapter;
+			
+			if (cfg.csl > 1) HostPrintUTF8("\r\n");
+		}
 	}
+	
 	if (_CheckStartTime(startTime, path)) return "";
 	
 	if (cfg.csl > 0)
