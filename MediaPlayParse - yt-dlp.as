@@ -5,7 +5,7 @@
   Placed in \PotPlayer\Extension\Media\PlayParse\
 *************************************************************/
 
-string SCRIPT_VERSION = "251212.1";
+string SCRIPT_VERSION = "251213";
 
 
 string YTDLP_EXE = "yt-dlp.exe";
@@ -30,16 +30,16 @@ string USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.3
 // For SponsorBlock
 // The lower a category is on the list, the higher its priority.
 array<string> SB_CATEGORIES = {
-	"Non-Music",	// music_offtopic
-	"Intermission/Intro Animation",	// intro
-	"Endcards/Credits",		// outro
-	"Preview/Recap",	// preview
-	"Hook/Greetings",	// hook
-	"Tangents/Jokes",	// filler
-	"Unpaid/Self Promotion",	// selfpromo
-	"Interaction Reminder",	// interaction
-	"Sponsor",	// sponsor
-	"Highlight"	// poi_highlight
+	"music_offtopic",	// Non-Music
+	"intro",		// Intermission/Intro Animation
+	"outro",		// Endcards/Credits
+	"preview",		// Preview/Recap
+	"hook",			// Hook/Greetings
+	"filler",		// Filler Tangent (Tangents/Jokes)
+	"selfpromo",		// Unpaid/Self Promotion
+	"interaction",		// Interaction Reminder
+	"sponsor",		// Sponsor
+	"poi_highlight"		// Highlight
 };
 
 int SB_THSH_TIME = 2000;
@@ -6232,28 +6232,30 @@ string PlayitemParse(const string &in path, dictionary &MetaData, array<dictiona
 			if (jSBChapters.isArray())
 			{
 				string untitledChptName = "<Untitled Chapter>";
-				if (dicsChapter.length() > 0 && string(dicsChapter[0]["title"]) == "<Untitled Chapter 1>")
+				if (dicsChapter.length() > 0)
 				{
-					dicsChapter[0]["title"] = untitledChptName;
+					if (string(dicsChapter[0]["title"]) == "<Untitled Chapter 1>")
+					{
+						dicsChapter[0]["title"] = untitledChptName;
+					}
 				}
 				
 				for(uint i = 0; i < SB_CATEGORIES.length(); i++)
 				{
-					string category = SB_CATEGORIES[i];
-					
 					for(int j = 0; j < jSBChapters.size(); j++)
 					{
 						JsonValue jSBChapter = jSBChapters[j];
 						if (jSBChapter.isObject())
 						{
-							string chptTitle1 = _GetJsonValueString(jSBChapter, "title");
-							if (chptTitle1.find(category) >= 0)
+							string category = _GetJsonValueString(jSBChapter, "category");
+							if (category == SB_CATEGORIES[i])
 							{
-								chptTitle1 = _ReviseSBChapter(chptTitle1);
+								string chptTitle = _GetJsonValueString(jSBChapter, "title");
 								int msTime1 = int(_GetJsonValueFloat(jSBChapter, "start_time") * 1000);	// millisecond
 								int msTime2 = int(_GetJsonValueFloat(jSBChapter, "end_time") * 1000);	// millisecond
-								if (msTime1 >= 0 && msTime2 > msTime1)
+								if (!chptTitle.empty() && msTime1 >= 0 && msTime2 > msTime1)
 								{
+									string chptTitle1 = _ReviseSBChapter(chptTitle);
 									string chptTitle2;
 									_RemoveChptRange(dicsChapter, msTime1, msTime2, chptTitle2);
 									if (chptTitle2.empty()) chptTitle2 = untitledChptName;
@@ -6267,10 +6269,10 @@ string PlayitemParse(const string &in path, dictionary &MetaData, array<dictiona
 										HostPrintUTF8("SB chapter start: " + msTime1 + ": " + chptTitle1);
 									}
 									
-									dictionary dic2;
 									int msDuration = int(dcmDuration * 1000);
 									if (msDuration <= 0 || msDuration > msTime2 + SB_THSH_TIME)
 									{
+										dictionary dic2;
 										dic2["title"] = chptTitle2;
 										dic2["time"] = formatInt(msTime2);
 										dicsChapter.insertLast(dic2);
@@ -6306,7 +6308,7 @@ string PlayitemParse(const string &in path, dictionary &MetaData, array<dictiona
 						
 						if (cfg.csl > 1)
 						{
-							HostPrintUTF8("SB chapter start: 0: " + untitledChptName);
+							HostPrintUTF8("first chapter add: 0: " + untitledChptName);
 						}
 					}
 				}
