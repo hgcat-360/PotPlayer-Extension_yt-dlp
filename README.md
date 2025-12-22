@@ -1,4 +1,5 @@
-﻿﻿# Parse Streaming with yt-dlp - PotPlayer Extension
+﻿﻿
+# Parse Streaming with yt-dlp - PotPlayer Extension
 
 ## Overview
 
@@ -72,7 +73,7 @@ Make sure that PotPlayer is installed in advance.
    >  
    > ![2025-03-16\_02h06\_39](https://github.com/user-attachments/assets/fa517e1c-e837-4326-aff1-c4255994c96b)
 
-4. Try opening URLs from various online video/audio services in PotPlayer.  
+4. Try opening URLs from various online video/audio services with PotPlayer.  
 	>  
 	> ![2025-08-14_20h](https://github.com/user-attachments/assets/6032150e-fe3c-4061-8b33-2055f7c5eb82)
 
@@ -126,42 +127,14 @@ See: [https://github.com/yt-dlp/yt-dlp/blob/master/README.md#update](https://git
 This extension supports automatic updates of *yt-dlp.exe*.  
 When using the nightly channel, the updater will track and install nightly builds automatically.  
 
-## Extracting Playlists
-
-### Support for Website Playlists
-
-Each website may provide its own playlist features.  
-PotPlayer can extract YouTube playlists by default, and this extension adds support for playlists from many other sites — including YouTube.  
-When you open a playlist URL, the yt-dlp extension will import its items into PotPlayer’s playlist if yt-dlp supports that playlist.  
-
-While website playlists vary widely, yt-dlp only supports limited types.  
-Moreover, small playlists may load completely, but large ones may fail to load fully even after a long wait.
-
-### Playlist or Single Video
-
-For YouTube, some URLs contain both a single video and a playlist (e.g., https://www.youtube.com/watch?v=XXXXX&list=YYYYY) and may not look like playlists at first glance.  
-PotPlayer treats these as playlists by default, but this extension does not.  
-Therefore, enabling the YouTube playlist processing in this extension helps prevent unintended imports of a large number of videos all at once.  
-In that case, if you want to treat a certain YouTube URL as a playlist, make sure that the URL includes only a playlist ID without any video ID (e.g., https://www.youtube.com/playlist?list=YYYYY).  
-
-For various websites including YouTube, you can set playlist handling (if supported) in the [TARGET] section of the configuration file.
-
-### External Playlist Albums
-
-In PotPlayer, a playlist in its own format is called an **album**.  
-As with YouTube, this extension also allows you to create an album as an "***external playlist***" from a playlist URL on non-YouTube websites.  
-An "*external playlist*" is automatically updated with the latest streaming content whenever you click its album tab to bring it into focus in the playlist panel.  
-
-![2025-08-15\_03h58\_09](https://github.com/user-attachments/assets/27ebd5fe-de63-449a-9ca1-a5eb2aaefa5e)
-(For YouTube, you can use an external-playlist album without the yt-dlp extension.)
-
 ## Notes
 
 ### Process Not Responding
 
 After PotPlayer invokes *yt-dlp.exe* through the yt-dlp extension. it takes some time to obtain the available links.  
 When extracting a large playlist, the import may take over five minutes to complete.  
-Aside from this, *yt-dlp.exe* may occasionally hang due to failed connections to the target server or errors in interpreting the URL content.
+If necessary, adjust the timeout settings in the [TARGET] section of the configuration file, especially ***playlist_metadata_timeout***.  
+Aside from this, *yt-dlp.exe* may occasionally hang due to failed connections to the target server or errors in interpreting the URL content.  
 
 In these situations, PotPlayer will remain stuck in the “*preparing to play*” state.  
 If the playback does not start even after waiting, press PotPlayer's Stop button to halt the loading process.  
@@ -187,7 +160,7 @@ Even when using the yt-dlp extension, PotPlayer cannot play media content from s
 | --------------------------------------- | ------------------------------------------ | --------------------------- |
 | Default PotPlayer (built-in)           | normal viewing                              | not available                |
 | yt-dlp extention                          | when default is restricted                | regular content            |
-| yt-dlp extention +login                | login-only content / when restricted | login-lnly content          |
+| yt-dlp extention +login                | login-only content / when restricted | login-only content          |
 | yt-dlp extention +login +poToken | when strongly restricted                 | (ignore poToken)           |
 | Internet Brower (Chrome etc.)      | most reliable for viewing                | most reliable for viewing |
 
@@ -197,7 +170,7 @@ For login, see [Get Cookies and Login](#get-cookies-and-login).
 For poToken, see [PO Token Guide](https://github.com/yt-dlp/yt-dlp/wiki/PO-Token-Guide) and specify it in the extension's configuration file.  
 
 In its default method of accessing YouTube, PotPlayer does not require cookies or login.  
-However, it includes built-in workarounds that can bypass some YouTube restrictions more effectively than using the yt-dlp extension without cookies.  
+However, PotPlayer includes built-in workarounds that can bypass some YouTube restrictions more effectively than using the yt-dlp extension without cookies.  
 
 It may seem that the lower options in this table are always superior for viewing capability, but sometimes you may not be able to play YouTube with login even though playback works without login.  
 This depends on which connections YouTube is restricting at that time.  
@@ -334,6 +307,130 @@ With the "stable method" above. PotPlayer/yt-dlp will not be affected by the Fir
 
 Unless you log out, cookies usually last for months, but they can expire or be invalidated at any time.  
 If that happens, recreate the cookie file.  
+
+## Extracting Playlists
+
+### Support for Website Playlists
+
+Each website may provide its own playlist features.  
+PotPlayer can extract YouTube playlists by default, and this extension adds support for playlists from many other sites — including YouTube.  
+When you open a playlist URL, the yt-dlp extension will import its items into PotPlayer’s playlist if yt-dlp supports that playlist.  
+
+While website playlists vary widely, yt-dlp only supports limited types.  
+Moreover, small playlists may load completely, but large ones may fail to load fully even after a long wait.
+
+### Playlist or Single Video
+
+For YouTube, some URLs contain both a single video and a playlist (e.g., https://www.youtube.com/watch?v=XXXXX&list=YYYYY) and may not look like playlists at first glance.  
+PotPlayer treats these as playlists by default, but this extension does not.  
+Therefore, enabling the YouTube playlist processing in this extension helps prevent unintended imports of a large number of videos all at once.  
+In that case, if you want to treat a certain YouTube URL as a playlist, make sure that the URL includes only a playlist ID without any video ID (e.g., https://www.youtube.com/playlist?list=YYYYY).  
+
+For various websites including YouTube, you can set playlist handling (if supported) in the [TARGET] section of the configuration file.
+
+### External Playlist Albums
+
+In PotPlayer, a playlist in its own format is called an **album**.  
+As with YouTube, this extension also allows you to create an album as an "***external playlist***" from a playlist URL on non-YouTube websites.  
+An "*external playlist*" is automatically updated with the latest streaming content whenever you click its album tab to bring it into focus in the playlist panel.  
+
+![2025-08-15\_03h58\_09](https://github.com/user-attachments/assets/27ebd5fe-de63-449a-9ca1-a5eb2aaefa5e)
+
+(For YouTube, the yt-dlp extension is not required to use an external-playlist album.)
+
+## SponsorBlock on YouTube
+
+This extension supports [SponsorBlock](https://sponsor.ajay.app/) starting from version 251213.  
+You can skip sponsor segments in YouTube videos using SponsorBlock chapters.  
+These chapters are submitted by general viewers using web browsers and thier SponsorBlock browser extension.  
+(If a video has no submitted chapters yet, this method of skipping is not available for that video.)  
+
+These sponsored or promotional segments are parts of the video itself.  
+If a video already contains its own chapters, they may be partially overwritten by SponsorBlock chapters.  
+
+SponsorBlock provides various categories in addition to *sponsor*.  
+Below is a complex chapter example ([page](https://www.youtube.com/watch?v=4Y4w5OspCDs#requiredSegment=8b288d470b4f8229e478825c2d21070e6bbdb9bc0f03d8ec12879b86d512a7b67)):  
+
+![2025-12-21_04h15_00](https://github.com/user-attachments/assets/b07802a9-6f30-4604-85da-c9271b311eef)
+
+SponsorBlock chapters have the prefix `<SB` in their titles, which is added by this yt-dlp extension.  
+
+### Categories
+
+Available categeries (See [the SponsorBlock Guidelines](https://wiki.sponsor.ajay.app/w/Guidelines)) :
+|Category (`SponsorBlock`)|Category (`yt-dlp`)|Chapter Title (`yt-dlp Extension`)|
+| ---- | ---- | ---- |
+|[`Highlight`](https://wiki.sponsor.ajay.app/w/Highlight)|**`poi_highlight`**|`<SB-Highlight>`|
+|[`Sponsor`](https://wiki.sponsor.ajay.app/w/Sponsor)|**`sponsor`**|`<SB/Sponsor>`|
+|[`Interaction Reminder (Subscribe)`](https://wiki.sponsor.ajay.app/w/Interaction_Reminder_(Subscribe))|**`interaction`**|`<SB/Interaction Reminder>`|
+|[`Unpaid/Self Promotion`](https://wiki.sponsor.ajay.app/w/Unpaid/Self_Promotion)|**`selfpromo`**|`<SB/Unpaid/Self Promotion>`|
+|[`Tangents/Jokes`](https://wiki.sponsor.ajay.app/w/Tangents/Jokes)|**`filler`**|`<SB/Filler Tangent>`|
+|[`Hook/Greetings`](https://wiki.sponsor.ajay.app/w/Hook/Greetings)|**`hook`**|`<SB/Hook/Greetings>`|
+|[`Preview/Recap`](https://wiki.sponsor.ajay.app/w/Preview/Recap)|**`preview`**|`<SB/Preview/Recap>`|
+|[`Intermission/Intro Animation`](https://wiki.sponsor.ajay.app/w/Intermission/Intro_Animation)|**`intro`**|`<SB/Intermission/Intro Animation>`|
+|[`Endcards/Credits`](https://wiki.sponsor.ajay.app/w/Endcards/Credits)|**`outro`**|`<SB/Endcards/Credits>`|
+|[`Music: Non-Music Section`](https://wiki.sponsor.ajay.app/w/Music:_Non-Music_Section)|**`music_offtopic`**|`<SB/Non-Music Section>`|
+
+Most of the category names in SponsorBlock differ from those used by yt-dlp due to changes across versions.  
+
+Each category has a priority in this yt-dlp extension.  
+**Categories listed higher in the table have higher priority.**  
+
+To enable SponsorBlock in the yt-dlp extension, set the desired yt-dlp categories using the ***sponsor_block*** option in the [YOUTUBE] section of the configuration file:  
+```
+sponsor_block=sponsor, interaction, selfpromo, music_offtopic
+```
+To use all categories, use ***all*** :  
+```
+sponsor_block=all
+```
+To exclude specific categories, prefix them with a minus sign (-) :  
+```
+sponsor_block=all, -preview, -filler
+```
+
+>Be careful with category priorities when configuring this setting.  
+>For example, ***music_offtopic*** chapters in music videos often cover relatively large areas of the video and may overlap with other categories.  
+>As a result, they may be overwritten by higher-priority chapters (such as *intro* or *outro*) and become invisible when using *all* as categories.  
+
+>Unlike other categories, ***poi_highlight*** is not intended to serve as a chapter but a single point marking the beginning of an important section.  
+>In PotPlayer, it is displayed as a very short one-second chapter and is not used for skipping video segments.  
+
+### Skip Feature in PotPlayer
+
+In PotPlayer, any chapter can be skipped using the following commands.  
+- ***Next Bookmark/Chapter*** : Shift+PgDn (default key, configurable)  
+- ***Prev Bookmark/Chapter*** : Shift+PgUp (default key, configurable)  
+
+In addition, PotPlayer provides an **auto-skip feature** that automatically skip chapters with specified titles.  
+This is especially useful for SponsorBlock chapters.  
+
+To configure auto-skip, open the *Skip Setup* dialog:  
+> PotPlayer's main menu (right click the main window) > Playback > Skip > Skip Setup
+
+![2025-12-21_03h28_13](https://github.com/user-attachments/assets/9158989e-a395-49af-960a-bb6394396e1c)
+
+Then configure the following options:  
+1. *Enable skip feature* > On  
+2. *Chapter title* > On  
+3. Enter target strings in the chapter field  
+
+The specified strings must appear in the chapter titles you want to skip.  
+Multiple strings can be separated by semicolons (;). **Don't include spaces** in them.  
+
+Example:  
+
+```
+SB/Sponsor;SB/Unpaid;SB/Interaction
+```
+
+To match all SponsorBlock chapters at once (except for *Highlight*):  
+
+```
+<SB/
+```
+
+This matching is case-insensitive.  
 
 ## History
 

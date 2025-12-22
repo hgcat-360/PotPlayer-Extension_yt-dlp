@@ -5,7 +5,7 @@
   Placed in \PotPlayer\Extension\Media\PlayParse\
 *************************************************************/
 
-string SCRIPT_VERSION = "251213";
+string SCRIPT_VERSION = "251222";
 
 
 string YTDLP_EXE = "yt-dlp.exe";
@@ -30,9 +30,9 @@ string USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.3
 // For SponsorBlock
 // The lower a category is on the list, the higher its priority.
 array<string> SB_CATEGORIES = {
-	"music_offtopic",	// Non-Music
-	"intro",		// Intermission/Intro Animation
+	"music_offtopic",	// Non-Music Section
 	"outro",		// Endcards/Credits
+	"intro",		// Intermission/Intro Animation
 	"preview",		// Preview/Recap
 	"hook",			// Hook/Greetings
 	"filler",		// Filler Tangent (Tangents/Jokes)
@@ -44,6 +44,19 @@ array<string> SB_CATEGORIES = {
 
 int SB_THSH_TIME = 2000;
 	// Threshold time (millisecond) for SponsorBlock
+
+
+array<string> YT_BASE_LNAGS = {
+	"af", "az", "id", "ms", "bs", "ca", "cs", "da", "de", "et",
+	"en-IN", "en-GB", "en", "es", "es-419", "es-US", "eu", "fil",
+	"fr", "fr-CA", "gl", "hr", "zu", "is", "it", "sw", "lv",
+	"lt", "hu", "nl", "no", "uz", "pl", "pt-PT", "pt", "ro",
+	"sq", "sk", "sl", "sr-Latn", "fi", "sv", "vi", "tr", "be",
+	"bg", "ky", "kk", "mk", "mn", "ru", "sr", "uk", "el", "hy",
+	"iw", "ur", "ar", "fa", "ne", "mr", "hi", "as", "bn", "pa",
+	"gu", "or", "ta", "te", "kn", "ml", "si", "th", "lo", "my",
+	"ka", "am", "km", "zh-CN", "zh-TW", "zh-HK", "ja", "ko"
+};
 
 
 
@@ -177,8 +190,9 @@ class FileConfig
 						if (pos < 0 || pos > 10)
 						{
 							msg =
-							"This default config file is for a DIFFERENT VERSION of the script.\r\n"
-							"Please use the one for [" + curVer + "].\r\n\r\n";
+							"This default config file is for a different version of the script.\r\n"
+							"Try clicking the [Reload files] button.\r\n\r\n"
+							"If the problem continues, check the versions of both the script and the following file.\r\n\r\n";
 						}
 					}
 				}
@@ -349,6 +363,7 @@ class CFG
 	// specific properties of each script
 	int csl = 0;	// console out
 	string baseLang;
+	array<string> autoSubLangs = {};
 	
 	string _escapeQuote(string str)
 	{
@@ -992,12 +1007,36 @@ class CFG
 		
 		fc.closeFileCst(fp, str2 != str0, str2);
 		
+		// specific properties of each script
 		{
-			// specific properties of each script
 			csl = getInt("MAINTENANCE", "console_out");
 			if (csl < 0 || csl > 3) csl = 0;
+			
 			baseLang = getStr("YOUTUBE", "base_lang");
-			if (baseLang.empty()) baseLang = HostIso639LangName();
+			if (baseLang.empty())
+			{
+				baseLang = _GetIso639LangName();
+				string baseLang2 = baseLang + "-" + HostIso3166CtryName();
+				if (YT_BASE_LNAGS.find(baseLang2) >= 0)
+				{
+					baseLang = baseLang2;
+				}
+				else if (YT_BASE_LNAGS.find(baseLang) < 0)
+				{
+					baseLang = "en";
+				}
+			}
+			autoSubLangs.removeRange(0, autoSubLangs.length());
+			string asLang = getStr("YOUTUBE", "auto_sub_lang");
+			if (asLang.empty())
+			{
+				string _lang = _GetIso639LangName();
+				if (!_lang.empty()) autoSubLangs.insertLast(_lang);
+			}
+			else
+			{
+				autoSubLangs = sch.trimSplit(asLang, ",");
+			}
 		}
 		
 		return true;
@@ -1259,7 +1298,7 @@ class SCH
 		bool caseInsens = false;
 		if (reg.Left(4) == "(?i)")
 		{
-			// Case-insensitive (not available to HostRegExpParse)
+			// Case-insensitive (not available for HostRegExpParse)
 			caseInsens = true;
 			reg = reg.substr(4);
 			str.MakeLower();
@@ -1409,6 +1448,16 @@ class SCH
 			if (pos2 < 0) pos2 = str.length();
 			str.erase(pos1, pos2 - pos1);
 		}
+	}
+	
+	array<string> trimSplit(string data, string dlmt)
+	{
+		array<string> arr = data.split(dlmt);
+		for (uint i = 0; i < arr.length(); i++)
+		{
+			arr[i] = arr[i].Trim();
+		}
+		return arr;
 	}
 	
 	bool isSameDesc(string s1, string s2)
@@ -2200,22 +2249,16 @@ class YTDLP
 	
 	bool _checkLogLanguageCode(string log)
 	{
-		int pos = sch.findRegExp(log, "(?i)\nERROR: \\[youtube\\] [^\r\n]*(Unsupported language code:)");
-		if (pos >= 0)
+		int pos1 = sch.findRegExp(log, "(?i)\nERROR: \\[youtube\\] [^\r\n]*(Unsupported language code:)");
+		if (pos1 >= 0)
 		{
 			if (cfg.csl > 0) HostPrintUTF8("[yt-dlp] ERROR! Your language code [base_lang] is not supported for the menu label on YouTube.\r\n");
-			string msg;
-			string str = log.substr(pos);
-			pos = sch.findEol(str, 0);
-			str = str.Left(pos);
-			pos = sch.findRegExp(str, " Supported language codes");
+			int pos2 = sch.findEol(log, pos1);
+			string msg = log.substr(pos1, pos2 - pos1);
+			int pos = sch.findRegExp(msg, ". Supported language codes");
 			if (pos >= 0)
 			{
-				msg = str.Left(pos) + "\r\n\r\n" + str.substr(pos + 1);
-			}
-			else
-			{
-				msg = str;
+				msg = msg.Left(pos) + "\r\n\r\n" + msg.substr(pos + 2);
 			}
 			if (cfg.getStr("YOUTUBE", "base_lang").empty())
 			{
@@ -2224,8 +2267,8 @@ class YTDLP
 			}
 			else
 			{
-				msg += "\r\n\r\nChage the following setting:";
 				cfg.cmtoutKey("YOUTUBE", "base_lang");
+				msg += "\r\n\r\nChage the following setting:";
 			}
 			msg += "\r\nConfig File > [YOUTUBE] > base_lang";
 			HostMessageBox(msg, "[yt-dlp] ERROR: Language Code", 0, 0);
@@ -2466,10 +2509,10 @@ class YTDLP
 			
 			if (isYoutube)
 			{
-				string spbl = cfg.getStr("YOUTUBE", "sponsor_block");
-				if (!spbl.empty())
+				string sb = cfg.getStr("YOUTUBE", "sponsor_block");
+				if (!sb.empty())
 				{
-					options += " --sponsorblock-mark " + qt(spbl);
+					options += " --sponsorblock-mark " + qt(sb);
 				}
 			}
 		}
@@ -2602,7 +2645,7 @@ class YTDLP
 			{
 				msg += "Extracting nested playlist entries... - ";
 			}
-			if (singleMode == -1)
+			else if (singleMode == -1)
 			{
 				msg += "Collecting thumbnails... - ";
 			}
@@ -3312,6 +3355,15 @@ string GetDesc()
 }
 
 
+string _GetIso639LangName()
+{
+	string lang = HostIso639LangName();
+	if (lang == "he") lang = "iw";	// Hebrew
+	else if (lang == "tl") lang = "fil";	// Filipino
+	return lang;
+}
+
+
 bool _IsExtType(string ext, int type)
 {
 	if (ext.empty()) return false;
@@ -3621,7 +3673,7 @@ string _GetHttpContent(string url, int maxTime, int range, bool isInsecure)
 	else if (range > 0)
 	{
 		options += " -r 0-" + range;
-		// Not available to dynamic pages that change playlists
+		// Not available for dynamic pages that change playlists
 	}
 	//options += " --max-filesize " + fileSize;
 	if (isInsecure)
@@ -3736,42 +3788,26 @@ int _WebsitePlaylistMode(string url)
 {
 	int mode = cfg.getInt("TARGET", "website_playlist_standard");
 	if (mode < 0 || mode > 2) mode = 0;
+	string domain = _GetUrlDomain(url);
 	
 	string data = cfg.getStr("TARGET", "website_playlist_each");
 	data.MakeLower();
-	array<dictionary> dicsMode;
+	array<string> arrData = sch.trimSplit(data, ",");
 	
-	int pos1 = -1;
-	int pos2 = 0;
-	while (pos2 > pos1)
+	for (uint i = 0; i < arrData.length(); i++)
 	{
-		pos1 = pos2;
-		array<dictionary> match;
-		pos2 = sch.regExpParse(data, "([^: ,]+): ?(\\d)\\b", match, pos1);
-		if (pos2 >= 0)
+		array<string> item = sch.trimSplit(arrData[i], ":");
+		string _domain = item[0];
+		if (domain.find(_domain) >= 0)
 		{
-			dictionary dic;
-			dic["name"] = string(match[1]["str"]);
-			dic["mode"] = parseInt(string(match[2]["str"]));
-			dicsMode.insertLast(dic);
-			string _s = string(match[0]["str"]);
-			pos2 += _s.length();
-			if (data.substr(pos2, 1) != ",") break;
+			int _mode = parseInt(item[1]);
+			if (_mode >= 0 && _mode <= 2)
+			{
+				mode = _mode;
+				break;
+			}
 		}
 	}
-	
-	string domain = _GetUrlDomain(url);
-	for (uint i = 0; i < dicsMode.length(); i++)
-	{
-		string name = string(dicsMode[i]["name"]);
-		if (domain.find(name) >= 0)
-		{
-			int _mode = int(dicsMode[i]["mode"]);
-			if (_mode >= 0 && _mode <= 2) mode = _mode;
-			break;
-		}
-	}
-	
 	return mode;
 }
 
@@ -4885,8 +4921,30 @@ string _ReviseDate(string date)
 string _ReviseSBChapter(string chptTitle)
 {
 	// For SponsorBlock
-	chptTitle = "<SB/" + chptTitle + ">";
+	string prefix = "SB";
+	if (chptTitle.find("Highlight") >= 0)
+	{
+		// Highlight is used differently from the other categories
+		prefix += "-";
+	}
+	else
+	{
+		prefix += "/";
+	}
+	chptTitle = "<" + prefix + chptTitle + ">";
 	return chptTitle;
+}
+
+bool _IsRTLLang(string langCode)
+{
+	array<string> RTL_LNAGS = {
+		"ar", "fa", "ur", "iw", "ps", "sd", "ug", "dv", "yi", "he"
+	};
+	
+	int pos = langCode.find("-");
+	if (pos >= 0) langCode = langCode.Left(pos);
+	if (RTL_LNAGS.find(langCode) >= 0) return true;
+	return false;
 }
 
 bool _isGeneric(string extractor)
@@ -4984,21 +5042,27 @@ bool _SelectAutoSub(string code, array<dictionary> dicsSub)
 		// original language of contents
 		lang = code.Left(pos);
 	}
-	else if (sch.findRegExp(code, "(?i)^" + sch.escapeReg(cfg.baseLang) + "\\b") >= 0)
+	else
 	{
-		// user's base language
-		// If baseLang is "pt", both "pt-BR" and "pt-PT" are considered to be match.
-		lang = code;
+		for (uint i = 0; i < cfg.autoSubLangs.length(); i++)
+		{
+			string _lang = cfg.autoSubLangs[i];
+			if (sch.findRegExp(code, "(?i)^" + sch.escapeReg(_lang) + "\\b") >= 0)
+			{
+				// If _lang is "zh", both "zh-Hans" and "zh-Hant" are match.
+				lang = code;
+				break;
+			}
+		}
 	}
 	
 	if (lang.empty()) return false;
 	
 	for (uint i = 0; i <dicsSub.length(); i++)
 	{
-		string code1;
-		if (dicsSub[i].get("langCode", code1))
+		string _code = string(dicsSub[i]["langCode"]);
 		{
-			if (lang == code1) return false;	// duplicate
+			if (lang == _code) return false;	// duplicate
 		}
 	}
 	
@@ -5024,7 +5088,10 @@ uint _RemoveChptRange(array<dictionary> &inout dicsChapter, int msTime1, int msT
 			if (cfg.csl > 1)
 			{
 				string title0 = string(dic["title"]);
-				HostPrintUTF8("SB chapter remove: " + time0 + ": " + title0);
+				if (cfg.csl > 1)
+				{
+					HostPrintUTF8("SB Chapter Removed: " + time0 + ": " + title0);
+				}
 			}
 			cnt++;
 		}
@@ -6094,22 +6161,9 @@ string PlayitemParse(const string &in path, dictionary &MetaData, array<dictiona
 					string subUrl = _GetJsonValueString(jSub, "url");
 					if (!subUrl.empty())
 					{
-						{
-							// .vtt.m3u8 -> .vtt
-							int pos = sch.findRegExp(subUrl, "(?i)\\.vtt(\\.m3u8)(?:\\?.*)?$");
-							if (pos > 0) subUrl.erase(pos, 5);
-						}
-						if (isYoutube)
-						{
-							// Remove unstable position data on youtube
-							// &fmt=vtt -> &fmt=srt
-							int pos = sch.findRegExp(subUrl, "(?i)&fmt=(vtt)\\b");
-							if (pos > 0)
-							{
-								subUrl.erase(pos, 3);
-								subUrl.insert(pos, "srt");
-							}
-						}
+						// .vtt.m3u8 -> .vtt
+						int pos = sch.findRegExp(subUrl, "(?i)\\.vtt(\\.m3u8)(?:\\?.*)?$");
+						if (pos > 0) subUrl.erase(pos, 5);
 					}
 					string subData = _GetJsonValueString(jSub, "data");
 					
@@ -6119,7 +6173,6 @@ string PlayitemParse(const string &in path, dictionary &MetaData, array<dictiona
 						dic["langCode"] = langCode;
 						if (!subUrl.empty()) dic["url"] = subUrl;
 						if (!subData.empty()) dic["data"] = subData;
-//HostPrintUTF8("sub lang: " + langCode + "\turl: " + subUrl);
 						string subName = _GetJsonValueString(jSub, "name");
 						if (!subName.empty()) dic["name"] = subName;
 						if (sch.findRegExp(langCode, "(?i)\\bAuto") >= 0)
@@ -6128,6 +6181,10 @@ string PlayitemParse(const string &in path, dictionary &MetaData, array<dictiona
 							dic["kind"] = "asr";
 						}
 						dicsSub.insertLast(dic);
+						if (cfg.csl > 1)
+						{
+							HostPrintUTF8("Sub: " + langCode + ": " + subUrl);
+						}
 					}
 				}
 			}
@@ -6152,7 +6209,15 @@ string PlayitemParse(const string &in path, dictionary &MetaData, array<dictiona
 								string subExt = _GetJsonValueString(jSsub, "ext");
 								if (!subExt.empty())
 								{
-									if (sch.findI(subExt, "srt") >= 0)	// or vtt, srv
+									string targetSubExt = "vtt";
+									{
+										if (_IsRTLLang(langCode))
+										{
+											// PotPlayer has the problem to show RTL sbutitles dynamically.
+											targetSubExt = "srt";	// or "srv"
+										}
+									}
+									if (sch.findI(subExt, targetSubExt) >= 0)
 									{
 										string subUrl = _GetJsonValueString(jSsub, "url");
 										if (!subUrl.empty())
@@ -6164,13 +6229,14 @@ string PlayitemParse(const string &in path, dictionary &MetaData, array<dictiona
 											string subName = _GetJsonValueString(jSsub, "name");
 											if (!subName.empty())
 											{
-												if (subName.replace("(Original)", "(auto-generated)") == 0)
-												{
-													subName += " (auto-generated)";
-												}
+												subName += " (auto-generated)";
 												dic["name"] = subName;
 											}
 											dicsSub.insertLast(dic);
+											if (cfg.csl > 1)
+											{
+												HostPrintUTF8("Auto-Sub: " + langCode + ": " + subUrl);
+											}
 											break;
 										}
 									}
@@ -6181,7 +6247,11 @@ string PlayitemParse(const string &in path, dictionary &MetaData, array<dictiona
 				}
 			}
 		}
-		if (dicsSub.length() > 0) MetaData["subtitle"] = dicsSub;
+		if (dicsSub.length() > 0)
+		{
+			MetaData["subtitle"] = dicsSub;
+			if (cfg.csl > 1) HostPrintUTF8("\r\n");
+		}
 		
 		array<dictionary> dicsChapter;
 		JsonValue jChapters = root["chapters"];
@@ -6219,7 +6289,7 @@ string PlayitemParse(const string &in path, dictionary &MetaData, array<dictiona
 							dicsChapter.insertLast(dic);
 							if (cfg.csl > 1)
 							{
-								HostPrintUTF8("chapter: " + msTime + ": " + chptTitle);
+								HostPrintUTF8("Chapter: " + msTime + ": " + chptTitle);
 							}
 						}
 					}
@@ -6229,14 +6299,35 @@ string PlayitemParse(const string &in path, dictionary &MetaData, array<dictiona
 		if (isYoutube && !isLive && !cfg.getStr("YOUTUBE", "sponsor_block").empty())
 		{
 			JsonValue jSBChapters = root["sponsorblock_chapters"];
-			if (jSBChapters.isArray())
+			if (jSBChapters.isArray() && jSBChapters.size() > 0)
 			{
 				string untitledChptName = "<Untitled Chapter>";
-				if (dicsChapter.length() > 0)
+				int addFirst = 0;
+				if (dicsChapter.length() == 0)
 				{
-					if (string(dicsChapter[0]["title"]) == "<Untitled Chapter 1>")
+					addFirst = 1;
+				}
+				else if (parseInt(string(dicsChapter[0]["time"])) != 0)
+				{
+					addFirst = 1;
+				}
+				else if (string(dicsChapter[0]["title"]) == "<Untitled Chapter 1>")
+				{
+					dicsChapter[0]["title"] = untitledChptName;
+					addFirst = 2;
+				}
+				if (addFirst == 1)
+				{
+					dictionary dic;
+					dic["title"] = untitledChptName;
+					dic["time"] = "0";
+					dicsChapter.insertAt(0, dic);
+				}
+				if (addFirst > 0)
+				{
+					if (cfg.csl > 1)
 					{
-						dicsChapter[0]["title"] = untitledChptName;
+						HostPrintUTF8("First Chapter: 0: " + untitledChptName);
 					}
 				}
 				
@@ -6266,7 +6357,7 @@ string PlayitemParse(const string &in path, dictionary &MetaData, array<dictiona
 									dicsChapter.insertLast(dic1);
 									if (cfg.csl > 1)
 									{
-										HostPrintUTF8("SB chapter start: " + msTime1 + ": " + chptTitle1);
+										HostPrintUTF8("SB Chapter Start: " + msTime1 + ": " + chptTitle1);
 									}
 									
 									int msDuration = int(dcmDuration * 1000);
@@ -6278,37 +6369,11 @@ string PlayitemParse(const string &in path, dictionary &MetaData, array<dictiona
 										dicsChapter.insertLast(dic2);
 										if (cfg.csl > 1)
 										{
-											HostPrintUTF8("SB chapter end: " + msTime2 + ": " + chptTitle2);
+											HostPrintUTF8("SB Chapter End: " + msTime2 + ": " + chptTitle2);
 										}
 									}
 								}
 							}
-						}
-					}
-				}
-				
-				if (dicsChapter.length() > 0)
-				{
-					bool existFirst = false;
-					for (uint i = 0; i < dicsChapter.length(); i++)
-					{
-						int msTime = parseInt(string(dicsChapter[i]["time"]));
-						if (msTime == 0)
-						{
-							existFirst = true;
-							break;
-						}
-					}
-					if (!existFirst)
-					{
-						dictionary dic;
-						dic["title"] = untitledChptName;
-						dic["time"] = "0";
-						dicsChapter.insertAt(0, dic);
-						
-						if (cfg.csl > 1)
-						{
-							HostPrintUTF8("first chapter add: 0: " + untitledChptName);
 						}
 					}
 				}
@@ -6317,7 +6382,6 @@ string PlayitemParse(const string &in path, dictionary &MetaData, array<dictiona
 		if (dicsChapter.length() > 0)
 		{
 			MetaData["chapter"] = dicsChapter;
-			
 			if (cfg.csl > 1) HostPrintUTF8("\r\n");
 		}
 	}
@@ -6333,7 +6397,7 @@ string PlayitemParse(const string &in path, dictionary &MetaData, array<dictiona
 			bool checkJsChallenge = isYoutube ? ytd.checkLogJsChallenge(log) : false;
 			if (!isYoutube || checkJsChallenge)
 			{
-				string msg = "[yt-dlp] PotPlayer cannot play this stream. The cookies are required during playback.";
+				string msg = "[yt-dlp] PotPlayer may not play this stream. The cookies are required during playback.";
 				msg += " - " + ytd.qt(inUrl) + "\r\n";
 				if (checkJsChallenge)
 				{
