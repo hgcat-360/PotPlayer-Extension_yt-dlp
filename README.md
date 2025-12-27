@@ -28,7 +28,7 @@ The following applications are **not** included in this repository. Please obtai
 
 * [yt-dlp.exe](https://github.com/yt-dlp/yt-dlp/)  
 	*yt-dlp.exe* also provides nightly versions.  
-	See [Updating yt-dlp](#updating-yt--dlp.exe).  
+	See [Updating yt-dlp](#updating-yt-dlpexe).  
 
 Always using the latest versions is recommended for proper website support.  
 
