@@ -23,8 +23,12 @@ PotPlayer is a Windows-only media player, so this extension is intended for use 
 The following applications are **not** included in this repository. Please obtain them separately.  
 
 * [PotPlayer (**250226 or later**)](https://potplayer.tv/)  
+	Development versions are found in [the developer community](https://cafe.daum.net/pot-tool) (Korean).  
+	But using Google Translate may cause navigation errors on this site.  
 
 * [yt-dlp.exe](https://github.com/yt-dlp/yt-dlp/)  
+	*yt-dlp.exe* also provides nightly versions.  
+	See [Updating yt-dlp](#updating-yt--dlp.exe).  
 
 Always using the latest versions is recommended for proper website support.  
 
@@ -34,7 +38,7 @@ In addition, you may need the following commands:
 	At present, **yt-dlp** cannot fully support YouTube without an external JavaScript runtime such as **deno**.  
 	See: https://github.com/yt-dlp/yt-dlp/issues/15012  
 	When using **deno**, download ***deno-x86_64-pc-windows-msvc.zip*** from the release page.  
-	Place *deno.exe* in the same folder as *yt-dlp.exe*.  
+	Then place the extracted *deno.exe* in the same folder as *yt-dlp.exe*.  
 
 * [curl.exe](https://curl.se/windows/) -- Used to retrieve server data  
 	Some features of this extension do not work without **curl**.  
@@ -46,37 +50,39 @@ In addition, you may need the following commands:
 Follow these steps to install this extension.  
 Make sure that PotPlayer is installed in advance.  
 
-1. Extract the archive files to the script folder:  
+1. Download *Source code (zip)* from the Assets section of the release page.  
+   >  
+   > ![Set yt-dlp extension 0](https://github.com/user-attachments/assets/c22660f0-64f0-4152-b1a0-5c2f1394d758)  
+
+2. Extract the downloaded files to the script folder.  
    `(PotPlayer installation folder)\Extension\Media\PlayParse\`  
+   > ![Set yt-dlp extension 1](https://github.com/user-attachments/assets/91725632-5821-4356-9159-1e93603e2db5)  
+   >  
    > ***MediaPlayParse - yt-dlp.as*** and ***yt-dlp_default.ini*** are required.  
    > You must always update *yt-dlp_default.ini* at the same time as *MediaPlayParse - yt-dlp.as*.  
    > You can customize the icon of *MediaPlayParse - yt-dlp.as* with the *.ico files renamed.  
    > ***yt-dlp_radio1.jpg*** and ***yt-dlp_radio2.jpg*** are thumbnails for online radio, displayed in the PotPlayer's playlist panel.  
    >Other files in the repository are not required in this folder.
-   >  
-   > ![2025-03-16\_10h29\_04](https://github.com/user-attachments/assets/e3950518-e204-488f-a60c-36ba02e8c2fb)
 
-2. Place *yt-dlp.exe* in PotPlayer's module folder:  
+3. Place *yt-dlp.exe* in PotPlayer's module folder:  
     `(PotPlayer installation folder)\Module\`  
-   > You can change this folder with the ***ytdlp_location*** setting in the [MAINTENANCE] section of the configuration file.  
+   > ![Set yt-dlp extension 2](https://github.com/user-attachments/assets/10784fac-9397-40a8-8205-72208c5f28fa)  
+   >  
+   > You can change this folder using the ***ytdlp_location*** setting in the [MAINTENANCE] section of the configuration file.  
+   > Also place ***deno.exe*** in the same folder as *yt-dlp.exe* to ensure proper YouTube support.  
    > If *yt-dlp.exe* is not found, this script will return an error.  
-   >  
-   > ![2025-03-16\_12h03\_34](https://github.com/user-attachments/assets/9d395cb4-797c-4258-87c0-2db420056d1e)  
 
-3. Confirm that **yt-dlp** appears in PotPlayer's extension list:  
+4. Confirm that **yt-dlp** appears in PotPlayer's extension list:  
    `Preferences (F5) > Extensions > Media Playlist/Playitem`  
-   > If not visible, click [**Reload files**] or restart PotPlayer.  
-   >  
    > ![2025-03-16\_02h02\_06](https://github.com/user-attachments/assets/e4aa7177-7ba3-4f8a-8373-dbdd0d83f091)
    >  
+   > If not visible, click [**Reload files**] or restart PotPlayer.  
    > Also verify the extension detects the version of ***yt-dlp.exe*** in the **info** panel.  
    >  
    > ![2025-03-16\_02h06\_39](https://github.com/user-attachments/assets/fa517e1c-e837-4326-aff1-c4255994c96b)
 
-4. Try opening URLs from various online video/audio services with PotPlayer.  
-	>  
-	> ![2025-08-14_20h](https://github.com/user-attachments/assets/6032150e-fe3c-4061-8b33-2055f7c5eb82)
-
+5. Try opening URLs from various online video/audio services using PotPlayer.  
+   > ![Open URLs](https://github.com/user-attachments/assets/edee7d70-eb46-462e-a26c-aef92f4842ea)  
 
 ## Tune-up
 
@@ -132,7 +138,7 @@ When using the nightly channel, the updater will track and install nightly build
 ### Process Not Responding
 
 After PotPlayer invokes *yt-dlp.exe* through the yt-dlp extension. it takes some time to obtain the available links.  
-When extracting a large playlist, the import may take over five minutes to complete.  
+When extracting a large playlist, the import may take several minutes to complete.  
 If necessary, adjust the timeout settings in the [TARGET] section of the configuration file, especially ***playlist_metadata_timeout***.  
 Aside from this, *yt-dlp.exe* may occasionally hang due to failed connections to the target server or errors in interpreting the URL content.  
 
@@ -346,7 +352,7 @@ These chapters are submitted by general viewers using web browsers and thier Spo
 (If a video has no submitted chapters yet, this method of skipping is not available for that video.)  
 
 These sponsored or promotional segments are parts of the video itself.  
-If a video already contains its own chapters, they may be partially overwritten by SponsorBlock chapters.  
+If a video already contains its own chapters, they will be partially overwritten by SponsorBlock chapters.  
 
 SponsorBlock provides various categories in addition to *sponsor*.  
 Below is a complex chapter example ([page](https://www.youtube.com/watch?v=4Y4w5OspCDs#requiredSegment=8b288d470b4f8229e478825c2d21070e6bbdb9bc0f03d8ec12879b86d512a7b67)):  
@@ -376,7 +382,7 @@ Most of the category names in SponsorBlock differ from those used by yt-dlp due 
 Each category has a priority in this yt-dlp extension.  
 **Categories listed higher in the table have higher priority.**  
 
-To enable SponsorBlock in the yt-dlp extension, set the desired yt-dlp categories using the ***sponsor_block*** option in the [YOUTUBE] section of the configuration file:  
+To enable SponsorBlock in the yt-dlp extension, set the desired yt-dlp categories using the ***sponsor_block*** setting in the [YOUTUBE] section of the configuration file:  
 ```
 sponsor_block=sponsor, interaction, selfpromo, music_offtopic
 ```
@@ -410,13 +416,14 @@ To configure auto-skip, open the *Skip Setup* dialog:
 
 ![2025-12-21_03h28_13](https://github.com/user-attachments/assets/9158989e-a395-49af-960a-bb6394396e1c)
 
-Then configure the following options:  
+Then configure the following settings:  
 1. *Enable skip feature* > On  
 2. *Chapter title* > On  
 3. Enter target strings in the chapter field  
 
 The specified strings must appear in the chapter titles you want to skip.  
-Multiple strings can be separated by semicolons (;). **Don't include spaces** in them.  
+Multiple strings can be separated by semicolons (;).  
+Note that **a space after the semicolon is not allowed here**.  
 
 Example:  
 

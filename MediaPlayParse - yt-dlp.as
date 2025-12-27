@@ -5,7 +5,7 @@
   Placed in \PotPlayer\Extension\Media\PlayParse\
 *************************************************************/
 
-string SCRIPT_VERSION = "251222";
+string SCRIPT_VERSION = "251227";
 
 
 string YTDLP_EXE = "yt-dlp.exe";
@@ -27,40 +27,9 @@ string USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.3
 //string USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:144.0) Gecko/20100101 Firefox/144.0";	// firefox
 
 
-// For SponsorBlock
-// The lower a category is on the list, the higher its priority.
-array<string> SB_CATEGORIES = {
-	"music_offtopic",	// Non-Music Section
-	"outro",		// Endcards/Credits
-	"intro",		// Intermission/Intro Animation
-	"preview",		// Preview/Recap
-	"hook",			// Hook/Greetings
-	"filler",		// Filler Tangent (Tangents/Jokes)
-	"selfpromo",		// Unpaid/Self Promotion
-	"interaction",		// Interaction Reminder
-	"sponsor",		// Sponsor
-	"poi_highlight"		// Highlight
-};
-
-int SB_THSH_TIME = 2000;
-	// Threshold time (millisecond) for SponsorBlock
 
 
-array<string> YT_BASE_LNAGS = {
-	"af", "az", "id", "ms", "bs", "ca", "cs", "da", "de", "et",
-	"en-IN", "en-GB", "en", "es", "es-419", "es-US", "eu", "fil",
-	"fr", "fr-CA", "gl", "hr", "zu", "is", "it", "sw", "lv",
-	"lt", "hu", "nl", "no", "uz", "pl", "pt-PT", "pt", "ro",
-	"sq", "sk", "sl", "sr-Latn", "fi", "sv", "vi", "tr", "be",
-	"bg", "ky", "kk", "mk", "mn", "ru", "sr", "uk", "el", "hy",
-	"iw", "ur", "ar", "fa", "ne", "mr", "hi", "as", "bn", "pa",
-	"gu", "or", "ta", "te", "kn", "ml", "si", "th", "lo", "my",
-	"ka", "am", "km", "zh-CN", "zh-TW", "zh-HK", "ja", "ko"
-};
-
-
-
-class FileConfig
+class FILE_CONFIG
 {
 	string codeDef;	// encoding of default config file
 	
@@ -308,11 +277,11 @@ class FileConfig
 		return writeState;
 	}
 	
-};
+}
 
-FileConfig fc;
+FILE_CONFIG fc;
 
-//----------------------- END of class FileConfig -------------------------
+//----------------------- END of class FILE_CONFIG -------------------------
 
 
 class KeyData
@@ -345,7 +314,7 @@ class KeyData
 		valueTop = -1;
 		areaTop = -1;
 	}
-};
+}
 
 //----------------------- END of class KeyData -------------------------
 
@@ -1015,22 +984,14 @@ class CFG
 			baseLang = getStr("YOUTUBE", "base_lang");
 			if (baseLang.empty())
 			{
-				baseLang = _GetIso639LangName();
-				string baseLang2 = baseLang + "-" + HostIso3166CtryName();
-				if (YT_BASE_LNAGS.find(baseLang2) >= 0)
-				{
-					baseLang = baseLang2;
-				}
-				else if (YT_BASE_LNAGS.find(baseLang) < 0)
-				{
-					baseLang = "en";
-				}
+				baseLang = ytl.baseLang();
 			}
+			
 			autoSubLangs.removeRange(0, autoSubLangs.length());
 			string asLang = getStr("YOUTUBE", "auto_sub_lang");
 			if (asLang.empty())
 			{
-				string _lang = _GetIso639LangName();
+				string _lang = ytl.systemLang();
 				if (!_lang.empty()) autoSubLangs.insertLast(_lang);
 			}
 			else
@@ -1224,7 +1185,7 @@ class CFG
 		return parseInt(prevValue);
 	}
 	
-};
+}
 
 CFG cfg;
 
@@ -1539,6 +1500,33 @@ class SCH
 			desc = desc.Left(pos);
 		}
 		return desc;
+	}
+	
+	string formatTime(int msTime)
+	{
+		string minus = "";
+		if (msTime < 0)
+		{
+			msTime *= -1;
+			minus = "-";
+		}
+		int second = msTime / 1000;
+		int ms = msTime % 1000;
+		int hour = second / 3600;
+		second = second % 3600;
+		int minute = second / 60;
+		second = second % 60;
+		
+		string fmt;
+		fmt += minus;
+		fmt += formatInt(hour, '0', 2);
+		fmt += ":";
+		fmt += formatInt(minute, '0', 2);
+		fmt += ":";
+		fmt += formatInt(second, '0', 2);
+		fmt += ".";
+		fmt += formatInt(ms, '0', 3);
+		return fmt;
 	}
 	
 	string decodeEntityRefs(string desc)
@@ -2062,7 +2050,7 @@ class YTDLP
 						string msg =
 						"Your \"yt-dlp.exe\" is different from before.\r\n\r\n"
 						"Current version: " + version + "\r\n\r\n"
-						"You can continue playback if you replaced it intentionally.";
+						"If you replaced it intentionally, retry using yt-dlp.";
 						if (cfg.getInt("MAINTENANCE", "update_ytdlp") > 0)
 						{
 							msg += "\r\nThe [update_ytdlp] setting will be reset.";
@@ -2136,52 +2124,52 @@ class YTDLP
 	{
 		if (cfg.getInt("MAINTENANCE", "update_ytdlp") == 1)
 		{
-			int pos = log.find("\n[debug] Downloading yt-dlp.exe ");
-			if (pos >= 0)
+			int pos1 = sch.findRegExp(log, "^\\[debug\\] Downloading yt-dlp\\.exe ");
+			if (pos1 >= 0)
 			{
-				pos = log.find("\n", pos + 1);
-				if (pos >= 0)
+				int pos2 = sch.findRegExp(log, "(?i)^ERROR: Unable to write to[^\r\n]+yt-dlp\\.exe", pos1);
+				if (pos2 >= 0)
 				{
-					pos += 1;
-					string msg;
-					if (log.substr(pos, 7) == "ERROR: ")
-					{
-						if (cfg.csl > 0) HostPrintUTF8("[yt-dlp] Auto update failed.\r\n");
-						msg =
+					if (cfg.csl > 0) HostPrintUTF8("[yt-dlp] Auto update failed.\r\n");
+					string msg =
 						"A newer version of \"yt-dlp.exe\" was found on the website,\r\n"
-						"but the automatic update failed.\r\n\r\n";
-						pos += 7;
-						if (sch.findI(log, "Unable to write", pos) == pos)
-						{
-							msg +=
-							"Unable to overwrite:\r\n"
-							+ exePath + "\r\n\r\n"
-							"Replace it manually or try running PotPlayer as an administrator.\r\n"
-							"You can also change the [ytdlp_location] setting to a location with write permission.\r\n\r\n";
-						}
-						else
-						{
-							msg += sch.getLine(log, pos) + "\r\n\r\n";
-						}
-						msg += "The [update_ytdlp] setting will be reset.";
-						HostMessageBox(msg, "[yt-dlp] ALERT: Auto Update", 0, 0);
-						cfg.setInt("MAINTENANCE", "update_ytdlp", 0);
-						return -1;
-					}
-					else
-					{
-						msg += sch.getLine(log, pos);
-						HostMessageBox(msg, "[yt-dlp] INFO: Auto Update", 2, 0);
-						error = -1;
-						if (checkFile(true) > 0)
-						{
-							if (cfg.csl > 0) HostPrintUTF8("[yt-dlp] Auto update failed.\r\n");
-							return -1;
-						}
-						if (cfg.csl > 0) HostPrintUTF8("[yt-dlp] Auto update successful.\r\n");
-						return 1;
-					}
+						"but the automatic update failed.\r\n"
+						"\r\n"
+						"Unable to overwrite:\r\n";
+					msg += exePath + "\r\n"
+						"\r\n"
+						"Replace it manually or try running PotPlayer as an administrator.\r\n"
+						"You can also change the [ytdlp_location] setting to a location with write permission.\r\n"
+						"\r\n"
+						"The [update_ytdlp] setting will be reset.";
+					HostMessageBox(msg, "[yt-dlp] ALERT: Auto Update", 0, 0);
+					cfg.setInt("MAINTENANCE", "update_ytdlp", 0);
+					return -1;
 				}
+				
+				error = -1;
+				if (checkFile(true) > 0)
+				{
+					if (cfg.csl > 0) HostPrintUTF8("[yt-dlp] Auto update failed.\r\n");
+					string msg =
+						"Automatic update seems to be failed.\r\n"
+						"Please replace \"yt-dlp.exe\" to an available version manually.\r\n"
+						"r\n";
+					msg += exePath + "\r\n"
+						"r\n"
+						"The [update_ytdlp] setting will be reset.";
+					HostMessageBox(msg, "[yt-dlp] ERROR: Auto Update", 0, 0);
+					return -2;
+				}
+				
+				int pos3 = sch.findRegExp(log, "^Updated yt-dlp to", pos1);
+				if (pos3 >= 0)
+				{
+					if (cfg.csl > 0) HostPrintUTF8("[yt-dlp] Auto update successful.\r\n");
+					string msg = sch.getLine(log, pos3);
+					HostMessageBox(msg, "[yt-dlp] INFO: Auto Update", 2, 0);
+				}
+				return 1;
 			}
 		}
 		return 0;
@@ -2594,11 +2582,16 @@ class YTDLP
 		
 		if (_checkLogCommand(log)) return {};
 		
-		if (_checkLogUpdate(log) > 0)
+		int update = _checkLogUpdate(log);
+		if (update > 0)
 		{
 			// Restart with the new yt-dlp automatically
 		}
-		else
+		else if (update == -2)
+		{
+			return {};
+		}
+		else	// update: 0 or -1
 		{
 			if (_checkLogVersion(log)) return {};
 		}
@@ -2862,7 +2855,6 @@ class YTDLP
 	void _addOptionsNetwork(string &inout options)
 	{
 		options += " --retry-sleep exp=1:10";
-		//options += " --retry-sleep linear=1::2";
 		
 		string proxy = cfg.getStr("NETWORK", "proxy");
 		if (!proxy.empty()) options += " --proxy " + qt(proxy);
@@ -3221,11 +3213,191 @@ class YTDLP
 		return output;
 	}
 	
-};
+}
 
 YTDLP ytd;
 
 //---------------------- END of class YTDLP ------------------------
+
+
+
+class YT_LANG
+{
+	array<string> YT_BASE_LNAGS = {
+		"af", "az", "id", "ms", "bs", "ca", "cs", "da", "de", "et",
+		"en-IN", "en-GB", "en", "es", "es-419", "es-US", "eu", "fil",
+		"fr", "fr-CA", "gl", "hr", "zu", "is", "it", "sw", "lv",
+		"lt", "hu", "nl", "no", "uz", "pl", "pt-PT", "pt", "ro",
+		"sq", "sk", "sl", "sr-Latn", "fi", "sv", "vi", "tr", "be",
+		"bg", "ky", "kk", "mk", "mn", "ru", "sr", "uk", "el", "hy",
+		"iw", "ur", "ar", "fa", "ne", "mr", "hi", "as", "bn", "pa",
+		"gu", "or", "ta", "te", "kn", "ml", "si", "th", "lo", "my",
+		"ka", "am", "km", "zh-CN", "zh-TW", "zh-HK", "ja", "ko"
+	};
+	
+	array<string> YT_RTL_LNAGS = {
+		"ar", "fa", "ur", "iw", "ps", "sd", "ug", "dv", "yi", "he"
+	};
+	
+	string systemLang()
+	{
+		string lang = HostIso639LangName();
+		
+		// Modify for YouTube
+		if (lang == "he") lang = "iw";	// Hebrew
+		else if (lang == "tl") lang = "fil";	// Filipino
+		
+		return lang;
+	}
+	
+	string baseLang()
+	{
+		string baseLang = systemLang();
+		string baseLang2 = baseLang + "-" + HostIso3166CtryName();
+		if (YT_BASE_LNAGS.find(baseLang2) >= 0)
+		{
+			baseLang = baseLang2;
+		}
+		else if (YT_BASE_LNAGS.find(baseLang) < 0)
+		{
+			baseLang = "en";
+		}
+		return baseLang;
+	}
+	
+	bool isLangRTL(string langCode)
+	{
+		int pos = langCode.find("-");
+		if (pos >= 0) langCode = langCode.Left(pos);
+		if (YT_RTL_LNAGS.find(langCode) >= 0) return true;
+		return false;
+	}
+}
+
+YT_LANG ytl;
+
+//----------------------- END of class YT_LANG -------------------------
+
+
+
+class SPONSOR_BLOCK
+{
+	array<string> CATEGORIES = {
+		"music_offtopic",	// Non-Music Section
+		"outro",		// Endcards/Credits
+		"intro",		// Intermission/Intro Animation
+		"preview",		// Preview/Recap
+		"hook",			// Hook/Greetings
+		"filler",		// Filler Tangent (Tangents/Jokes)
+		"selfpromo",		// Unpaid/Self Promotion
+		"interaction",		// Interaction Reminder
+		"sponsor",		// Sponsor
+		"poi_highlight"		// Highlight
+	};
+		// The lower a category is on the list, the higher its priority.
+	
+	int THRSH_TIME = 2000;
+		// Threshold time (millisecond) for SponsorBlock
+	
+	string reviseChapter(string chptTitle)
+	{
+		// For SponsorBlock
+		string prefix = "SB";
+		if (chptTitle.find("Highlight") >= 0)
+		{
+			// Highlight is used differently from the other categories
+			prefix += "-";
+		}
+		else
+		{
+			prefix += "/";
+		}
+		chptTitle = "<" + prefix + chptTitle + ">";
+		return chptTitle;
+	}
+	
+	uint removeChptRange(array<dictionary> &inout dicsChapter, int msTime1, int msTime2, string &out chptTitle2, bool csl)
+	{
+		int nearTime1 = _findChptNear(dicsChapter, msTime1);
+		if (nearTime1 < 0) nearTime1 = msTime1;
+		int nearTime2 = _findChptNear(dicsChapter, msTime2, chptTitle2);
+		if (nearTime2 < 0) nearTime2 = msTime2;
+		
+		uint cnt = 0;
+		for (uint i = 0; i < dicsChapter.length();)
+		{
+			dictionary dic = dicsChapter[i];
+			int time0 = parseInt(string(dic["time"]));
+			if (time0 >= nearTime1 && time0 <= nearTime2)
+			{
+				dicsChapter.removeAt(i);
+				cnt++;
+				if (csl)
+				{
+					string title0 = string(dic["title"]);
+					HostPrintUTF8("Chapter Removed:  [" + sch.formatTime(time0) + "] " + title0);
+				}
+			}
+			else
+			{
+				i++;
+			}
+		}
+		return cnt;
+	}
+	
+	int _findChptNear(array<dictionary> dicsChapter, int time)
+	{
+		// time: millisecond
+		int nearTime = -1;
+		int d0 = -1;
+		for (uint i = 0; i < dicsChapter.length(); i++)
+		{
+			dictionary dic = dicsChapter[i];
+			int time0 = parseInt(string(dic["time"]));
+			if (time0 > time - THRSH_TIME && time0 < time + THRSH_TIME)
+			{
+				int d = time - time0;
+				if (d < 0) d *= -1;
+				if (d0 < 0 || d < d0)
+				{
+					d0 = d;
+					nearTime = time0;
+				}
+			}
+		}
+		return nearTime;
+	}
+	
+	int _findChptNear(array<dictionary> dicsChapter, int time, string &out inheritTitle)
+	{
+		// time: millisecond
+		int nearTime = -1;
+		int d0 = -1;
+		for (uint i = 0; i < dicsChapter.length(); i++)
+		{
+			dictionary dic = dicsChapter[i];
+			int time0 = parseInt(string(dic["time"]));
+			if (time0 < time + THRSH_TIME)
+			{
+				int d = time - time0;
+				if (d < 0) d *= -1;
+				if (d0 < 0 || d < d0)
+				{
+					d0 = d;
+					inheritTitle = string(dic["title"]);
+					if (d < THRSH_TIME) nearTime = time0;
+				}
+			}
+		}
+		return nearTime;
+	}
+	
+}
+
+SPONSOR_BLOCK sb;
+
+//----------------------- END of class SPONSOR_BLOCK -------------------------
 
 
 
@@ -3354,14 +3526,6 @@ string GetDesc()
 	return info;
 }
 
-
-string _GetIso639LangName()
-{
-	string lang = HostIso639LangName();
-	if (lang == "he") lang = "iw";	// Hebrew
-	else if (lang == "tl") lang = "fil";	// Filipino
-	return lang;
-}
 
 
 bool _IsExtType(string ext, int type)
@@ -4918,35 +5082,6 @@ string _ReviseDate(string date)
 }
 
 
-string _ReviseSBChapter(string chptTitle)
-{
-	// For SponsorBlock
-	string prefix = "SB";
-	if (chptTitle.find("Highlight") >= 0)
-	{
-		// Highlight is used differently from the other categories
-		prefix += "-";
-	}
-	else
-	{
-		prefix += "/";
-	}
-	chptTitle = "<" + prefix + chptTitle + ">";
-	return chptTitle;
-}
-
-bool _IsRTLLang(string langCode)
-{
-	array<string> RTL_LNAGS = {
-		"ar", "fa", "ur", "iw", "ps", "sd", "ug", "dv", "yi", "he"
-	};
-	
-	int pos = langCode.find("-");
-	if (pos >= 0) langCode = langCode.Left(pos);
-	if (RTL_LNAGS.find(langCode) >= 0) return true;
-	return false;
-}
-
 bool _isGeneric(string extractor)
 {
 	if (sch.findRegExp(extractor, "(?i)(generic|html5)") == 0)
@@ -5069,86 +5204,6 @@ bool _SelectAutoSub(string code, array<dictionary> dicsSub)
 	return true;
 }
 
-
-uint _RemoveChptRange(array<dictionary> &inout dicsChapter, int msTime1, int msTime2, string &out chptTitle2)
-{
-	int nearTime1 = _findChptNear(dicsChapter, msTime1);
-	if (nearTime1 < 0) nearTime1 = msTime1;
-	int nearTime2 = _findChptNear(dicsChapter, msTime2, chptTitle2);
-	if (nearTime2 < 0) nearTime2 = msTime2;
-	
-	uint cnt = 0;
-	for (uint i = 0; i < dicsChapter.length();)
-	{
-		dictionary dic = dicsChapter[i];
-		int time0 = parseInt(string(dic["time"]));
-		if (time0 >= nearTime1 && time0 <= nearTime2)
-		{
-			dicsChapter.removeAt(i);
-			if (cfg.csl > 1)
-			{
-				string title0 = string(dic["title"]);
-				if (cfg.csl > 1)
-				{
-					HostPrintUTF8("SB Chapter Removed: " + time0 + ": " + title0);
-				}
-			}
-			cnt++;
-		}
-		else
-		{
-			i++;
-		}
-	}
-	return cnt;
-}
-
-int _findChptNear(array<dictionary> dicsChapter, int time)
-{
-	// time: millisecond
-	int nearTime = -1;
-	int d0 = -1;
-	for (uint i = 0; i < dicsChapter.length(); i++)
-	{
-		dictionary dic = dicsChapter[i];
-		int time0 = parseInt(string(dic["time"]));
-		if (time0 > time - SB_THSH_TIME && time0 < time + SB_THSH_TIME)
-		{
-			int d = time - time0;
-			if (d < 0) d *= -1;
-			if (d0 < 0 || d < d0)
-			{
-				d0 = d;
-				nearTime = time0;
-			}
-		}
-	}
-	return nearTime;
-}
-
-int _findChptNear(array<dictionary> dicsChapter, int time, string &out inheritTitle)
-{
-	// time: millisecond
-	int nearTime = -1;
-	int d0 = -1;
-	for (uint i = 0; i < dicsChapter.length(); i++)
-	{
-		dictionary dic = dicsChapter[i];
-		int time0 = parseInt(string(dic["time"]));
-		if (time0 < time + SB_THSH_TIME)
-		{
-			int d = time - time0;
-			if (d < 0) d *= -1;
-			if (d0 < 0 || d < d0)
-			{
-				d0 = d;
-				inheritTitle = string(dic["title"]);
-				if (d < SB_THSH_TIME) nearTime = time0;
-			}
-		}
-	}
-	return nearTime;
-}
 
 bool __IsSameQuality(dictionary dic1, dictionary dic0)
 {
@@ -6155,6 +6210,7 @@ string PlayitemParse(const string &in path, dictionary &MetaData, array<dictiona
 			for (uint i = 0; i < subs.length(); i++)
 			{
 				string langCode = subs[i];
+				if (langCode.find("chat") >= 0) continue;
 				JsonValue jSub = jSubtitles[langCode];
 				if (jSub.isObject())
 				{
@@ -6183,7 +6239,7 @@ string PlayitemParse(const string &in path, dictionary &MetaData, array<dictiona
 						dicsSub.insertLast(dic);
 						if (cfg.csl > 1)
 						{
-							HostPrintUTF8("Sub: " + langCode + ": " + subUrl);
+							HostPrintUTF8("Sub: [" + langCode + "] " + subUrl);
 						}
 					}
 				}
@@ -6211,9 +6267,9 @@ string PlayitemParse(const string &in path, dictionary &MetaData, array<dictiona
 								{
 									string targetSubExt = "vtt";
 									{
-										if (_IsRTLLang(langCode))
+										if (ytl.isLangRTL(langCode))
 										{
-											// PotPlayer has the problem to show RTL sbutitles dynamically.
+											// PotPlayer has the problem to show RTL subtitles dynamically.
 											targetSubExt = "srt";	// or "srv"
 										}
 									}
@@ -6235,7 +6291,7 @@ string PlayitemParse(const string &in path, dictionary &MetaData, array<dictiona
 											dicsSub.insertLast(dic);
 											if (cfg.csl > 1)
 											{
-												HostPrintUTF8("Auto-Sub: " + langCode + ": " + subUrl);
+												HostPrintUTF8("Auto-Sub: [" + langCode + "] " + subUrl);
 											}
 											break;
 										}
@@ -6289,7 +6345,7 @@ string PlayitemParse(const string &in path, dictionary &MetaData, array<dictiona
 							dicsChapter.insertLast(dic);
 							if (cfg.csl > 1)
 							{
-								HostPrintUTF8("Chapter: " + msTime + ": " + chptTitle);
+								HostPrintUTF8("Chapter: [" + sch.formatTime(msTime) + "] " + chptTitle);
 							}
 						}
 					}
@@ -6327,11 +6383,11 @@ string PlayitemParse(const string &in path, dictionary &MetaData, array<dictiona
 				{
 					if (cfg.csl > 1)
 					{
-						HostPrintUTF8("First Chapter: 0: " + untitledChptName);
+						HostPrintUTF8("First Chapter:    [00:00:00.000] " + untitledChptName);
 					}
 				}
 				
-				for(uint i = 0; i < SB_CATEGORIES.length(); i++)
+				for(uint i = 0; i < sb.CATEGORIES.length(); i++)
 				{
 					for(int j = 0; j < jSBChapters.size(); j++)
 					{
@@ -6339,16 +6395,16 @@ string PlayitemParse(const string &in path, dictionary &MetaData, array<dictiona
 						if (jSBChapter.isObject())
 						{
 							string category = _GetJsonValueString(jSBChapter, "category");
-							if (category == SB_CATEGORIES[i])
+							if (category == sb.CATEGORIES[i])
 							{
 								string chptTitle = _GetJsonValueString(jSBChapter, "title");
 								int msTime1 = int(_GetJsonValueFloat(jSBChapter, "start_time") * 1000);	// millisecond
 								int msTime2 = int(_GetJsonValueFloat(jSBChapter, "end_time") * 1000);	// millisecond
 								if (!chptTitle.empty() && msTime1 >= 0 && msTime2 > msTime1)
 								{
-									string chptTitle1 = _ReviseSBChapter(chptTitle);
+									string chptTitle1 = sb.reviseChapter(chptTitle);
 									string chptTitle2;
-									_RemoveChptRange(dicsChapter, msTime1, msTime2, chptTitle2);
+									sb.removeChptRange(dicsChapter, msTime1, msTime2, chptTitle2, cfg.csl > 1);
 									if (chptTitle2.empty()) chptTitle2 = untitledChptName;
 									
 									dictionary dic1;
@@ -6357,11 +6413,11 @@ string PlayitemParse(const string &in path, dictionary &MetaData, array<dictiona
 									dicsChapter.insertLast(dic1);
 									if (cfg.csl > 1)
 									{
-										HostPrintUTF8("SB Chapter Start: " + msTime1 + ": " + chptTitle1);
+										HostPrintUTF8("SB Chapter Start: [" + sch.formatTime(msTime1) + "] " + chptTitle1);
 									}
 									
 									int msDuration = int(dcmDuration * 1000);
-									if (msDuration <= 0 || msDuration > msTime2 + SB_THSH_TIME)
+									if (msDuration <= 0 || msDuration > msTime2 + sb.THRSH_TIME)
 									{
 										dictionary dic2;
 										dic2["title"] = chptTitle2;
@@ -6369,7 +6425,7 @@ string PlayitemParse(const string &in path, dictionary &MetaData, array<dictiona
 										dicsChapter.insertLast(dic2);
 										if (cfg.csl > 1)
 										{
-											HostPrintUTF8("SB Chapter End: " + msTime2 + ": " + chptTitle2);
+											HostPrintUTF8("SB Chapter End:   [" + sch.formatTime(msTime2) + "] " + chptTitle2);
 										}
 									}
 								}
