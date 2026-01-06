@@ -1,4 +1,4 @@
-﻿﻿
+﻿﻿﻿
 # Parse Streaming with yt-dlp - PotPlayer Extension
 
 ## Overview
@@ -23,12 +23,12 @@ PotPlayer is a Windows-only media player, so this extension is intended for use 
 The following applications are **not** included in this repository. Please obtain them separately.  
 
 * [PotPlayer (**250226 or later**)](https://potplayer.tv/)  
-	Development versions are found in [the developer community](https://cafe.daum.net/pot-tool) (Korean).  
-	But using Google Translate may cause navigation errors on this site.  
+	Development versions are available in the [developer community](https://cafe.daum.net/pot-tool) (Korean).  
+	Using Google Translate on this site may cause reload errors.  
 
 * [yt-dlp.exe](https://github.com/yt-dlp/yt-dlp/)  
-	*yt-dlp.exe* also provides nightly versions.  
-	See [Updating yt-dlp](#updating-yt--dlp.exe).  
+	*yt-dlp.exe* also provides nightly builds.  
+	See [Updating yt-dlp](#updating-yt-dlpexe).  
 
 Always using the latest versions is recommended for proper website support.  
 
@@ -348,8 +348,8 @@ An "*external playlist*" is automatically updated with the latest streaming cont
 
 This extension supports [SponsorBlock](https://sponsor.ajay.app/) starting from version 251213.  
 You can skip sponsor segments in YouTube videos using SponsorBlock chapters.  
-These chapters are submitted by general viewers using web browsers and thier SponsorBlock browser extension.  
-(If a video has no submitted chapters yet, this method of skipping is not available for that video.)  
+These chapters are submitted by general viewers using web browsers or other applications with their support SponsorBlock.  
+(If a video has no submitted chapters, this method of skipping is not available for that video.)  
 
 These sponsored or promotional segments are parts of the video itself.  
 If a video already contains its own chapters, they will be partially overwritten by SponsorBlock chapters.  
@@ -408,7 +408,7 @@ In PotPlayer, any chapter can be skipped using the following commands.
 - ***Next Bookmark/Chapter*** : Shift+PgDn (default key, configurable)  
 - ***Prev Bookmark/Chapter*** : Shift+PgUp (default key, configurable)  
 
-In addition, PotPlayer provides an **auto-skip feature** that automatically skip chapters with specified titles.  
+In addition, PotPlayer provides an **auto-skip feature** that automatically skip chapters/bookmarks with specified titles.  
 This is especially useful for SponsorBlock chapters.  
 
 To configure auto-skip, open the *Skip Setup* dialog:  
