@@ -5,7 +5,7 @@
   Placed in \PotPlayer\Extension\Media\PlayParse\
 *************************************************************/
 
-string SCRIPT_VERSION = "260107";
+string SCRIPT_VERSION = "260114";
 
 
 string YTDLP_EXE = "yt-dlp.exe";
@@ -1420,12 +1420,10 @@ class SCH
 			if (item.empty())
 			{
 				arr.removeAt(i);
+				continue;
 			}
-			else
-			{
-				arr[i] = item;
-				i++;
-			}
+			arr[i] = item;
+			i++;
 		}
 		return arr;
 	}
@@ -3465,11 +3463,9 @@ class SPONSOR_BLOCK
 					string title0 = string(dic["title"]);
 					HostPrintUTF8("Chapter Removed:  [" + sch.formatTime(time0) + "] " + title0);
 				}
+				continue;
 			}
-			else
-			{
-				i++;
-			}
+			i++;
 		}
 		return cnt;
 	}
@@ -5028,11 +5024,9 @@ array<dictionary> PlaylistParse(const string &in path)
 				if (string(dicsEntry[uint(i)]["title"]).empty())
 				{
 					dicsEntry.removeAt(i);
+					continue;
 				}
-				else
-				{
-					i++;
-				}
+				i++;
 			}
 		}
 		
@@ -5068,13 +5062,11 @@ array<dictionary> PlaylistParse(const string &in path)
 			string thumb = string(dicsEntry[uint(i)]["thumbnail"]);
 			if (thumb.find("no_thumbnail.") >= 0)
 			{
-				dicsEntry.removeAt(i);
 				errCnt++;
+				dicsEntry.removeAt(i);
+				continue;
 			}
-			else
-			{
-				i++;
-			}
+			i++;
 		}
 	}
 	
@@ -5378,8 +5370,15 @@ bool _SelectAutoSub(string code, array<dictionary> &dicsSub)
 			if (code == existCode + "-orig")
 			{
 				string kind = string(dicsSub[i]["kind"]);
-				if (kind == "asr") dicsSub.removeAt(i);
-				continue;
+				if (kind == "asr")
+				{
+					dicsSub.removeAt(i);
+					continue;
+				}
+				else
+				{
+					return false;
+				}
 			}
 		}
 		i++;
@@ -5389,23 +5388,20 @@ bool _SelectAutoSub(string code, array<dictionary> &dicsSub)
 }
 
 
-bool _CheckLangName(string note)
+bool _SupposeLangName(string note)
 {
 	// Return true if note is possible to be a language name
 	if (!note.empty())
 	{
-		if (!HostRegExpParse(note, "^[a-z\\d([<]", {}))
+		if (!HostRegExpParse(note, "^[a-z0-9([<]", {}))
 		{
-			if (!HostRegExpParse(note, "^[A-Z]{2}", {}))
+			if (!HostRegExpParse(note, "^[A-Z][A-Z0-9]", {}))
 			{
 				if (!HostRegExpParse(note, "\\w{20}", {}))
 				{
-					//if (sch.findRegExp(note, "(?i)\\b(dash|hls)\\b") < 0)
-					{
-						//int pos = note.find(" (default)");
-						//if (pos > 0) note = note.Left(pos);
-						return true;
-					}
+					//int pos = note.find(" (default)");
+					//if (pos > 0) note = note.Left(pos);
+					return true;
 				}
 			}
 		}
@@ -5414,47 +5410,51 @@ bool _CheckLangName(string note)
 }
 
 
-bool _CheckDubbedFilter(string langCode, string va, string note)
+bool _HideDubbed(string audioCode, string va, bool isDefault)
 {
 	// only for Youtube
 	
 	int dubbedFilter = cfg.getInt("YOUTUBE", "dubbed_filter");
 	
-	bool filter = false;
 	if (dubbedFilter == 1)
 	{
-		if (va == "va" || va == "a") filter = true;
+		if (va == "va" || va == "a")
+		{
+			if (!isDefault)
+			{
+				if (!_MatchAutoSubLangs(audioCode))
+				{
+					return true;
+				}
+			}
+		}
 	}
 	else if (dubbedFilter == 2)
 	{
-		if (va == "va") filter = true;
-	}
-	
-	if (filter)
-	{
-		if (note.find("(default)") < 0)
+		if (va == "va")
 		{
-			if (!_MatchAutoSubLangs(langCode))
+			if (!isDefault)
 			{
 				return true;
 			}
 		}
 	}
+	
 	return false;
 }
 
 
-void _FillLangName(array<dictionary> &QualityList, bool isYoutube)
+void _FillAudioName(array<dictionary> &QualityList, bool isYoutube)
 {
 	for (uint i = 0; i < QualityList.length();)
 	{
-		string code1 = string(QualityList[i]["langCode"]);
+		string code1 = string(QualityList[i]["audioCode"]);
 		
 		if (isYoutube)
 		{
 			string va = string(QualityList[i]["va"]);
-			string note = string(QualityList[i]["note"]);
-			if (_CheckDubbedFilter(code1, va, note))
+			bool audioIsDefault = bool(QualityList[i]["audioIsDefault"]);
+			if (_HideDubbed(code1, va, audioIsDefault))
 			{
 				QualityList.removeAt(i);
 				continue;
@@ -5463,20 +5463,20 @@ void _FillLangName(array<dictionary> &QualityList, bool isYoutube)
 		
 		if (!code1.empty())
 		{
-			string name = string(QualityList[i]["langName"]);
+			string name = string(QualityList[i]["audioName"]);
 			if (name.empty())
 			{
-				// missing langName
+				// missing audioName
 				for (uint j = 0; j < QualityList.length(); j++)
 				{
 					if (j == i) continue;
-					string code2 = string(QualityList[j]["langCode"]);
+					string code2 = string(QualityList[j]["audioCode"]);
 					if (code2 == code1)
 					{
-						name = string(QualityList[j]["langName"]);
+						name = string(QualityList[j]["audioName"]);
 						if (!name.empty())
 						{
-							QualityList[i]["langName"] = name;
+							QualityList[i]["audioName"] = name;
 							break;
 						}
 					}
@@ -5493,6 +5493,31 @@ void _FillLangName(array<dictionary> &QualityList, bool isYoutube)
 }
 
 
+void _FillProjection(array<dictionary> &QualityList, bool is3D)
+{
+	for (uint i = 0; i < QualityList.length(); i++)
+	{
+		string va = string(QualityList[i]["va"]);
+		if (va == "v" || va == "va")
+		{
+			bool _is360 = bool(QualityList[i]["is360"]);
+			if (!_is360)
+			{
+				QualityList[i]["is360"] = true;
+				if (is3D)
+				{
+					bool _is3D = bool(QualityList[i]["is3D"]);
+					if (!_is3D)
+					{
+						QualityList[i]["is3D"] = true;
+					}
+				}
+			}
+		}
+	}
+}
+
+
 bool __IsQualityDuplicate(dictionary dic1, dictionary dic2)
 {
 	array<string> keys = {
@@ -5503,7 +5528,7 @@ bool __IsQualityDuplicate(dictionary dic1, dictionary dic2)
 		//"isHDR",
 		//"is360",
 		//"type3D",
-		"langCode"
+		"audioCode"
 	};
 	
 	for (uint j = 0; j < keys.length(); j++)
@@ -6218,21 +6243,6 @@ string PlayitemParse(const string &in path, dictionary &MetaData, array<dictiona
 	int likeCount = _GetJsonValueInt(root, "like_count");
 	if (likeCount > 0) MetaData["likeCount"] = formatInt(likeCount);
 	
-	string vr180;
-	int vrPos = sch.findRegExp(title, "\\bVR[- _]?180\\b", vr180);
-	if (vrPos >= 0)
-	{
-		MetaData["is360"] = 1;
-		// [VR360 & 3D] is automatically recognized in PotPlayer.
-		// But [VR180 & 3D] is not available.
-		/*
-		if (HostRegExpParse(title, "\\b3D " + vr180 + "\\b", {}) || HostRegExpParse(title, "\\b" + vr180 + "°? 3D\\b", {}))
-		{
-			MetaData["type3D"] = 3; 	// T&B Half
-		}
-		*/
-	}
-	
 	JsonValue jFormats = root["formats"];
 	if (!jFormats.isArray() || jFormats.size() == 0)
 	{
@@ -6244,7 +6254,9 @@ string PlayitemParse(const string &in path, dictionary &MetaData, array<dictiona
 	if (_CheckStartTime(startTime, path)) return "";
 	
 	bool multiLang = false;	// Dubbed audio
-	string prevLangCode;
+	string prevAudioCode;
+	bool is360 = false;
+	bool is3D = false;
 	int needPlaybackCookie = 0;
 	uint vaCount = 0;
 	uint vCount = 0;
@@ -6304,18 +6316,21 @@ string PlayitemParse(const string &in path, dictionary &MetaData, array<dictiona
 			}
 		}
 		
-		string langCode = _GetJsonValueString(jFormat, "language");
-		if (langCode == "und") langCode = "";	// undetermined
+		string audioCode = _GetJsonValueString(jFormat, "language");
+		if (audioCode == "und") audioCode = "";	// undetermined
+		
+		string audioName;	// audio language name in base_lang on YouTube
+		bool audioIsDefault = false;
 		
 		if (!multiLang)
 		{
-			if (!langCode.empty())
+			if (!audioCode.empty())
 			{
-				if (prevLangCode.empty())
+				if (prevAudioCode.empty())
 				{
-					prevLangCode = langCode;
+					prevAudioCode = audioCode;
 				}
-				else if (langCode != prevLangCode)
+				else if (audioCode != prevAudioCode)
 				{
 					multiLang = true;
 				}
@@ -6323,12 +6338,39 @@ string PlayitemParse(const string &in path, dictionary &MetaData, array<dictiona
 		}
 		
 		string note = _GetJsonValueString(jFormat, "format_note");
-		
-		if (isYoutube && multiLang)
+		if (!note.empty())
 		{
-			if (_CheckDubbedFilter(langCode, va, note))
+			if (va == "a" || va == "va")
 			{
-				continue;
+				if (!audioCode.empty())
+				{
+					audioIsDefault = (note.find("(default)") >= 0);
+					if (isYoutube && multiLang)
+					{
+						if (_HideDubbed(audioCode, va, audioIsDefault))
+						{
+							continue;
+						}
+					}
+					string _note = sch.omitDecimal(note, ",");
+					if(_SupposeLangName(_note))
+					{
+						audioName = _note;
+					}
+				}
+			}
+			
+			if (va == "v" || va == "va")
+			{
+				if (!is360)
+				{
+					// only VR360 (VR180 is not available)
+					if (note.find("equi") >= 0) is360 = true;
+				}
+				if (!is3D)
+				{
+					if (note.find("threed_top_bottom") >= 0) is3D = true;
+				}
 			}
 		}
 		
@@ -6400,6 +6442,7 @@ string PlayitemParse(const string &in path, dictionary &MetaData, array<dictiona
 			if (dynamicRange.empty() && va != "a") dynamicRange = "SDR";
 			
 			int itag = _GetJsonValueInt(jFormat, "format_id");
+//HostPrintUTF8("itag: " + itag);
 			
 			string resolution = "";
 			if (width > 0 && height > 0)
@@ -6413,7 +6456,6 @@ string PlayitemParse(const string &in path, dictionary &MetaData, array<dictiona
 			
 			string quality;
 			string format;
-			string langName;
 			
 			if (va == "a")
 			{
@@ -6421,16 +6463,7 @@ string PlayitemParse(const string &in path, dictionary &MetaData, array<dictiona
 				if (bps <= 0) bps = 128;
 				quality = HostFormatBitrate(int(bps * 1000));
 				
-				if (!langCode.empty())
-				{
-					string _note = sch.omitDecimal(note, ",");
-					if(_CheckLangName(_note))
-					{
-						langName = _note;
-						format += langName + ", ";
-					}
-				}
-				format += fmtExt;
+				format += fmtExt + ";";
 				if (!acodec.empty() && acodec != "none")
 				{
 					format += ", " + acodec;
@@ -6446,7 +6479,7 @@ string PlayitemParse(const string &in path, dictionary &MetaData, array<dictiona
 			{
 				if (!resolution.empty()) quality = resolution;
 				
-				format += fmtExt;
+				format += fmtExt + ";";
 				if (!vcodec.empty() && vcodec != "none")
 				{
 					format += ", " + vcodec;
@@ -6462,16 +6495,7 @@ string PlayitemParse(const string &in path, dictionary &MetaData, array<dictiona
 			{
 				if (!resolution.empty()) quality = resolution;
 				
-				if (!langCode.empty())
-				{
-					string _note = sch.omitDecimal(note, ",");
-					if(_CheckLangName(_note))
-					{
-						langName = _note;
-						format += langName + ", ";
-					}
-				}
-				format += fmtExt;
+				format += fmtExt + ";";
 				if (!vcodec.empty() && vcodec != "none")
 				{
 					if (!acodec.empty() && acodec != "none")
@@ -6520,6 +6544,12 @@ string PlayitemParse(const string &in path, dictionary &MetaData, array<dictiona
 				//if (!acodec.empty()) dic["acodec"] = acodec;
 			if (fps > 0) dic["fps"] = fps;
 			
+			if (va == "v" || va == "va")
+			{
+				dic["is360"] = is360;
+				if (is360 && is3D) dic["type3D"] = 3;	// T&B Half
+			}
+			
 			while (HostExistITag(itag)) itag++;
 			HostSetITag(itag);
 			dic["itag"] = itag;
@@ -6528,11 +6558,15 @@ string PlayitemParse(const string &in path, dictionary &MetaData, array<dictiona
 			if (!dynamicRange.empty())
 			{
 				dic["dynamicRange"] = dynamicRange;
-				if (sch.findI(dynamicRange, "SDR") < 0) dic["isHDR"] = true;
+				if (sch.findI(dynamicRange, "SDR") < 0)
+				{
+					dic["isHDR"] = true;
+				}
 			}
-			if (!note.empty()) dic["note"] = note;
-			if (!langCode.empty()) dic["langCode"] = langCode;
-			if (!langName.empty()) dic["langName"] = langName;
+			if (!audioCode.empty()) dic["audioCode"] = audioCode;
+			if (!audioName.empty()) dic["audioName"] = audioName;
+			dic["audioIsDefault"] = audioIsDefault;
+			
 			if (!cookies.empty()) dic["cookie"] = cookies;
 			
 			if (cfg.getInt("FORMAT", "remove_duplicate_quality") == 1)
@@ -6618,7 +6652,13 @@ string PlayitemParse(const string &in path, dictionary &MetaData, array<dictiona
 	{
 		if (multiLang)
 		{
-			_FillLangName(QualityList, isYoutube);
+			_FillAudioName(QualityList, isYoutube);
+		}
+		if (is360)
+		{
+			MetaData["is360"] = 1;
+			if (is3D) MetaData["type3D"] = 3; 	// T&B Half
+			_FillProjection(QualityList, is3D);
 		}
 		
 		if (cfg.csl > 1)
@@ -6626,12 +6666,15 @@ string PlayitemParse(const string &in path, dictionary &MetaData, array<dictiona
 			for (uint i = 0; i < QualityList.length(); i++)
 			{
 				string va = string(QualityList[i]["va"]);
+				string audioCode = string(QualityList[i]["audioCode"]);
+				string audioName = string(QualityList[i]["audioName"]);
 				string quality = string(QualityList[i]["quality"]);
 				string format = string(QualityList[i]["format"]);
 				string link = string(QualityList[i]["url"]);
 				
 				string fmtMsg = "Format: ";
 				fmtMsg += (va == "v") ? "[video] " : (va == "a") ? "[audio] " : "[video/audio] ";
+				fmtMsg += !audioName.empty() ? (audioName + ", ") : !audioCode.empty() ? (audioCode + ", ") : "";
 				fmtMsg += quality + ", " + format + "\r\n";
 				fmtMsg += link + "\r\n";
 				HostPrintUTF8(fmtMsg);
@@ -6650,7 +6693,7 @@ string PlayitemParse(const string &in path, dictionary &MetaData, array<dictiona
 		for (uint i = 0; i < subs.length(); i++)
 		{
 			string langCode = subs[i];
-			if (sch.findRegExp(langCode, "chat|danmaku") >= 0) continue;
+			if (sch.findRegExp(langCode, "chat|danmaku|und") >= 0) continue;
 			JsonValue jSub = jSubtitles[langCode];
 			if (jSub.isObject())
 			{
@@ -6681,7 +6724,7 @@ string PlayitemParse(const string &in path, dictionary &MetaData, array<dictiona
 			}
 		}
 	}
-	int mainSubCnt = dicsSub.length();
+	uint mainSubCnt = dicsSub.length();
 	jSubtitles = root["automatic_captions"];
 	if (jSubtitles.isObject())
 	{
@@ -6742,7 +6785,7 @@ string PlayitemParse(const string &in path, dictionary &MetaData, array<dictiona
 		
 		if (cfg.csl > 1)
 		{
-			for (int i = 0; i < dicsSub.length(); i++)
+			for (uint i = 0; i < dicsSub.length(); i++)
 			{
 				string key = (i < mainSubCnt) ? "Sub" : "Auto-Sub";
 				string langCode = string(dicsSub[i]["langCode"]);
