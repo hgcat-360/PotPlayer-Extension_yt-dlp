@@ -5,7 +5,7 @@
   Placed in \PotPlayer\Extension\Media\PlayParse\
 *************************************************************/
 
-string SCRIPT_VERSION = "260114";
+string SCRIPT_VERSION = "260115";
 
 
 string YTDLP_EXE = "yt-dlp.exe";
@@ -5481,10 +5481,6 @@ void _FillAudioName(array<dictionary> &QualityList, bool isYoutube)
 						}
 					}
 				}
-				if (name.empty()) name = code1;
-				string format = string(QualityList[i]["format"]);
-				format = name + ", " + format;
-				QualityList[i]["format"] = format;
 			}
 		}
 		

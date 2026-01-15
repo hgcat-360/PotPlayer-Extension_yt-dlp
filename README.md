@@ -24,7 +24,7 @@ The following applications are **not** included in this repository. Please obtai
 
 * [PotPlayer (**250226 or later**)](https://potplayer.tv/)  
 	Development versions are available in the [developer community](https://cafe.daum.net/pot-tool) (Korean).  
-	Using Google Translate on this site may cause reload errors.  
+	Using Google Translate on this community site may cause reload errors.  
 
 * [yt-dlp.exe](https://github.com/yt-dlp/yt-dlp/)  
 	*yt-dlp.exe* also provides nightly builds.  
