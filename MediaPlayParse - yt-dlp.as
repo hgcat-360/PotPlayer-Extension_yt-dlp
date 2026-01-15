@@ -5,7 +5,7 @@
   Placed in \PotPlayer\Extension\Media\PlayParse\
 *************************************************************/
 
-string SCRIPT_VERSION = "260115";
+string SCRIPT_VERSION = "260115.1";
 
 
 string YTDLP_EXE = "yt-dlp.exe";
@@ -1414,18 +1414,36 @@ class SCH
 	array<string> trimSplit(string data, string dlmt)
 	{
 		array<string> arr = data.split(dlmt);
-		for (uint i = 0; i < arr.length();)
+		for (int i = 0; i < int(arr.length()); i++)
 		{
 			string item = arr[i].Trim();
 			if (item.empty())
 			{
 				arr.removeAt(i);
-				continue;
+				i--; continue;
 			}
 			arr[i] = item;
-			i++;
 		}
 		return arr;
+	}
+	
+	string pulloutData(string data, string key, string sepa)
+	{
+		int pos1 = data.find(key);
+		if (pos1 >= 0)
+		{
+			pos1 += key.length();
+			int pos2 = data.find(sepa, pos1);
+			if (pos2 >= pos1)
+			{
+				return data.substr(pos1, pos2 - pos1);
+			}
+			else
+			{
+				return data.substr(pos1, data.length() - pos1);
+			}
+		}
+		return "";
 	}
 	
 	bool isSameDesc(string s1, string s2)
@@ -2880,7 +2898,7 @@ class YTDLP
 		
 		for (uint i = 0; i < entries.length(); i++)
 		{
-			int cnt = _GetJsonPlaylistCount(entries[i]);
+			int cnt = _GetDataValueInt(entries[i], "playlist_count");
 			if (cnt > 0) totalCnt += cnt;
 			msg += (i == 0) ? "  " : " + ";
 			msg += cnt;
@@ -3450,7 +3468,7 @@ class SPONSOR_BLOCK
 		if (nearTime2 < 0) nearTime2 = msTime2;
 		
 		uint cnt = 0;
-		for (uint i = 0; i < dicsChapter.length();)
+		for (int i = 0; i < int(dicsChapter.length()); i++)
 		{
 			dictionary dic = dicsChapter[i];
 			int time0 = parseInt(string(dic["time"]));
@@ -3463,9 +3481,8 @@ class SPONSOR_BLOCK
 					string title0 = string(dic["title"]);
 					HostPrintUTF8("Chapter Removed:  [" + sch.formatTime(time0) + "] " + title0);
 				}
-				continue;
+				i--; continue;
 			}
-			i++;
 		}
 		return cnt;
 	}
@@ -4333,23 +4350,18 @@ bool _CheckUrlPlaylist(dictionary dic)
 }
 
 
-string _GetJsonUrl(string jsonData)
+string _GetDataValueString(string data, string key)
 {
-	string url = HostRegExpParse(jsonData, "\"webpage_url\": ?\"([^\"]+)\"");
-	return url;
+	key = sch.escapeReg(key);
+	string str = HostRegExpParse(data, "\"" + key +"\":\\s?\"([^\"]+)\"");
+	return str;
 }
 
-int _GetJsonPlaylistCount(string jsonData)
+int _GetDataValueInt(string data, string key)
 {
-	int playlistCnt = parseInt(HostRegExpParse(jsonData, "\"playlist_count\": ?(\\d+),"));
-	return playlistCnt;
-}
-
-string _GetJsonThumbnail(string jsonData)
-{
-	// Not support for "thumbnails" (not accurate when playlist data)
-	string thumb = HostRegExpParse(jsonData, "\"thumbnail\": ?\"([^\"]+)\"");
-	return thumb;
+	key = sch.escapeReg(key);
+	int num = parseInt(HostRegExpParse(data, "\"" + key +"\":\\s?(-?\\d+)"));
+	return num;
 }
 
 
@@ -4359,7 +4371,7 @@ array<string> _RemoveEntryYoutubeTab(array<string> entries)
 	uint n = 0;
 	for (uint i = 0; i < entries.length(); i++)
 	{
-		string url = _GetJsonUrl(entries[i]);
+		string url = _GetDataValueString(entries[i], "webpage_url");
 		if (!_GetYoutubeChannelTab(url).empty())
 		{
 			n++;
@@ -4385,7 +4397,7 @@ array<string> _MakeUrlArrayAll(array<string> entries)
 	array<string> urls = {};
 	for (uint i = 0; i < entries.length(); i++)
 	{
-		string url = _GetJsonUrl(entries[i]);
+		string url = _GetDataValueString(entries[i], "webpage_url");
 		if (!url.empty()) urls.insertLast(url);
 	}
 	return urls;
@@ -4396,7 +4408,7 @@ string _MakeUrlJoinAll(array<string> entries)
 	string joinedUrl = "";
 	for (uint i = 0; i < entries.length(); i++)
 	{
-		string url = _GetJsonUrl(entries[i]);
+		string url = _GetDataValueString(entries[i], "webpage_url");
 		if (!url.empty())
 		{
 			if (!joinedUrl.empty()) joinedUrl += " ";
@@ -5019,14 +5031,13 @@ array<dictionary> PlaylistParse(const string &in path)
 		// Remove items, matadata of which has not been collected yet
 		if (cfg.getInt("TARGET", "playlist_without_metadata") != 1)
 		{
-			for (uint i = 0; i < dicsEntry.length();)
+			for (int i = 0; i < int(dicsEntry.length()); i++)
 			{
 				if (string(dicsEntry[uint(i)]["title"]).empty())
 				{
 					dicsEntry.removeAt(i);
-					continue;
+					i--; continue;
 				}
-				i++;
 			}
 		}
 		
@@ -5057,16 +5068,15 @@ array<dictionary> PlaylistParse(const string &in path)
 	if (isYoutube)
 	{
 		errCnt = 0;
-		for (uint i = 0; i < dicsEntry.length();)
+		for (int i = 0; i < int(dicsEntry.length()); i++)
 		{
 			string thumb = string(dicsEntry[uint(i)]["thumbnail"]);
 			if (thumb.find("no_thumbnail.") >= 0)
 			{
 				errCnt++;
 				dicsEntry.removeAt(i);
-				continue;
+				i--; continue;
 			}
-			i++;
 		}
 	}
 	
@@ -5361,7 +5371,7 @@ bool _SelectAutoSub(string code, array<dictionary> &dicsSub)
 	if (!match) return false;
 	
 	// check overlapping
-	for (uint i = 0; i < dicsSub.length();)
+	for (int i = 0; i < int(dicsSub.length()); i++)
 	{
 		string existCode = string(dicsSub[i]["langCode"]);
 		{
@@ -5373,7 +5383,7 @@ bool _SelectAutoSub(string code, array<dictionary> &dicsSub)
 				if (kind == "asr")
 				{
 					dicsSub.removeAt(i);
-					continue;
+					i--; continue;
 				}
 				else
 				{
@@ -5381,7 +5391,6 @@ bool _SelectAutoSub(string code, array<dictionary> &dicsSub)
 				}
 			}
 		}
-		i++;
 	}
 	
 	return true;
@@ -5446,7 +5455,7 @@ bool _HideDubbed(string audioCode, string va, bool isDefault)
 
 void _FillAudioName(array<dictionary> &QualityList, bool isYoutube)
 {
-	for (uint i = 0; i < QualityList.length();)
+	for (int i = 0; i < int(QualityList.length()); i++)
 	{
 		string code1 = string(QualityList[i]["audioCode"]);
 		
@@ -5457,7 +5466,7 @@ void _FillAudioName(array<dictionary> &QualityList, bool isYoutube)
 			if (_HideDubbed(code1, va, audioIsDefault))
 			{
 				QualityList.removeAt(i);
-				continue;
+				i--; continue;
 			}
 		}
 		
@@ -5467,7 +5476,7 @@ void _FillAudioName(array<dictionary> &QualityList, bool isYoutube)
 			if (name.empty())
 			{
 				// missing audioName
-				for (uint j = 0; j < QualityList.length(); j++)
+				for (int j = 0; j < int(QualityList.length()); j++)
 				{
 					if (j == i) continue;
 					string code2 = string(QualityList[j]["audioCode"]);
@@ -5483,30 +5492,26 @@ void _FillAudioName(array<dictionary> &QualityList, bool isYoutube)
 				}
 			}
 		}
-		
-		i++;
 	}
 }
 
 
-void _FillProjection(array<dictionary> &QualityList, bool is3D)
+void _FillVR(array<dictionary> &QualityList, int type3D)
 {
 	for (uint i = 0; i < QualityList.length(); i++)
 	{
 		string va = string(QualityList[i]["va"]);
 		if (va == "v" || va == "va")
 		{
-			bool _is360 = bool(QualityList[i]["is360"]);
-			if (!_is360)
+			if (!bool(QualityList[i]["is360"]))
 			{
 				QualityList[i]["is360"] = true;
-				if (is3D)
+			}
+			if (type3D > 0)
+			{
+				if (int(QualityList[i]["type3D"]) == 0)
 				{
-					bool _is3D = bool(QualityList[i]["is3D"]);
-					if (!_is3D)
-					{
-						QualityList[i]["is3D"] = true;
-					}
+					QualityList[i]["type3D"] = type3D;
 				}
 			}
 		}
@@ -6023,7 +6028,8 @@ string PlayitemParse(const string &in path, dictionary &MetaData, array<dictiona
 			array<string> _entries = ytd.exec2({inUrl}, -1);
 			if (_entries.length() == 1)
 			{
-				thumb = _GetJsonThumbnail(_entries[0]);
+				thumb = _GetDataValueString(_entries[0], "thumbnail");
+				// Not support for "thumbnails" of playlist data)
 			}
 		}
 	}
@@ -6249,16 +6255,23 @@ string PlayitemParse(const string &in path, dictionary &MetaData, array<dictiona
 	
 	if (_CheckStartTime(startTime, path)) return "";
 	
-	bool multiLang = false;	// Dubbed audio
-	string prevAudioCode;
+	// for VR - only Equirectangular of VR360
+	// Other VR formats (such as EAC) are not available.
 	bool is360 = false;
-	bool is3D = false;
+	int type3D = 0;
+	
+	// for auto-dubbed tracks
+	bool multiLang = false;
+	string prevAudioCode;
+	
 	int needPlaybackCookie = 0;
+	
 	uint vaCount = 0;
 	uint vCount = 0;
 	uint aCount = 0;
 	string vaOutUrl, vOutUrl, aOutUrl;
 	int reduceFormats = cfg.getInt("FORMAT", "reduce_formats");
+	
 	bool rev = (reduceFormats == 2);
 	for (int i = rev ? 0 : (jFormats.size() - 1); rev ? (i < jFormats.size()) : (i >= 0) ; rev ? i++ : i--)
 	{
@@ -6360,12 +6373,18 @@ string PlayitemParse(const string &in path, dictionary &MetaData, array<dictiona
 			{
 				if (!is360)
 				{
-					// only VR360 (VR180 is not available)
-					if (note.find("equi") >= 0) is360 = true;
+					if (note.find("equi") >= 0)
+					{
+						is360 = true;
+					}
 				}
-				if (!is3D)
+				if (type3D == 0)
 				{
-					if (note.find("threed_top_bottom") >= 0) is3D = true;
+					if (note.find("threed_top_bottom") >= 0)
+					{
+						//type3D = 3; // T&B Half??
+						type3D = 4; // T&B Full??
+					}
 				}
 			}
 		}
@@ -6437,7 +6456,7 @@ string PlayitemParse(const string &in path, dictionary &MetaData, array<dictiona
 			string dynamicRange = _GetJsonValueString(jFormat, "dynamic_range");
 			if (dynamicRange.empty() && va != "a") dynamicRange = "SDR";
 			
-			int itag = _GetJsonValueInt(jFormat, "format_id");
+			int itag = parseInt(_GetJsonValueString(jFormat, "format_id"));
 //HostPrintUTF8("itag: " + itag);
 			
 			string resolution = "";
@@ -6459,7 +6478,7 @@ string PlayitemParse(const string &in path, dictionary &MetaData, array<dictiona
 				if (bps <= 0) bps = 128;
 				quality = HostFormatBitrate(int(bps * 1000));
 				
-				format += fmtExt + ";";
+				format += fmtExt;
 				if (!acodec.empty() && acodec != "none")
 				{
 					format += ", " + acodec;
@@ -6475,7 +6494,7 @@ string PlayitemParse(const string &in path, dictionary &MetaData, array<dictiona
 			{
 				if (!resolution.empty()) quality = resolution;
 				
-				format += fmtExt + ";";
+				format += fmtExt;
 				if (!vcodec.empty() && vcodec != "none")
 				{
 					format += ", " + vcodec;
@@ -6491,7 +6510,7 @@ string PlayitemParse(const string &in path, dictionary &MetaData, array<dictiona
 			{
 				if (!resolution.empty()) quality = resolution;
 				
-				format += fmtExt + ";";
+				format += fmtExt;
 				if (!vcodec.empty() && vcodec != "none")
 				{
 					if (!acodec.empty() && acodec != "none")
@@ -6542,8 +6561,8 @@ string PlayitemParse(const string &in path, dictionary &MetaData, array<dictiona
 			
 			if (va == "v" || va == "va")
 			{
-				dic["is360"] = is360;
-				if (is360 && is3D) dic["type3D"] = 3;	// T&B Half
+				if (is360) dic["is360"] = true;
+				if (type3D > 0) dic["type3D"] = type3D;
 			}
 			
 			while (HostExistITag(itag)) itag++;
@@ -6644,6 +6663,9 @@ string PlayitemParse(const string &in path, dictionary &MetaData, array<dictiona
 	}
 	if (!thumb.empty()) MetaData["thumbnail"] = thumb;
 	
+	if (is360) MetaData["is360"] = 1;
+	if (type3D > 0) MetaData["type3D"] = type3D;
+	
 	if (@QualityList !is null && QualityList.length() > 0)
 	{
 		if (multiLang)
@@ -6652,9 +6674,7 @@ string PlayitemParse(const string &in path, dictionary &MetaData, array<dictiona
 		}
 		if (is360)
 		{
-			MetaData["is360"] = 1;
-			if (is3D) MetaData["type3D"] = 3; 	// T&B Half
-			_FillProjection(QualityList, is3D);
+			_FillVR(QualityList, type3D);
 		}
 		
 		if (cfg.csl > 1)
@@ -6667,11 +6687,12 @@ string PlayitemParse(const string &in path, dictionary &MetaData, array<dictiona
 				string quality = string(QualityList[i]["quality"]);
 				string format = string(QualityList[i]["format"]);
 				string link = string(QualityList[i]["url"]);
+				int itag = int(QualityList[i]["itag"]);
 				
 				string fmtMsg = "Format: ";
 				fmtMsg += (va == "v") ? "[video] " : (va == "a") ? "[audio] " : "[video/audio] ";
 				fmtMsg += !audioName.empty() ? (audioName + ", ") : !audioCode.empty() ? (audioCode + ", ") : "";
-				fmtMsg += quality + ", " + format + "\r\n";
+				fmtMsg += quality + ", " + format + " <" + itag + ">\r\n";
 				fmtMsg += link + "\r\n";
 				HostPrintUTF8(fmtMsg);
 			}
