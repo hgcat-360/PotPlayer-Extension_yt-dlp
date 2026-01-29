@@ -5,7 +5,7 @@
   Placed in \PotPlayer\Extension\Media\PlayParse\
 *************************************************************/
 
-string SCRIPT_VERSION = "260115.1";
+string SCRIPT_VERSION = "260130";
 
 
 string YTDLP_EXE = "yt-dlp.exe";
@@ -114,7 +114,7 @@ class FILE_CONFIG
 		string msg = "";
 		string path = HostGetScriptFolder() + SCRIPT_CONFIG_DEFAULT;
 		uintptr fp = HostFileOpen(path);
-		if (fp <= 0)
+		if (fp == 0)
 		{
 			msg =
 			"Default config file not found.\r\n"
@@ -991,8 +991,7 @@ class CFG
 			string asLang = getStr("YOUTUBE", "auto_sub_lang");
 			if (asLang.empty())
 			{
-				string _lang = ytl.systemLang();
-				if (!_lang.empty()) autoSubLangs.insertLast(_lang);
+				autoSubLangs = ytl.systemLang();
 			}
 			else
 			{
@@ -2993,6 +2992,8 @@ class YTDLP
 	{
 		options += " --retry-sleep exp=1:10";
 		
+		//options += " --add-headers \"User-Agent:" + USER_AGENT + "\"";
+		
 		string proxy = cfg.getStr("NETWORK", "proxy");
 		if (!proxy.empty()) options += " --proxy " + qt(proxy);
 		
@@ -3376,20 +3377,29 @@ class YT_LANG
 		"ar", "fa", "ur", "iw", "ps", "sd", "ug", "dv", "yi", "he"
 	};
 	
-	string systemLang()
+	array<string> systemLang()
 	{
-		string lang = HostIso639LangName();
+		array<string> langs = {};
+		
+		string _lang = HostIso639LangName();
 		
 		// Modify for YouTube
-		if (lang == "he") lang = "iw";	// Hebrew
-		else if (lang == "tl") lang = "fil";	// Filipino
+		if (_lang == "he")	// Hebrew
+		{
+			langs.insertLast("iw");
+		}
+		else if (_lang == "tl")	// Filipino
+		{
+			langs.insertLast("fil");
+		}
 		
-		return lang;
+		langs.insertLast(_lang);
+		return langs;
 	}
 	
 	string baseLang()
 	{
-		string baseLang = systemLang();
+		string baseLang = systemLang()[0];
 		string langTag = baseLang + "-" + HostIso3166CtryName();
 		if (langTag.Left(3) == "es-")
 		{
@@ -5636,6 +5646,15 @@ bool _GetJsonValueBool(JsonValue json, string key)
 }
 
 
+bool _CheckProtocol(string protocol)
+{
+	if (protocol.Left(4) == "http") return false;
+	if (protocol.Left(4) == "m3u8") return false;
+	if (protocol == "fc2_live") return false;
+	return true;
+}
+
+
 bool _CheckM3u8Hls(string url)
 {
 	string data = _GetHttpContent(url, 3, 63);
@@ -6053,6 +6072,27 @@ string PlayitemParse(const string &in path, dictionary &MetaData, array<dictiona
 		return outUrl;
 	}
 	
+	int needPlaybackCookie = 0;
+	
+	outUrl = _GetJsonValueString(root, "url");
+	if (!outUrl.empty())
+	{
+		string protocol = _GetJsonValueString(root, "protocol");
+		if (!protocol.empty() && _CheckProtocol(protocol))
+		{
+			outUrl = "";
+		}
+	}
+	if (!outUrl.empty())
+	{
+		string cookies = _GetJsonValueString(root, "cookies");
+		if (!cookies.empty())
+		{
+			needPlaybackCookie = 1;
+			MetaData["cookie"] = cookies;
+		}
+	}
+	
 	string title = _GetJsonValueString(root, "title");
 	if (!title.empty())
 	{
@@ -6264,8 +6304,6 @@ string PlayitemParse(const string &in path, dictionary &MetaData, array<dictiona
 	bool multiLang = false;
 	string prevAudioCode;
 	
-	int needPlaybackCookie = 0;
-	
 	uint vaCount = 0;
 	uint vCount = 0;
 	uint aCount = 0;
@@ -6281,7 +6319,7 @@ string PlayitemParse(const string &in path, dictionary &MetaData, array<dictiona
 		JsonValue jFormat = jFormats[i];
 		
 		string protocol = _GetJsonValueString(jFormat, "protocol");
-		if (protocol.Left(4) != "http" && protocol.Left(4) != "m3u8")
+		if (_CheckProtocol(protocol))
 		{
 			continue;
 		}
@@ -6650,9 +6688,12 @@ string PlayitemParse(const string &in path, dictionary &MetaData, array<dictiona
 			}
 		}
 	}
-	if (!vaOutUrl.empty()) outUrl = vaOutUrl;
-	else if (!vOutUrl.empty()) outUrl = vOutUrl;
-	else if (!aOutUrl.empty()) outUrl = aOutUrl;
+	if (outUrl.empty())
+	{
+		if (!vaOutUrl.empty()) outUrl = vaOutUrl;
+		else if (!vOutUrl.empty()) outUrl = vOutUrl;
+		else if (!aOutUrl.empty()) outUrl = aOutUrl;
+	}
 	
 	if (thumb.empty())
 	{
@@ -6698,6 +6739,10 @@ string PlayitemParse(const string &in path, dictionary &MetaData, array<dictiona
 			}
 			HostPrintUTF8("\r\n");
 		}
+	}
+	else if (!outUrl.empty())
+	{
+		HostPrintUTF8("URL: " + outUrl + "\r\n\r\n");
 	}
 	
 	if (_CheckStartTime(startTime, path)) return "";
