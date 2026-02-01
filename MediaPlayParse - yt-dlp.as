@@ -1,11 +1,11 @@
 ﻿/*************************************************************
   Parse Streaming with yt-dlp
 **************************************************************
-  Extension script for PotPlayer 250226 or later versions
+  Extension script for PotPlayer 260114 or later versions
   Placed in \PotPlayer\Extension\Media\PlayParse\
 *************************************************************/
 
-string SCRIPT_VERSION = "260130";
+string SCRIPT_VERSION = "260201";
 
 
 string YTDLP_EXE = "yt-dlp.exe";
@@ -333,27 +333,6 @@ class CFG
 	int csl = 0;	// console out
 	string baseLang;
 	array<string> autoSubLangs = {};
-	
-	string _escapeQuote(string str)
-	{
-		// Do not use Trim("\"")
-		if (str.Left(1) == "\"" && str.Right(1) == "\"")
-		{
-			str = str.substr(1, str.length() - 2);
-		}
-		int pos = 0;
-		int pos0;
-		do {
-			pos0 = pos;
-			pos = str.find("\"", pos);
-			if (pos >= 0)
-			{
-				str.insert(pos, "\\");
-				pos += 2;
-			}
-		} while (pos > pos0);
-		return str;
-	}
 	
 	int _findBlankLine(string str, int pos)
 	{
@@ -1091,12 +1070,12 @@ class CFG
 	
 	string getStr(string section, string key, int useDef = 0)
 	{
-		return _escapeQuote(_getValue(section, key, useDef));
+		return sch.escapeQuote(_getValue(section, key, useDef));
 	}
 	
 	string getStr(string key, int useDef = 0)
 	{
-		return _escapeQuote(_getValue("", key, useDef));
+		return sch.escapeQuote(_getValue("", key, useDef));
 	}
 	
 	int getInt(string section, string key, int useDef = 0)
@@ -1163,13 +1142,13 @@ class CFG
 	string setStr(string section, string key, string sValue, bool save = true)
 	{
 		string prevValue = _setValue(section, key, sValue, save);
-		return _escapeQuote(prevValue);
+		return sch.escapeQuote(prevValue);
 	}
 	
 	string setStr(string key, string sValue, bool save = true)
 	{
 		string prevValue = _setValue("", key, sValue, save);
-		return _escapeQuote(prevValue);
+		return sch.escapeQuote(prevValue);
 	}
 	
 	int setInt(string section, string key, int iValue, bool save = true)
@@ -1210,6 +1189,23 @@ class SCH
 			if (arr[i].MakeLower() == search.MakeLower()) return i;
 		}
 		return -1;
+	}
+	
+	string escapeQuote(string str)
+	{
+		// Do not use Trim("\"")
+		if (str.Left(1) == "\"" && str.Right(1) == "\"")
+		{
+			int pos = str.find("\"", 1);
+			if (pos == int(str.length() - 1))
+			{
+				str = str.substr(1, str.length() - 2);
+				return str;
+			}
+		}
+		str.replace("\\", "\\\\");
+		str.replace("\"", "\\\"");
+		return str;
 	}
 	
 	string escapeReg(string str)
@@ -1955,6 +1951,8 @@ class YTDLP
 	array<string> errors = {"(OK)", "(NOT FOUND)", "(LOOKS INVALID)", "(CRITICAL ERROR!)"};
 	int error = 0;
 	string SCHEME = "dl//";
+	string referer = "";
+	
 	
 	void getExePath()
 	{
@@ -1984,9 +1982,11 @@ class YTDLP
 	string qt(string str)
 	{
 		// Enclose in double quotes
-		if (str.Right(1) == "\\")
+		
+		string endBackSlash = HostRegExpParse(str, "(\\\\+)$");
+		if (endBackSlash.length() % 2 == 1)
 		{
-			// When enclosed as \"...\", escape the trailing back-slash character.
+			// Prevent the end quote from being escaped by the back-slash
 			str += "\\";
 		}
 		str = "\"" + str + "\"";
@@ -2445,6 +2445,15 @@ class YTDLP
 		return false;
 	}
 	
+	bool _checkLogForbidden(string log)
+	{
+		if (sch.findRegExp(log, "(?i)^ERROR: [^\r\n]*HTTP Error 40\\d:") >= 0)
+		{
+			return true;
+		}
+		return false;
+	}
+	
 	bool checkLogJsChallenge(string log)
 	{
 		if (sch.findRegExp(log, "(?i)WARNING: \\[youtube\\] [^\r\n]*challenge solving failed") >= 0)
@@ -2568,6 +2577,9 @@ class YTDLP
 	
 	array<string> exec1(string url, int playlistMode, string &out log)
 	{
+		string localReferer = referer;
+		if (!referer.empty()) referer = "";
+		
 		if (checkFileInfo() > 0) return {};
 		checkFileHash();
 		
@@ -2592,7 +2604,15 @@ class YTDLP
 		{
 			// a single video/audio
 			
-			if (cfg.csl > 0) HostPrintUTF8("\r\n[yt-dlp] " + (playlistMode < 0 ? "Retry " : "") + "Parsing... - " + qt(url) + "\r\n");
+			if (cfg.csl > 0)
+			{
+				string msg = "\r\n[yt-dlp] ";
+				if (playlistMode < 0) msg += "Retry ";
+				msg += "Parsing";
+				if (!localReferer.empty()) msg += " wtih Referer";
+				msg += "... - " + qt(url) + "\r\n";
+				HostPrintUTF8(msg);
+			}
 			
 			if (checkBiliPart)
 			{
@@ -2607,7 +2627,7 @@ class YTDLP
 			
 			options += " --all-subs";
 			
-			if (playlistMode == 0)	// Exclude the case playlistMode == -1
+			if (playlistMode != -1)
 			{
 				if (_IsUrlSite(url, "twitch.tv"))	// for twitch
 				{
@@ -2674,6 +2694,12 @@ class YTDLP
 		options += " --encoding \"utf8\"";	// prevent garbled text
 		
 		_addOptionsNetwork(options);
+		if (!localReferer.empty())
+		{
+			options += " --add-headers " + qt("Referer: " + localReferer);
+		}
+		
+		string proxy = cfg.getStr("NETWORK", "proxy");
 		
 		if (cfg.getInt("MAINTENANCE", "update_ytdlp") == 1)
 		{
@@ -2740,10 +2766,26 @@ class YTDLP
 		
 		if (_checkLogLiveFromStart(log))
 		{
-			if (options.find(" --live-from-start") >= 0)
+			if (playlistMode != -1)
 			{
-				// Retry without --live-from-start
-				return exec1(url, -1);
+				if (options.find(" --live-from-start") >= 0)
+				{
+					// Retry without --live-from-start
+					return exec1(url, -1);
+				}
+			}
+		}
+		
+		if (_checkLogForbidden(log))
+		{
+			if (localReferer.empty())
+			{
+				referer = cfg.getStr("NETWORK", "referer");
+				if (!referer.empty())
+				{
+					// Retry with the referer
+					return exec1(url, playlistMode, log);
+				}
 			}
 		}
 		
@@ -2991,8 +3033,6 @@ class YTDLP
 	void _addOptionsNetwork(string &inout options)
 	{
 		options += " --retry-sleep exp=1:10";
-		
-		//options += " --add-headers \"User-Agent:" + USER_AGENT + "\"";
 		
 		string proxy = cfg.getStr("NETWORK", "proxy");
 		if (!proxy.empty()) options += " --proxy " + qt(proxy);
@@ -4022,8 +4062,9 @@ string _GetHttpContent(string url, int maxTime, int range, bool isInsecure)
 	{
 		options += " -k";
 	}
-	options += " -L --max-redirs 3";	// redirect
 	//options += " -A " + USER_AGENT;
+	//options += " --referer " + referer;
+	options += " -L --max-redirs 3";	// redirect
 	options += " -s";
 	options += " \"" + url + "\"";
 	string data = HostExecuteProgram("curl", options);
@@ -4110,6 +4151,14 @@ string _GetHttpContent2(string url, bool isHeader = false)
 		}
 	}
 	HostCloseHTTP(http);
+	
+	if (cfg.csl == 3)
+	{
+		HostPrintUTF8("\r\n http " + (isHeader ? "header" : "content") + " -------------------");
+		HostPrintUTF8(data);
+		HostPrintUTF8("--------------------------\r\n");
+	}
+	
 	return data;
 }
 
@@ -5140,7 +5189,7 @@ bool PlayitemCheck(const string &in path)
 	if (ext == "rss") return false;
 	if (_IsExtType(ext, 0x111000))	// playlist or other files
 	{
-		if (ext == "m3u8")
+		if (ext == "m3u8" || ext == "txt")
 		{
 			int m3u8Hls = cfg.getInt("TARGET", "m3u8_hls");
 			if (m3u8Hls == 1 || m3u8Hls == 2) return true;
@@ -5208,21 +5257,30 @@ void _PotPlayerAddList(string url, int mode)
 	}
 }
 
-void _PotPlayerExec(string url, string userAgent, string headers)
+void _PotPlayerExec(string url, string userAgent, string referer, string cookies, string headers)
 {
 	string potplayerExe = HostGetExecuteFolder() + "\\";
 	potplayerExe += "PotPlayerMini" + (HostIsWin64() ? "64" : "") + ".exe";
 	string options;
-	options = "\"" + url + "\"";
-	options += " /current";
+	
+	options += "\"" + url + "\"";
+	//options += " /current";
 	
 	if (!userAgent.empty())
 	{
+		userAgent = sch.escapeQuote(userAgent);
 		options += " /user_agent=" + ytd.qt(userAgent);
 	}
-	if (!headers.empty())
+	if (!referer.empty())
 	{
-		options += " /headers=" + ytd.qt(headers);
+		referer = sch.escapeQuote(referer);
+		options += " /referer=" + ytd.qt(referer);
+	}
+	if (!cookies.empty() || !headers.empty())
+	{
+		cookies = sch.escapeQuote(cookies);
+		headers = sch.escapeQuote(headers);
+		options += " /headers=" + ytd.qt(headers + "Cookie: " + cookies);
 	}
 	
 	HostExecuteProgram(potplayerExe, options);
@@ -5500,6 +5558,10 @@ void _FillAudioName(array<dictionary> &QualityList, bool isYoutube)
 						}
 					}
 				}
+				if (name.empty()) name = code1;
+				string format = string(QualityList[i]["format"]);
+				format = name + ", " + format;
+				QualityList[i]["format"] = format;
 			}
 		}
 	}
@@ -5854,6 +5916,118 @@ string _GetFileType(string httpHead)
 }
 
 
+string _ReviseCookies(string cookies)
+{
+	if (cookies.empty()) return "";
+	cookies += "; ";
+	array<string> eraseKeys = {"Domain", "Path", "Secure", "Expires"};
+	for (uint i = 0; i < eraseKeys.length(); i++)
+	{
+		int pos = 0;
+		while (true)
+		{
+			string str;
+			pos = sch.findRegExp(cookies, eraseKeys[i] + "[^;]*; ", str, pos);
+			if (pos >= 0)
+			{
+				cookies.erase(pos, str.length());
+				continue;
+			}
+			break;
+		}
+	}
+	if (cookies.Right(1) == " ") cookies = cookies.Left(cookies.length() - 1);
+	if (cookies.Right(1) == ";") cookies = cookies.Left(cookies.length() - 1);
+	return cookies;
+}
+
+
+void _SetHeaders(string url, JsonValue jFormat, int &inout needPlaybackCookie)
+{
+	string cookies = _GetJsonValueString(jFormat, "cookies");
+	//cookies = _ReviseCookies(cookies);
+	if (!cookies.empty())
+	{
+		if (needPlaybackCookie == 0) needPlaybackCookie = 1;
+	}
+	else
+	{
+		needPlaybackCookie = -1;
+	}
+	
+	string headers;
+	JsonValue jHeaders = jFormat["http_headers"];
+	bool isBigHeader = false;
+		// BigHeader includes Referer and Cookie in PotPlayer versions earlier than 260114.
+	if (jHeaders.isObject())
+	{
+		string userAgent = _GetJsonValueString(jHeaders, "User-Agent");
+		if (!userAgent.empty())
+		{
+//HostPrintUTF8("userAgent: " + userAgent);
+			if (isBigHeader)
+			{
+				headers += "User-Agent: " + userAgent + "\r\n";
+			}
+			else
+			{
+				HostSetUrlUserAgentHTTP(url, userAgent);
+			}
+		}
+		
+		string referer = _GetJsonValueString(jHeaders, "Referer");
+		if (!referer.empty())
+		{
+//HostPrintUTF8("referer: " + referer);
+			if (isBigHeader)
+			{
+				headers += "Referer: " + referer + "\r\n";
+			}
+			else
+			{
+				HostSetUrlRefererHTTP(url, referer);
+			}
+		}
+		
+		string accept = _GetJsonValueString(jHeaders, "Accept");
+		if (!accept.empty())
+		{
+			headers += "Accept: " + accept + "\r\n";
+		}
+		
+		string acceptLanguage = _GetJsonValueString(jHeaders, "Accept-Language");
+		if (!acceptLanguage.empty())
+		{
+			headers += "Accept-Language: " + acceptLanguage + "\r\n";
+		}
+		
+		string secFetchMode = _GetJsonValueString(jHeaders, "Sec-Fetch-Mode");
+		if (!secFetchMode.empty())
+		{
+			headers += "Sec-Fetch-Mode: " + secFetchMode + "\r\n";
+		}
+	}
+	if (!cookies.empty())
+	{
+		//cookies = sch.escapeQuote(cookies);
+//HostPrintUTF8("cookies: " + cookies);
+		if (isBigHeader)
+		{
+			headers += "Cookie: " + cookies + "\r\n";
+		}
+		else
+		{
+			HostSetUrlCookieHTTP(url, cookies);
+		}
+	}
+	if (!headers.empty())
+	{
+//HostPrintUTF8("headers: " + headers);
+		HostSetUrlHeaderHTTP(url, headers);
+	}
+}
+
+
 string PlayitemParse(const string &in path, dictionary &MetaData, array<dictionary> &QualityList)
 {
 	// Called after PlayitemCheck if it returns true
@@ -5867,80 +6041,84 @@ string PlayitemParse(const string &in path, dictionary &MetaData, array<dictiona
 	string inUrl = _ReviseUrl(path);
 	string outUrl;
 	
-	if (_GetUrlExtension(inUrl) == "m3u8")
-	{
-		if (!_CheckM3u8Hls(inUrl)) return "";
-	}
-	
 	string httpHead = _GetHttpHeader(inUrl, 5);
-	string fileType = _GetFileType(httpHead);
-	if (!fileType.empty())
+	if (sch.findRegExp(httpHead, "(?i)HTTP/\\d\\.\\d 20\\d") >= 0)
 	{
-		if (cfg.getInt("TARGET", "direct_file_info") == 1)
+		string ext0 = _GetUrlExtension(inUrl);
+		if (ext0 == "m3u8" || ext0 == "txt")
 		{
-			_SetFileInfo(MetaData, inUrl, httpHead, (fileType != "audio"));
-			if (cfg.csl > 0)
-			{
-				HostPrintUTF8("[yt-dlp] Got matadata for a direct media file. - " + ytd.qt(inUrl) + "\r\n\r\n");
-			}
-			outUrl = inUrl;
-			return outUrl;
+			if (!_CheckM3u8Hls(inUrl)) return "";
 		}
-		return "";
-	}
-	
-	if (_IsUrlSite(inUrl, "shoutcast"))
-	{
-		outUrl = shoutpl.parse(inUrl, MetaData, QualityList, true);
-		if (!outUrl.empty())
+		
+		string fileType = _GetFileType(httpHead);
+		if (!fileType.empty())
 		{
-			if (cfg.csl > 0)
+			if (cfg.getInt("TARGET", "direct_file_info") == 1)
 			{
-				HostPrintUTF8("\r\nStation: " + string(MetaData["title"]) + "\r\n");
-				if (cfg.csl > 1 && @QualityList !is null)
+				_SetFileInfo(MetaData, inUrl, httpHead, (fileType != "audio"));
+				if (cfg.csl > 0)
 				{
-					for (uint i = 0; i < QualityList.length(); i++)
-					{
-						string serverName = string(QualityList[i]["format"]);
-						string serverUrl = string(QualityList[i]["url"]);
-						string msg = "Server: [" + serverName + "] " + serverUrl;
-						HostPrintUTF8(msg);
-					}
-					HostPrintUTF8("\r\n");
+					HostPrintUTF8("[yt-dlp] Got matadata for a direct media file. - " + ytd.qt(inUrl) + "\r\n\r\n");
 				}
-				HostPrintUTF8("[yt-dlp] Parsed Shoutcast playlist. - " + ytd.qt(inUrl) + "\r\n\r\n");
+				outUrl = inUrl;
+				return outUrl;
 			}
-			if (cfg.getInt("TARGET", "radio_info") == 1)
-			{
-				_GetRadioInfo(MetaData, httpHead, outUrl);
-			}
-			return outUrl;
+			return "";
 		}
-	}
-	
-	if (cfg.getInt("TARGET", "radio_info") == 1)
-	{
-		if (_GetRadioInfo(MetaData, httpHead, inUrl))
+		
+		if (_IsUrlSite(inUrl, "shoutcast"))
 		{
-			if (cfg.csl > 0)
+			outUrl = shoutpl.parse(inUrl, MetaData, QualityList, true);
+			if (!outUrl.empty())
 			{
-				HostPrintUTF8("\r\nStation: " + string(MetaData["title"]) + "\r\n");
-				HostPrintUTF8("[yt-dlp] Got metadata for a streaming radio. - " + ytd.qt(inUrl) + "\r\n\r\n");
+				if (cfg.csl > 0)
+				{
+					HostPrintUTF8("\r\nStation: " + string(MetaData["title"]) + "\r\n");
+					if (cfg.csl > 1 && @QualityList !is null)
+					{
+						for (uint i = 0; i < QualityList.length(); i++)
+						{
+							string serverName = string(QualityList[i]["format"]);
+							string serverUrl = string(QualityList[i]["url"]);
+							string msg = "Server: [" + serverName + "] " + serverUrl;
+							HostPrintUTF8(msg);
+						}
+						HostPrintUTF8("\r\n");
+					}
+					HostPrintUTF8("[yt-dlp] Parsed Shoutcast playlist. - " + ytd.qt(inUrl) + "\r\n\r\n");
+				}
+				if (cfg.getInt("TARGET", "radio_info") == 1)
+				{
+					_GetRadioInfo(MetaData, httpHead, outUrl);
+				}
+				return outUrl;
 			}
-			outUrl = inUrl;
-			return outUrl;
 		}
-	}
-	else
-	{
-		if (_CheckRadioServer(httpHead))
+		
+		if (cfg.getInt("TARGET", "radio_info") == 1)
 		{
-			if (cfg.csl > 0)
+			if (_GetRadioInfo(MetaData, httpHead, inUrl))
 			{
-				HostPrintUTF8("[yt-dlp] This URL is for a streaming radio. - " + ytd.qt(inUrl) + "\r\n\r\n");
+				if (cfg.csl > 0)
+				{
+					HostPrintUTF8("\r\nStation: " + string(MetaData["title"]) + "\r\n");
+					HostPrintUTF8("[yt-dlp] Got metadata for a streaming radio. - " + ytd.qt(inUrl) + "\r\n\r\n");
+				}
+				outUrl = inUrl;
+				return outUrl;
 			}
-			outUrl = inUrl;
-			return outUrl;
+		}
+		else
+		{
+			if (_CheckRadioServer(httpHead))
+			{
+				if (cfg.csl > 0)
+				{
+					HostPrintUTF8("[yt-dlp] This URL is for a streaming radio. - " + ytd.qt(inUrl) + "\r\n\r\n");
+				}
+				outUrl = inUrl;
+				return outUrl;
+			}
 		}
 	}
 	
@@ -6072,8 +6250,6 @@ string PlayitemParse(const string &in path, dictionary &MetaData, array<dictiona
 		return outUrl;
 	}
 	
-	int needPlaybackCookie = 0;
-	
 	outUrl = _GetJsonValueString(root, "url");
 	if (!outUrl.empty())
 	{
@@ -6083,14 +6259,12 @@ string PlayitemParse(const string &in path, dictionary &MetaData, array<dictiona
 			outUrl = "";
 		}
 	}
+	
+	int needPlaybackCookie = 0;
+	
 	if (!outUrl.empty())
 	{
-		string cookies = _GetJsonValueString(root, "cookies");
-		if (!cookies.empty())
-		{
-			needPlaybackCookie = 1;
-			MetaData["cookie"] = cookies;
-		}
+		_SetHeaders(outUrl, root, needPlaybackCookie);
 	}
 	
 	string title = _GetJsonValueString(root, "title");
@@ -6284,6 +6458,8 @@ string PlayitemParse(const string &in path, dictionary &MetaData, array<dictiona
 	
 	int likeCount = _GetJsonValueInt(root, "like_count");
 	if (likeCount > 0) MetaData["likeCount"] = formatInt(likeCount);
+	
+	//MetaData["fileExt"] = "mp4";
 	
 	JsonValue jFormats = root["formats"];
 	if (!jFormats.isArray() || jFormats.size() == 0)
@@ -6494,7 +6670,7 @@ string PlayitemParse(const string &in path, dictionary &MetaData, array<dictiona
 			string dynamicRange = _GetJsonValueString(jFormat, "dynamic_range");
 			if (dynamicRange.empty() && va != "a") dynamicRange = "SDR";
 			
-			int itag = parseInt(_GetJsonValueString(jFormat, "format_id"));
+			int itag = _GetJsonValueInt(jFormat, "format_id");
 //HostPrintUTF8("itag: " + itag);
 			
 			string resolution = "";
@@ -6577,16 +6753,6 @@ string PlayitemParse(const string &in path, dictionary &MetaData, array<dictiona
 				}
 			}
 			
-			string cookies = _GetJsonValueString(jFormat, "cookies");
-			if (!cookies.empty())
-			{
-				if (needPlaybackCookie == 0) needPlaybackCookie = 1;
-			}
-			else
-			{
-				needPlaybackCookie = -1;
-			}
-			
 			dictionary dic;
 			dic["url"] = fmtUrl;
 			dic["resolution"] = resolution;
@@ -6620,8 +6786,6 @@ string PlayitemParse(const string &in path, dictionary &MetaData, array<dictiona
 			if (!audioName.empty()) dic["audioName"] = audioName;
 			dic["audioIsDefault"] = audioIsDefault;
 			
-			if (!cookies.empty()) dic["cookie"] = cookies;
-			
 			if (cfg.getInt("FORMAT", "remove_duplicate_quality") == 1)
 			{
 				if (_IsQualityDuplicate(dic, QualityList))
@@ -6630,12 +6794,15 @@ string PlayitemParse(const string &in path, dictionary &MetaData, array<dictiona
 				}
 			}
 			
+			_SetHeaders(fmtUrl, jFormat, needPlaybackCookie);
+			
 			QualityList.insertLast(dic);
 		}
 		
 		if (va == "va")
 		{
 			vaCount++;
+			
 			if (vaOutUrl.empty())
 			{
 				vaOutUrl = fmtUrl;
