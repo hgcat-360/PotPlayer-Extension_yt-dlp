@@ -5,7 +5,7 @@
   Placed in \PotPlayer\Extension\Media\PlayParse\
 *************************************************************/
 
-string SCRIPT_VERSION = "260201";
+string SCRIPT_VERSION = "260202";
 
 
 string YTDLP_EXE = "yt-dlp.exe";
@@ -1422,25 +1422,6 @@ class SCH
 		return arr;
 	}
 	
-	string pulloutData(string data, string key, string sepa)
-	{
-		int pos1 = data.find(key);
-		if (pos1 >= 0)
-		{
-			pos1 += key.length();
-			int pos2 = data.find(sepa, pos1);
-			if (pos2 >= pos1)
-			{
-				return data.substr(pos1, pos2 - pos1);
-			}
-			else
-			{
-				return data.substr(pos1, data.length() - pos1);
-			}
-		}
-		return "";
-	}
-	
 	bool isSameDesc(string s1, string s2)
 	{
 		s1.replace("\n", " ");
@@ -1951,7 +1932,6 @@ class YTDLP
 	array<string> errors = {"(OK)", "(NOT FOUND)", "(LOOKS INVALID)", "(CRITICAL ERROR!)"};
 	int error = 0;
 	string SCHEME = "dl//";
-	string referer = "";
 	
 	
 	void getExePath()
@@ -2454,11 +2434,14 @@ class YTDLP
 		return false;
 	}
 	
-	bool checkLogJsChallenge(string log)
+	bool checkLogJsRuntime(string log)
 	{
 		if (sch.findRegExp(log, "(?i)WARNING: \\[youtube\\] [^\r\n]*challenge solving failed") >= 0)
 		{
-			return true;
+			if (sch.findRegExp(log, "(?i)JS runtimes: none") >= 0)
+			{
+				return true;
+			}
 		}
 		return false;
 	}
@@ -2470,7 +2453,14 @@ class YTDLP
 			string msg;
 			if (log.find("ERROR") >= 0)
 			{
-				msg = "Unsupported.";
+				if (checkLogJsRuntime(log))
+				{
+					msg = "Parsing failed. Use a JS runtime such as \"Deno.exe\".";
+				}
+				else
+				{
+					msg = "Unsupported.";
+				}
 				HostPrintUTF8("[yt-dlp] " + msg + " - " + qt(url) + "\r\n");
 			}
 			else if (sch.findI(log, "downloading 0 items") >= 0)
@@ -2575,11 +2565,8 @@ class YTDLP
 		return errIds;
 	}
 	
-	array<string> exec1(string url, int playlistMode, string &out log)
+	array<string> exec1(string url, int playlistMode, string referer)
 	{
-		string localReferer = referer;
-		if (!referer.empty()) referer = "";
-		
 		if (checkFileInfo() > 0) return {};
 		checkFileHash();
 		
@@ -2609,7 +2596,7 @@ class YTDLP
 				string msg = "\r\n[yt-dlp] ";
 				if (playlistMode < 0) msg += "Retry ";
 				msg += "Parsing";
-				if (!localReferer.empty()) msg += " wtih Referer";
+				if (!referer.empty()) msg += " wtih referer";
 				msg += "... - " + qt(url) + "\r\n";
 				HostPrintUTF8(msg);
 			}
@@ -2694,9 +2681,9 @@ class YTDLP
 		options += " --encoding \"utf8\"";	// prevent garbled text
 		
 		_addOptionsNetwork(options);
-		if (!localReferer.empty())
+		if (!referer.empty())
 		{
-			options += " --add-headers " + qt("Referer: " + localReferer);
+			options += " --add-headers " + qt("Referer: " + referer);
 		}
 		
 		string proxy = cfg.getStr("NETWORK", "proxy");
@@ -2727,7 +2714,7 @@ class YTDLP
 		
 		uint logPos = 0;
 		array<string> entries = _getEntries(output, logPos);
-		log = output.substr(logPos).TrimLeft("\r\n");
+		string log = output.substr(logPos).TrimLeft("\r\n");
 		
 		if (cfg.csl == 1)
 		{
@@ -2771,20 +2758,20 @@ class YTDLP
 				if (options.find(" --live-from-start") >= 0)
 				{
 					// Retry without --live-from-start
-					return exec1(url, -1);
+					return exec1(url, -1, referer);
 				}
 			}
 		}
 		
 		if (_checkLogForbidden(log))
 		{
-			if (localReferer.empty())
+			if (referer.empty())
 			{
 				referer = cfg.getStr("NETWORK", "referer");
 				if (!referer.empty())
 				{
 					// Retry with the referer
-					return exec1(url, playlistMode, log);
+					return exec1(url, playlistMode, referer);
 				}
 			}
 		}
@@ -2795,12 +2782,6 @@ class YTDLP
 		}
 		
 		return entries;
-	}
-	
-	array<string> exec1(string url, int playlistMode)
-	{
-		string log;
-		return exec1(url, playlistMode, log);
 	}
 	
 	
@@ -4549,7 +4530,8 @@ dictionary _PlaylistParse(string json, bool forcePlaylist, string imgUrl)
 	JsonValue root;
 	if (reader.parse(json, root) && root.isObject())
 	{
-		string url = _GetJsonValueString(root, "original_url");
+		string url = _GetJsonValueString(root, "url");
+		if (url.empty()) url = _GetJsonValueString(root, "original_url");
 		if (url.empty()) url = _GetJsonValueString(root, "webpage_url");
 		if (url.empty()) return {};
 		{
@@ -4911,7 +4893,7 @@ array<dictionary> PlaylistParse(const string &in path)
 	}
 	
 	// Execute yt-dlp
-	array<string> entries = ytd.exec1(plUrl, playlistMode);
+	array<string> entries = ytd.exec1(plUrl, playlistMode, "");
 	if (entries.length() == 0) return {};
 	
 	if (_IsYoutubeTabPlaylistType(plUrl))
@@ -5257,37 +5239,6 @@ void _PotPlayerAddList(string url, int mode)
 	}
 }
 
-void _PotPlayerExec(string url, string userAgent, string referer, string cookies, string headers)
-{
-	string potplayerExe = HostGetExecuteFolder() + "\\";
-	potplayerExe += "PotPlayerMini" + (HostIsWin64() ? "64" : "") + ".exe";
-	string options;
-	
-	options += "\"" + url + "\"";
-	//options += " /current";
-	
-	if (!userAgent.empty())
-	{
-		userAgent = sch.escapeQuote(userAgent);
-		options += " /user_agent=" + ytd.qt(userAgent);
-	}
-	if (!referer.empty())
-	{
-		referer = sch.escapeQuote(referer);
-		options += " /referer=" + ytd.qt(referer);
-	}
-	if (!cookies.empty() || !headers.empty())
-	{
-		cookies = sch.escapeQuote(cookies);
-		headers = sch.escapeQuote(headers);
-		options += " /headers=" + ytd.qt(headers + "Cookie: " + cookies);
-	}
-	
-	HostExecuteProgram(potplayerExe, options);
-	//_RunAsync(potplayerExe, options);
-}
-
-
 string _FormatDate(string date)
 {
 	// Thu, 04 Sep 2025 21:34:00 GMT -> 20250904
@@ -5465,25 +5416,47 @@ bool _SelectAutoSub(string code, array<dictionary> &dicsSub)
 }
 
 
-bool _SupposeLangName(string note)
+string _SupposeLangName(string note)
 {
+	// only on YouTube
 	// Return true if note is possible to be a language name
-	if (!note.empty())
+	
+	if (false)
 	{
-		if (!HostRegExpParse(note, "^[a-z0-9([<]", {}))
+		// This is not available for some languages such as Polish.
+		note = sch.omitDecimal(note, ",");
+		if (!note.empty())
 		{
-			if (!HostRegExpParse(note, "^[A-Z][A-Z0-9]", {}))
+			if (!HostRegExpParse(note, "^[a-z0-9([<]", {}))
 			{
-				if (!HostRegExpParse(note, "\\w{20}", {}))
+				if (!HostRegExpParse(note, "^[A-Z][A-Z0-9]", {}))
 				{
-					//int pos = note.find(" (default)");
-					//if (pos > 0) note = note.Left(pos);
-					return true;
+					if (!HostRegExpParse(note, "\\w{20}", {}))
+					{
+						return note;
+					}
 				}
 			}
 		}
 	}
-	return false;
+	else
+	{
+		array<string> qualities = {"low", "medium", "large"};
+		array<string> words = note.split(",");
+		if (words.length() > 2)
+		{
+//HostPrintUTF8("words[1]: " + words[1]);
+			for (uint i = 0; i < qualities.length(); i++)
+			{
+				if (words[1] == " " + qualities[i])
+				{
+					return words[0];
+				}
+			}
+		}
+	}
+	
+	return "";
 }
 
 
@@ -5521,21 +5494,20 @@ bool _HideDubbed(string audioCode, string va, bool isDefault)
 }
 
 
-void _FillAudioName(array<dictionary> &QualityList, bool isYoutube)
+void _FillAudioName(array<dictionary> &QualityList)
 {
+	// only on YouTube
+	
 	for (int i = 0; i < int(QualityList.length()); i++)
 	{
 		string code1 = string(QualityList[i]["audioCode"]);
 		
-		if (isYoutube)
+		string va = string(QualityList[i]["va"]);
+		bool audioIsDefault = bool(QualityList[i]["audioIsDefault"]);
+		if (_HideDubbed(code1, va, audioIsDefault))
 		{
-			string va = string(QualityList[i]["va"]);
-			bool audioIsDefault = bool(QualityList[i]["audioIsDefault"]);
-			if (_HideDubbed(code1, va, audioIsDefault))
-			{
-				QualityList.removeAt(i);
-				i--; continue;
-			}
+			QualityList.removeAt(i);
+			i--; continue;
 		}
 		
 		if (!code1.empty())
@@ -5551,17 +5523,17 @@ void _FillAudioName(array<dictionary> &QualityList, bool isYoutube)
 					if (code2 == code1)
 					{
 						name = string(QualityList[j]["audioName"]);
-						if (!name.empty())
-						{
-							QualityList[i]["audioName"] = name;
-							break;
-						}
+						if (!name.empty()) break;
 					}
 				}
-				if (name.empty()) name = code1;
-				string format = string(QualityList[i]["format"]);
-				format = name + ", " + format;
-				QualityList[i]["format"] = format;
+				if (!name.empty())
+				{
+					QualityList[i]["audioName"] = name;
+				}
+				else
+				{
+					QualityList[i]["audioName"] = code1;
+				}
 			}
 		}
 	}
@@ -5577,13 +5549,13 @@ void _FillVR(array<dictionary> &QualityList, int type3D)
 		{
 			if (!bool(QualityList[i]["is360"]))
 			{
-				QualityList[i]["is360"] = true;
+				//QualityList[i]["is360"] = true;
 			}
 			if (type3D > 0)
 			{
 				if (int(QualityList[i]["type3D"]) == 0)
 				{
-					QualityList[i]["type3D"] = type3D;
+					//QualityList[i]["type3D"] = type3D;
 				}
 			}
 		}
@@ -6125,8 +6097,7 @@ string PlayitemParse(const string &in path, dictionary &MetaData, array<dictiona
 	if (_CheckStartTime(startTime, path)) return "";
 	
 	// Execute yt-dlp
-	string log;
-	array<string> entries = ytd.exec1(inUrl, 0, log);
+	array<string> entries = ytd.exec1(inUrl, 0, "");
 	if (entries.length() == 0) return "";
 	
 	if (_CheckStartTime(startTime, path)) return "";
@@ -6574,11 +6545,7 @@ string PlayitemParse(const string &in path, dictionary &MetaData, array<dictiona
 						{
 							continue;
 						}
-					}
-					string _note = sch.omitDecimal(note, ",");
-					if(_SupposeLangName(_note))
-					{
-						audioName = _note;
+						audioName = _SupposeLangName(note);
 					}
 				}
 			}
@@ -6670,9 +6637,6 @@ string PlayitemParse(const string &in path, dictionary &MetaData, array<dictiona
 			string dynamicRange = _GetJsonValueString(jFormat, "dynamic_range");
 			if (dynamicRange.empty() && va != "a") dynamicRange = "SDR";
 			
-			int itag = _GetJsonValueInt(jFormat, "format_id");
-//HostPrintUTF8("itag: " + itag);
-			
 			string resolution = "";
 			if (width > 0 && height > 0)
 			{
@@ -6681,6 +6645,13 @@ string PlayitemParse(const string &in path, dictionary &MetaData, array<dictiona
 			else
 			{
 				resolution = _GetJsonValueString(jFormat, "resolution");
+			}
+			
+			int itag = 0;
+			if (isYoutube)
+			{
+				itag = parseInt(_GetJsonValueString(jFormat, "format_id"));
+//HostPrintUTF8("itag: " + itag);
 			}
 			
 			string quality;
@@ -6765,8 +6736,8 @@ string PlayitemParse(const string &in path, dictionary &MetaData, array<dictiona
 			
 			if (va == "v" || va == "va")
 			{
-				if (is360) dic["is360"] = true;
-				if (type3D > 0) dic["type3D"] = type3D;
+				//if (is360) dic["is360"] = true;
+				//if (type3D > 0) dic["type3D"] = type3D;
 			}
 			
 			while (HostExistITag(itag)) itag++;
@@ -6783,7 +6754,10 @@ string PlayitemParse(const string &in path, dictionary &MetaData, array<dictiona
 				}
 			}
 			if (!audioCode.empty()) dic["audioCode"] = audioCode;
-			if (!audioName.empty()) dic["audioName"] = audioName;
+			if (!audioName.empty())
+			{
+				dic["audioName"] = audioName;
+			}
 			dic["audioIsDefault"] = audioIsDefault;
 			
 			if (cfg.getInt("FORMAT", "remove_duplicate_quality") == 1)
@@ -6799,7 +6773,30 @@ string PlayitemParse(const string &in path, dictionary &MetaData, array<dictiona
 			QualityList.insertLast(dic);
 		}
 		
-		if (va == "va")
+		if (va == "v")	// prioritize dash over hls
+		{
+			vCount++;
+			if (vOutUrl.empty())
+			{
+				vOutUrl = fmtUrl;
+			}
+			else if (reduceFormats == 1 && longSide > 1100)
+			{
+				// get if longSide is near 1200
+				vOutUrl = fmtUrl;
+			}
+			else if (reduceFormats == 2 && longSide < 700)
+			{
+				// get if longSide is near 640
+				vOutUrl = fmtUrl;
+			}
+			else if (longSide > 800)
+			{
+				// get if longSide is near 854
+				vOutUrl = fmtUrl;
+			}
+		}
+		else if (va == "va")
 		{
 			vaCount++;
 			
@@ -6821,29 +6818,6 @@ string PlayitemParse(const string &in path, dictionary &MetaData, array<dictiona
 			{
 				// get if longSide is near 854
 				vaOutUrl = fmtUrl;
-			}
-		}
-		else if (va == "v")
-		{
-			vCount++;
-			if (vOutUrl.empty())
-			{
-				vOutUrl = fmtUrl;
-			}
-			else if (reduceFormats == 1 && longSide > 1100)
-			{
-				// get if longSide is near 1200
-				vOutUrl = fmtUrl;
-			}
-			else if (reduceFormats == 2 && longSide < 700)
-			{
-				// get if longSide is near 640
-				vOutUrl = fmtUrl;
-			}
-			else if (longSide > 800)
-			{
-				// get if longSide is near 854
-				vOutUrl = fmtUrl;
 			}
 		}
 		else if (va == "a")
@@ -6871,18 +6845,18 @@ string PlayitemParse(const string &in path, dictionary &MetaData, array<dictiona
 	}
 	if (!thumb.empty()) MetaData["thumbnail"] = thumb;
 	
-	if (is360) MetaData["is360"] = 1;
-	if (type3D > 0) MetaData["type3D"] = type3D;
+	//if (is360) MetaData["is360"] = 1;
+	//if (type3D > 0) MetaData["type3D"] = type3D;
 	
 	if (@QualityList !is null && QualityList.length() > 0)
 	{
-		if (multiLang)
+		if (isYoutube && multiLang)
 		{
-			_FillAudioName(QualityList, isYoutube);
+			_FillAudioName(QualityList);
 		}
 		if (is360)
 		{
-			_FillVR(QualityList, type3D);
+			//_FillVR(QualityList, type3D);
 		}
 		
 		if (cfg.csl > 1)
@@ -7173,17 +7147,9 @@ string PlayitemParse(const string &in path, dictionary &MetaData, array<dictiona
 		
 		if (needPlaybackCookie > 0)
 		{
-			bool checkJsChallenge = isYoutube ? ytd.checkLogJsChallenge(log) : false;
-			if (!isYoutube || checkJsChallenge)
-			{
-				string msg = "[yt-dlp] PotPlayer may not play this stream. The cookies are required during playback.";
-				msg += " - " + ytd.qt(inUrl) + "\r\n";
-				if (checkJsChallenge)
-				{
-					msg += "[yt-dlp] Try placing \"deno.exe\" in the same folder as \"yt-dlp.exe\".\r\n";
-				}
-				HostPrintUTF8(msg);
-			}
+			string msg = "[yt-dlp] PotPlayer may not play this stream. The cookies are required during playback.";
+			msg += " - " + ytd.qt(inUrl) + "\r\n";
+			HostPrintUTF8(msg);
 		}
 	}
 	
