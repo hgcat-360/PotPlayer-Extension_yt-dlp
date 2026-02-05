@@ -5,7 +5,7 @@
   Placed in \PotPlayer\Extension\Media\PlayParse\
 *************************************************************/
 
-string SCRIPT_VERSION = "260202";
+string SCRIPT_VERSION = "260206";
 
 
 string YTDLP_EXE = "yt-dlp.exe";
@@ -142,7 +142,7 @@ class FILE_CONFIG
 			else
 			{
 				str = _changeToUtf8Basic(str, codeDef);
-				if (!HostRegExpParse(str, "^\\w+=", {}))
+				if (!HostRegExpParse(str, "(?:^|\\n)\\w+=", {}))
 				{
 					msg =
 					"Cannot read default config file.\r\n"
@@ -378,7 +378,7 @@ class CFG
 		if (str.empty() || pos < 0 || uint(pos) >= str.length()) {pos = -1; return "";}
 		
 		string section = "";
-		pos = sch.findRegExp(str, "^\\[([^\n\r\t\\]]*?)\\]", section, pos);
+		pos = sch.findRegExp(str, "(?:^|\\n)\\[([^\n\r\t\\]]*?)\\]", section, pos);
 		if (pos > 0) pos -= 1;
 		return section;
 	}
@@ -399,7 +399,7 @@ class CFG
 	{
 		if (str.empty() || pos < 0 || uint(pos) >= str.length()) {pos = -1; return "";}
 		string key;
-		pos = sch.findRegExp(str, "^(#?\\w+)=", key, pos);
+		pos = sch.findRegExp(str, "(?:^|\\n)(#?\\w+)=", key, pos);
 		if (pos >= 0 && pos <= _findSectionSepaNext(str, pos))
 		{
 			return key;
@@ -423,7 +423,7 @@ class CFG
 	
 	int _findKeyTop(string sectArea, string key)
 	{
-		int pos = sch.findRegExp(sectArea, "^[^\t\r\n]*\\b" + key + " *=");
+		int pos = sch.findRegExp(sectArea, "(?:^|\\n)([^\t\r\n]*\\b" + key + ") *=");
 		return pos;
 	}
 	
@@ -435,7 +435,7 @@ class CFG
 		{
 			pos1 = pos2;
 			string line;
-			pos2 = sch.findRegExp(keyArea, "^\t[^\r\n]*\r\n", line, pos1);
+			pos2 = sch.findRegExp(keyArea, "(?:^|\\n)(\t[^\r\n]*\r\n)", line, pos1);
 			if (pos2 >= 0)
 			{
 				keyArea.erase(pos2, line.length());
@@ -456,7 +456,7 @@ class CFG
 		if (kd.key.empty()) {kd.init(); return;}
 		if (kd.areaStr.empty()) {kd.init(); return;}
 		
-		kd.value = HostRegExpParse(kd.areaStr, "^" + kd.key + "=(\\S[^\t\r\n]*)");
+		kd.value = HostRegExpParse(kd.areaStr, "(?:^|\\n)" + kd.key + "=(\\S[^\t\r\n]*)");
 	}
 	
 	void __loadDef(string str, string section, int pos)
@@ -552,9 +552,9 @@ class CFG
 	void _parseKeyDataCst(KeyData &inout kd)
 	{
 		array<string> patterns = {
-			"(?i)^[^\t\r\n]*\\b" + kd.key + " *=",	// comment out
-			"(?i)^ *" + kd.key + " *= *",	// empty value
-			"(?i)^ *" + kd.key + " *= *(\\S[^\t\r\n]*)"	// specified value
+			"(?i)(?:^|\\n) *" + kd.key + " *= *(\\S[^\t\r\n]*)",	// specified value
+			"(?i)(?:^|\\n) *" + kd.key + " *= *",	// empty value
+			"(?i)(?:^|\\n)[^\t\r\n]*\\b" + kd.key + " *="	// comment out
 		};
 		
 		if (kd.key.empty()) {kd.init(); return;}
@@ -564,25 +564,26 @@ class CFG
 		string value;
 		int keyTop = -1;
 		int valueTop = -1;
-		int state;
-		for (state = 2; state >= 0; state--)
+		uint i;
+		for (i = 0; i < 3; i++)
 		{
 			array<dictionary> match;
-			keyTop = sch.regExpParse(str, patterns[state], match, 0);
-			if (keyTop >= 0)
+			if (sch.regExpParse(str, patterns[i], match, 0) >= 0)
 			{
-				string s1;
-				match[0].get("str", s1);
-				if (state > 0)
+				int p0 = int(match[0]["pos"]);
+				string s0 = string(match[0]["str"]);
+				if (s0.Left(1) == "\n")
 				{
-					str.erase(keyTop, s1.length());
-					str.insert(keyTop, kd.key + "=");
-					valueTop = keyTop + kd.key.length() + 1;
+					s0 = s0.substr(1);
+					p0 += 1;
 				}
-				if (state == 2)
+				str.erase(p0, s0.length());
+				str.insert(p0, kd.key + "=");
+				keyTop = p0;
+				valueTop = p0 + kd.key.length() + 1;
+				if (i == 0)
 				{
 					value = string(match[1]["str"]);
-					int pos2 = int(match[1]["pos"]);
 					value.Trim();
 					if (!value.empty())
 					{
@@ -590,13 +591,16 @@ class CFG
 						break;
 					}
 				}
-				else if (state == 1)
+				else if (i == 1)
 				{
 					value = _getValue(kd.section, kd.key, 1);
-					if (!value.empty()) str.insert(valueTop, value);
+					if (!value.empty())
+					{
+						str.insert(valueTop, value);
+					}
 					break;
 				}
-				else if (state == 0)
+				else if (i == 2)
 				{
 					if (str.substr(keyTop, 2) != "//" && str.substr(keyTop, 1) != "\t")
 					str.insert(keyTop, "//");
@@ -613,7 +617,7 @@ class CFG
 		
 		kd.areaStr = str;
 		kd.value = value;
-		kd.state = state >= 0 ? 1 : 0;
+		kd.state = i < 3 ? 1 : 0;
 		kd.keyTop = keyTop;
 		kd.valueTop = valueTop;
 		
@@ -1785,7 +1789,7 @@ class SHOUTPL
 		for (uint i = 0; i < 20; i++)
 		{
 			array<dictionary> match;
-			pos = sch.regExpParse(data, "^#EXTINF:(?:[^,\r\n]*),([^,\r\n]*)\\r?\\n([^\r\n]+)\\r?\\n", match, pos);
+			pos = sch.regExpParse(data, "(?:^|\\n)#EXTINF:(?:[^,\r\n]*),([^,\r\n]*)\\r?\\n([^\r\n]+)\\r?\\n", match, pos);
 			if (pos < 0) break;
 			
 			string s0 = string(match[0]["str"]);
@@ -2107,7 +2111,7 @@ class YTDLP
 		para += " " + qt("\\\\?\\" + srcPath);
 		para += " " + qt("\\\\?\\" + dstPath);
 		string ret = HostExecuteProgram(cmd, para);
-//HostPrintUTF8("ret: " + ret);
+//HostPrintUTF8("File Copy: " + ret);
 		if (ret.find("1 file(s) copied") >= 0)
 		{
 			return true;
@@ -2227,10 +2231,10 @@ class YTDLP
 	{
 		if (cfg.getInt("MAINTENANCE", "update_ytdlp") == 1)
 		{
-			int pos1 = sch.findRegExp(log, "^\\[debug\\] Downloading yt-dlp\\.exe ");
+			int pos1 = sch.findRegExp(log, "\\n\\[debug\\] Downloading yt-dlp\\.exe ");
 			if (pos1 >= 0)
 			{
-				int pos2 = sch.findRegExp(log, "(?i)^ERROR: Unable to write to[^\r\n]+yt-dlp\\.exe", pos1);
+				int pos2 = sch.findRegExp(log, "(?i)\\nERROR: Unable to write to[^\r\n]+yt-dlp\\.exe", pos1 + 1);
 				if (pos2 >= 0)
 				{
 					cfg.setInt("MAINTENANCE", "update_ytdlp", 0);
@@ -2274,13 +2278,13 @@ class YTDLP
 					}
 				}
 				
-				int pos3 = sch.findRegExp(log, "^Updated yt-dlp to", pos1);
+				int pos3 = sch.findRegExp(log, "\\nUpdated yt-dlp to", pos1 + 1);
 				if (pos3 >= 0)
 				{
 					tmpHash = _fileHash(exePath);
 					
 					if (cfg.csl > 0) HostPrintUTF8("[yt-dlp] Auto update successful.\r\n");
-					string msg = sch.getLine(log, pos3);
+					string msg = sch.getLine(log, pos3 + 1);
 					HostMessageBox(msg, "[yt-dlp] INFO: Auto Update", 2, 0);
 				}
 				return 1;
@@ -2334,8 +2338,8 @@ class YTDLP
 	bool _checkLogBrowser(string log)
 	{
 		bool check = false;
-		if (sch.findRegExp(log, "(?i)^ERROR: Could not [^\r\n]+? cookies? database") >= 0) check = true;
-		if (sch.findRegExp(log, "(?i)^ERROR: Failed to decrypt with DPAPI") >= 0) check = true;
+		if (sch.findRegExp(log, "(?i)\\nERROR: Could not [^\r\n]+? cookies? database") >= 0) check = true;
+		if (sch.findRegExp(log, "(?i)\\nERROR: Failed to decrypt with DPAPI") >= 0) check = true;
 		if (check)
 		{
 			string msg = "Check your [cookie_browser] setting.";
@@ -2392,7 +2396,7 @@ class YTDLP
 	
 	bool _checkLogLiveOffline(string log, string url)
 	{
-		if (sch.findRegExp(log, "(?i)^ERROR: [^\r\n]* (not currently live|off ?line)") >= 0)
+		if (sch.findRegExp(log, "(?i)\\nERROR: [^\r\n]* (not currently live|off ?line)") >= 0)
 		{
 			string msg = "This channel is not live now.";
 			if (cfg.csl > 0) HostPrintUTF8("[yt-dlp] " + msg + " - " + qt(url) + "\r\n");
@@ -2404,10 +2408,10 @@ class YTDLP
 	
 	bool _checkLogServerBlock(string log, string url)
 	{
-		int pos = sch.findRegExp(log, "(?i)^ERROR: [^\r\n]* wait and try later");
+		int pos = sch.findRegExp(log, "(?i)\\nERROR: [^\r\n]* wait and try later");
 		if (pos >= 0)
 		{
-			string msg = sch.getLine(log, pos);
+			string msg = sch.getLine(log, pos + 1);
 			msg = msg.substr(7);
 			if (cfg.csl > 0) HostPrintUTF8("[yt-dlp] " + msg + " - " + qt(url) + "\r\n");
 			HostMessageBox(msg + "\r\n" + url, "[yt-dlp] INFO: Server", 2, 1);
@@ -2418,7 +2422,7 @@ class YTDLP
 	
 	bool _checkLogLiveFromStart(string log)
 	{
-		if (sch.findRegExp(log, "(?i)^ERROR: ?\\[twitch:stream\\][^\r\n]*--live-from-start") >= 0)
+		if (sch.findRegExp(log, "(?i)\\nERROR: ?\\[twitch:stream\\][^\r\n]*--live-from-start") >= 0)
 		{
 			return true;
 		}
@@ -2427,7 +2431,7 @@ class YTDLP
 	
 	bool _checkLogForbidden(string log)
 	{
-		if (sch.findRegExp(log, "(?i)^ERROR: [^\r\n]*HTTP Error 40\\d:") >= 0)
+		if (sch.findRegExp(log, "(?i)\\nERROR: [^\r\n]*HTTP Error 40\\d:") >= 0)
 		{
 			return true;
 		}
@@ -2455,7 +2459,10 @@ class YTDLP
 			{
 				if (checkLogJsRuntime(log))
 				{
-					msg = "Parsing failed. Use a JS runtime such as \"Deno.exe\".";
+					msg = "Parsing failed.\r\n"
+					"Use a JS runtime such as \"Deno.exe\".\r\n";
+					HostMessageBox(msg + "\r\n" + url, "[yt-dlp] ERROR: JS Runtime", 0, 0);
+					msg.replace("\r\n", " "); msg.Trim();
 				}
 				else
 				{
@@ -2556,7 +2563,7 @@ class YTDLP
 		do {
 			pos0 = pos1;
 			string id;
-			pos1 = sch.findRegExp(log, "^ERROR: \\[\\w+\\] ([-\\w@]+): ", id, pos1);
+			pos1 = sch.findRegExp(log, "(?:^|\n)ERROR: \\[\\w+\\] ([-\\w@]+): ", id, pos1 + 1);
 			if (!id.empty())
 			{
 				errIds.insertLast(id);
@@ -3045,8 +3052,11 @@ class YTDLP
 		int pos = 0;
 		while (pos >= 0)
 		{
-			pos = sch.findRegExp(output, "^ERROR: \\[youtube:tab\\] [^\r\n]+ does not have a [^\r\n]+ tab", pos);
-			if (pos >= 0) sch.eraseLine(output, pos);
+			pos = sch.findRegExp(output, "(?:^|\\n)ERROR: \\[youtube:tab\\] [^\r\n]+ does not have a [^\r\n]+ tab", pos);
+			if (pos >= 0)
+			{
+				sch.eraseLine(output, pos + 1);
+			}
 		}
 	}
 	
@@ -4151,7 +4161,7 @@ string _GetHttpHeader2(string url)
 
 string _GetDataField(string data, string field, string delimiter = ":")
 {
-	string value = sch.getRegExp(data, "(?i)^" + field +delimiter + " ?([^\r\n]+)");
+	string value = sch.getRegExp(data, "(?i)(?:^|\\n)" + field +delimiter + " ?([^\r\n]+)");
 	return value;
 }
 
@@ -5194,7 +5204,6 @@ bool _RunAsync(string exePath, string para)
 	// exePath / para: within the ASCII code
 	bool ret = false;
 	uintptr hShell = HostLoadLibrary("shell32.dll");
-//HostPrintUTF8("hShell: " + hShell);
 	if (hShell > 0)
 	{
 		uintptr pShellExecuteA = HostGetProcAddress(hShell, "ShellExecuteA");
@@ -5445,7 +5454,7 @@ string _SupposeLangName(string note)
 		array<string> words = note.split(",");
 		if (words.length() > 2)
 		{
-//HostPrintUTF8("words[1]: " + words[1]);
+//HostPrintUTF8("Menu Word: " + words[1]);
 			for (uint i = 0; i < qualities.length(); i++)
 			{
 				if (words[1] == " " + qualities[i])
@@ -6754,10 +6763,7 @@ string PlayitemParse(const string &in path, dictionary &MetaData, array<dictiona
 				}
 			}
 			if (!audioCode.empty()) dic["audioCode"] = audioCode;
-			if (!audioName.empty())
-			{
-				dic["audioName"] = audioName;
-			}
+			if (!audioName.empty()) dic["audioName"] = audioName;
 			dic["audioIsDefault"] = audioIsDefault;
 			
 			if (cfg.getInt("FORMAT", "remove_duplicate_quality") == 1)
