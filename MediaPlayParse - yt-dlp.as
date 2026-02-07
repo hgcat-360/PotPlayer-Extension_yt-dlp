@@ -5,7 +5,7 @@
   Placed in \PotPlayer\Extension\Media\PlayParse\
 *************************************************************/
 
-string SCRIPT_VERSION = "260206";
+string SCRIPT_VERSION = "260207";
 
 
 string YTDLP_EXE = "yt-dlp.exe";
@@ -1198,13 +1198,15 @@ class SCH
 	string escapeQuote(string str)
 	{
 		// Do not use Trim("\"")
-		if (str.Left(1) == "\"" && str.Right(1) == "\"")
+		if (str.length() > 1)
 		{
-			int pos = str.find("\"", 1);
-			if (pos == int(str.length() - 1))
+			if (str.Left(1) == "\"" && str.Right(1) == "\"")
 			{
-				str = str.substr(1, str.length() - 2);
-				return str;
+				string _str = str.substr(1, str.length() - 2);
+				if (_str.find("\"") < 0)
+				{
+					return _str;
+				}
 			}
 		}
 		str.replace("\\", "\\\\");
@@ -4531,7 +4533,7 @@ bool _MatchIds(string url, array<string> ids)
 	return false;
 }
 
-dictionary _PlaylistParse(string json, bool forcePlaylist, string imgUrl)
+dictionary _PlaylistParse(string json, string imgUrl)
 {
 	if (json.empty()) return {};
 	
@@ -4541,9 +4543,18 @@ dictionary _PlaylistParse(string json, bool forcePlaylist, string imgUrl)
 	if (reader.parse(json, root) && root.isObject())
 	{
 		string url = _GetJsonValueString(root, "url");
-		if (url.empty()) url = _GetJsonValueString(root, "original_url");
-		if (url.empty()) url = _GetJsonValueString(root, "webpage_url");
-		if (url.empty()) return {};
+		if (url.empty())
+		{
+			url = _GetJsonValueString(root, "original_url");
+			if (url.empty())
+			{
+				url = _GetJsonValueString(root, "webpage_url");
+				if (url.empty())
+				{
+					return {};
+				}
+			}
+		}
 		{
 			// Remove parameter added by yt-dlp.
 			int pos = url.find("#__youtubedl");
@@ -4552,32 +4563,31 @@ dictionary _PlaylistParse(string json, bool forcePlaylist, string imgUrl)
 		dic["url"] = url;
 		
 		string extractor = _GetJsonValueString(root, "extractor_key");
-		if (extractor.empty()) extractor = _GetJsonValueString(root, "extractor");
-		if (extractor.empty()) return {};
+		if (extractor.empty())
+		{
+			extractor = _GetJsonValueString(root, "extractor");
+			if (extractor.empty())
+			{
+				return {};
+			}
+		}
 		dic["extractor"] = extractor;
 		
 		string ext = _GetJsonValueString(root, "ext");
 		bool isAudio = _IsExtType(ext, 0x100);
-		if (isAudio)
-		{
-			forcePlaylist = true;	// for setting thumbnail
-		}
+		dic["is_audio"] = isAudio;
 		
 		int playlistIdx = _GetJsonValueInt(root, "playlist_index");
-		if (playlistIdx < 1)
-		{
-			if (!forcePlaylist)
-			{
-				return {};
-			}
-			playlistIdx = 0;
-		}
+		if (playlistIdx < 0) playlistIdx = 0;
 		dic["playlist_index"] = playlistIdx;
 		int playlistCnt = _GetJsonValueInt(root, "playlist_count");
 		if (playlistCnt > 0) dic["playlist_count"] = playlistCnt;
 		
 		string baseName = _GetJsonValueString(root, "webpage_url_basename");
-		if (baseName.empty()) return {};
+		if (baseName.empty())
+		{
+			return {};
+		}
 		string ext2 = HostGetExtension(baseName);
 		
 		string title = _GetJsonValueString(root, "title");
@@ -4731,7 +4741,7 @@ string _PlaylistParseNotExtract(string url, dictionary &inout MetaData)
 		array<string> entries = ytd.exec2({url}, 0);
 		if (entries.length() > 0)
 		{
-			dictionary dic = _PlaylistParse(entries[0], true, "");
+			dictionary dic = _PlaylistParse(entries[0], "");
 			
 			extractor = "Youtube";
 			
@@ -4750,7 +4760,7 @@ string _PlaylistParseNotExtract(string url, dictionary &inout MetaData)
 		array<string> entries = ytd.exec2({url}, 3);
 		if (entries.length() == 1)
 		{
-			dictionary dic = _PlaylistParse(entries[0], true, "");
+			dictionary dic = _PlaylistParse(entries[0], "");
 			
 			extractor = string(dic["extractor"]);
 			
@@ -4784,7 +4794,7 @@ string _PlaylistParseNotExtract(string url, dictionary &inout MetaData)
 		array<string> entries = ytd.exec2({url}, -1);
 		if (entries.length() == 1)
 		{
-			dictionary dic = _PlaylistParse(entries[0], true, "");
+			dictionary dic = _PlaylistParse(entries[0], "");
 			thumb = string(dic["thumbnail"]);
 		}
 	}
@@ -4919,15 +4929,8 @@ array<dictionary> PlaylistParse(const string &in path)
 	
 	if (_CheckStartTime(startTime, path)) return {};
 	
-	bool forcePlaylist = false;
+	bool isNoPlaylist = false;
 	bool isYoutube = _IsUrlSite(plUrl, "youtube");
-	if (isYoutube) forcePlaylist = true;;
-		// For YouTube, this extension always treats a URL as a playlist
-		// to prevent the built-in YouTube extension from changing the playlist state.
-		// If a URL refers to both a video and a playlist
-		// (e.g., https://www.youtube.com/watch?v=XXXXX&list=YYYYY),
-		// this extension can ignore the playlist using the --no-playlist option.
-		// and treats the URL as a playlist that contains only the single video.
 	
 	bool isRss = false;
 	string imgUrl;
@@ -4948,8 +4951,25 @@ array<dictionary> PlaylistParse(const string &in path)
 	
 	for (uint i = 0; i < entries.length(); i++)
 	{
-		dictionary dic = _PlaylistParse(entries[i], forcePlaylist, imgUrl);
+		dictionary dic = _PlaylistParse(entries[i], imgUrl);
+		if (string(dic["url"]).empty()) break;
 		dicsEntry.insertLast(dic);
+	}
+	if (dicsEntry.length() == 0)
+	{
+		isNoPlaylist = true;
+	}
+	else if (dicsEntry.length() == 1)
+	{
+		int playlistIdx = int(dicsEntry[0]["playlist_index"]);
+		if (playlistIdx == 0)
+		{
+			bool isAudio = bool(dicsEntry[0]["is_audio"]);
+			if (!isAudio)	// Treat audio as a playlist for setting thumbnail
+			{
+				isNoPlaylist = true;
+			}
+		}
 	}
 	
 	uint errCnt = 0;
@@ -4957,6 +4977,7 @@ array<dictionary> PlaylistParse(const string &in path)
 	array<string> urls = _MakeUrlArrayMetadata1(dicsEntry, arrIdx);
 	if (urls.length() > 0)
 	{
+		// Need collecting more metadata.
 		int singleMode = 1;
 		bool noTitle = string(dicsEntry[0]["title"]).empty();
 		bool isYoutubeShort = (isYoutube && urls[0].find("/shorts/") > 0);
@@ -4972,7 +4993,7 @@ array<dictionary> PlaylistParse(const string &in path)
 		
 		for (uint i = 0; i < _entries.length(); i++)
 		{
-			dictionary dic1 = _PlaylistParse(_entries[i], true, imgUrl);
+			dictionary dic1 = _PlaylistParse(_entries[i], imgUrl);
 			dictionary @dic0 = dicsEntry[arrIdx[i]];
 			while (dic0 !is null)
 			{
@@ -5105,7 +5126,7 @@ array<dictionary> PlaylistParse(const string &in path)
 				
 				for (uint i = 0; i < _entries2.length(); i++)
 				{
-					dictionary dic2 = _PlaylistParse(_entries2[i], true, "");
+					dictionary dic2 = _PlaylistParse(_entries2[i], "");
 					dictionary @dic0 = dicsEntry[arrIdx2[i]];
 						
 					string thumb = string(dic2["thumbnail"]);
@@ -5115,28 +5136,31 @@ array<dictionary> PlaylistParse(const string &in path)
 		}
 	}
 	
-	// Remove unavailable videos on YouTube
-	if (isYoutube)
-	{
-		errCnt = 0;
-		for (int i = 0; i < int(dicsEntry.length()); i++)
-		{
-			string thumb = string(dicsEntry[uint(i)]["thumbnail"]);
-			if (thumb.find("no_thumbnail.") >= 0)
-			{
-				errCnt++;
-				dicsEntry.removeAt(i);
-				i--; continue;
-			}
-		}
-	}
-	
 	if (dicsEntry.length() > 0)
 	{
-		// Keep the hash of yt-dlp.exe, which works without issues.
-		if (!ytd.tmpHash.empty() && ytd.tmpHash != cfg.getStr("MAINTENANCE", "ytdlp_hash"))
+		// Remove unavailable videos on YouTube
+		if (isYoutube)
 		{
-			cfg.setStr("MAINTENANCE", "ytdlp_hash", ytd.tmpHash);
+			errCnt = 0;
+			for (int i = 0; i < int(dicsEntry.length()); i++)
+			{
+				string thumb = string(dicsEntry[uint(i)]["thumbnail"]);
+				if (thumb.find("no_thumbnail.") >= 0)
+				{
+					errCnt++;
+					dicsEntry.removeAt(i);
+					i--; continue;
+				}
+			}
+		}
+		
+		// Keep the hash of yt-dlp.exe, which works without issues.
+		if (!ytd.tmpHash.empty())
+		{
+			if (ytd.tmpHash != cfg.getStr("MAINTENANCE", "ytdlp_hash"))
+			{
+				cfg.setStr("MAINTENANCE", "ytdlp_hash", ytd.tmpHash);
+			}
 		}
 		ytd.backupExe();
 	}
@@ -5156,6 +5180,16 @@ array<dictionary> PlaylistParse(const string &in path)
 		}
 		HostPrintUTF8(msg);
 	}
+	
+	if (dicsEntry.length() == 1 && isNoPlaylist)
+	{
+		if (!string(dicsEntry[0]["title"]).empty())
+		{
+			isNoPlaylist = false;
+			// Treats the URL as a playlist that contains only a single video.
+		}
+	}
+	if (isNoPlaylist) return {};
 	
 	return dicsEntry;
 }
@@ -5939,7 +5973,8 @@ void _SetHeaders(string url, JsonValue jFormat, int &inout needPlaybackCookie)
 	string headers;
 	JsonValue jHeaders = jFormat["http_headers"];
 	bool isBigHeader = false;
-		// BigHeader includes Referer and Cookie in PotPlayer versions earlier than 260114.
+		// BigHeader includes User-Agent, Referer and Cookie.
+		// It's comptible with PotPlayer versions earlier than 260114.
 	if (jHeaders.isObject())
 	{
 		string userAgent = _GetJsonValueString(jHeaders, "User-Agent");
@@ -5990,7 +6025,6 @@ void _SetHeaders(string url, JsonValue jFormat, int &inout needPlaybackCookie)
 	}
 	if (!cookies.empty())
 	{
-		//cookies = sch.escapeQuote(cookies);
 //HostPrintUTF8("cookies: " + cookies);
 		if (isBigHeader)
 		{
@@ -6003,7 +6037,8 @@ void _SetHeaders(string url, JsonValue jFormat, int &inout needPlaybackCookie)
 	}
 	if (!headers.empty())
 	{
-//HostPrintUTF8("headers: " + headers);
+//HostPrintUTF8("headers ----------");
+//HostPrintUTF8(headers);
 		HostSetUrlHeaderHTTP(url, headers);
 	}
 }
