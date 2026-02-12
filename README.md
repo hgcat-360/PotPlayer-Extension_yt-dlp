@@ -22,15 +22,20 @@ PotPlayer is a Windows-only media player, so this extension is intended for use 
 
 The following applications are **not** included in this repository. Please obtain them separately.  
 
-* [PotPlayer (**250226 or later**)](https://potplayer.tv/)  
-	Development versions are available in the [developer community](https://cafe.daum.net/pot-tool) (Korean).  
-	Using Google Translate on this community site may cause reload errors.  
+* [PotPlayer](https://potplayer.tv/)  
+	PotPlayer **260114 or later** versions are currently supported.  
+	Versions earlier than 260114 have a garbled-text issue in the console.  
+	Compatible versions of this extension support PotPlayer **250226 or later**.  
+	
+	Development builds of PotPlayer are available from the [developer community](https://cafe.daum.net/pot-tool) (Korean).  
+	Using Google Translate on this community site may cause page reload errors.  
 
 * [yt-dlp.exe](https://github.com/yt-dlp/yt-dlp/)  
+	Using the **latest version** is always recommended for proper website support.  
+	
 	*yt-dlp.exe* also provides nightly builds.  
 	See [Updating yt-dlp](#updating-yt-dlpexe).  
 
-Using the latest versions is always recommended for proper website support.  
 
 In addition, you may need the following commands:  
 

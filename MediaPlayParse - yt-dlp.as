@@ -5,7 +5,7 @@
   Placed in \PotPlayer\Extension\Media\PlayParse\
 *************************************************************/
 
-string SCRIPT_VERSION = "260207";
+string SCRIPT_VERSION = "260211";
 
 
 string YTDLP_EXE = "yt-dlp.exe";
@@ -5592,13 +5592,13 @@ void _FillVR(array<dictionary> &QualityList, int type3D)
 		{
 			if (!bool(QualityList[i]["is360"]))
 			{
-				//QualityList[i]["is360"] = true;
+				QualityList[i]["is360"] = true;
 			}
 			if (type3D > 0)
 			{
 				if (int(QualityList[i]["type3D"]) == 0)
 				{
-					//QualityList[i]["type3D"] = type3D;
+					QualityList[i]["type3D"] = type3D;
 				}
 			}
 		}
@@ -5935,14 +5935,16 @@ string _ReviseCookies(string cookies)
 {
 	if (cookies.empty()) return "";
 	cookies += "; ";
-	array<string> eraseKeys = {"Domain", "Path", "Secure", "Expires"};
-	for (uint i = 0; i < eraseKeys.length(); i++)
+	
+	array<string> attributes = {"Domain", "Path", "Secure", "Expires", "HttpOnly", "Max-Age", "SameSite", "Partitioned"};
+	
+	for (uint i = 0; i < attributes.length(); i++)
 	{
 		int pos = 0;
 		while (true)
 		{
 			string str;
-			pos = sch.findRegExp(cookies, eraseKeys[i] + "[^;]*; ", str, pos);
+			pos = sch.findRegExp(cookies, "\\b" + attributes[i] + "\\b[^;]*; ", str, pos);
 			if (pos >= 0)
 			{
 				cookies.erase(pos, str.length());
@@ -5951,58 +5953,39 @@ string _ReviseCookies(string cookies)
 			break;
 		}
 	}
+	
 	if (cookies.Right(1) == " ") cookies = cookies.Left(cookies.length() - 1);
 	if (cookies.Right(1) == ";") cookies = cookies.Left(cookies.length() - 1);
+	cookies.replace("\"", "");
+	
 	return cookies;
 }
 
 
-void _SetHeaders(string url, JsonValue jFormat, int &inout needPlaybackCookie)
+void _SetHeaders(string url, JsonValue jFormat, bool &inout needPlaybackCookie)
 {
-	string cookies = _GetJsonValueString(jFormat, "cookies");
-	//cookies = _ReviseCookies(cookies);
-	if (!cookies.empty())
-	{
-		if (needPlaybackCookie == 0) needPlaybackCookie = 1;
-	}
-	else
-	{
-		needPlaybackCookie = -1;
-	}
-	
 	string headers;
+	
 	JsonValue jHeaders = jFormat["http_headers"];
-	bool isBigHeader = false;
-		// BigHeader includes User-Agent, Referer and Cookie.
-		// It's comptible with PotPlayer versions earlier than 260114.
 	if (jHeaders.isObject())
 	{
 		string userAgent = _GetJsonValueString(jHeaders, "User-Agent");
 		if (!userAgent.empty())
 		{
 //HostPrintUTF8("userAgent: " + userAgent);
-			if (isBigHeader)
-			{
-				headers += "User-Agent: " + userAgent + "\r\n";
-			}
-			else
-			{
-				HostSetUrlUserAgentHTTP(url, userAgent);
-			}
+			headers += "User-Agent: " + userAgent + "\r\n";
+			
+			//HostSetUrlUserAgentHTTP(url, userAgent);
 		}
 		
 		string referer = _GetJsonValueString(jHeaders, "Referer");
 		if (!referer.empty())
 		{
 //HostPrintUTF8("referer: " + referer);
-			if (isBigHeader)
-			{
-				headers += "Referer: " + referer + "\r\n";
-			}
-			else
-			{
-				HostSetUrlRefererHTTP(url, referer);
-			}
+			headers += "Referer: " + referer + "\r\n";
+			
+			// PP 260114 or later
+			HostSetUrlRefererHTTP(url, referer);
 		}
 		
 		string accept = _GetJsonValueString(jHeaders, "Accept");
@@ -6023,22 +6006,22 @@ void _SetHeaders(string url, JsonValue jFormat, int &inout needPlaybackCookie)
 			headers += "Sec-Fetch-Mode: " + secFetchMode + "\r\n";
 		}
 	}
+	
+	string cookies = _GetJsonValueString(jFormat, "cookies");
+	cookies = _ReviseCookies(cookies);
 	if (!cookies.empty())
 	{
-//HostPrintUTF8("cookies: " + cookies);
-		if (isBigHeader)
-		{
-			headers += "Cookie: " + cookies + "\r\n";
-		}
-		else
-		{
-			HostSetUrlCookieHTTP(url, cookies);
-		}
+		needPlaybackCookie = true;
+		headers += "Cookie: " + cookies + "\r\n";
+		
+		// PP 260114 or later
+		HostSetUrlCookieHTTP(url, cookies);
 	}
+	
 	if (!headers.empty())
 	{
 //HostPrintUTF8("headers ----------");
-//HostPrintUTF8(headers);
+//HostPrintUTF8(headers + "\r\n\r\n");
 		HostSetUrlHeaderHTTP(url, headers);
 	}
 }
@@ -6275,8 +6258,7 @@ string PlayitemParse(const string &in path, dictionary &MetaData, array<dictiona
 		}
 	}
 	
-	int needPlaybackCookie = 0;
-	
+	bool needPlaybackCookie = false;
 	if (!outUrl.empty())
 	{
 		_SetHeaders(outUrl, root, needPlaybackCookie);
@@ -6499,6 +6481,7 @@ string PlayitemParse(const string &in path, dictionary &MetaData, array<dictiona
 	uint vCount = 0;
 	uint aCount = 0;
 	string vaOutUrl, vOutUrl, aOutUrl;
+	
 	int reduceFormats = cfg.getInt("FORMAT", "reduce_formats");
 	
 	bool rev = (reduceFormats == 2);
@@ -6780,8 +6763,8 @@ string PlayitemParse(const string &in path, dictionary &MetaData, array<dictiona
 			
 			if (va == "v" || va == "va")
 			{
-				//if (is360) dic["is360"] = true;
-				//if (type3D > 0) dic["type3D"] = type3D;
+				if (is360) dic["is360"] = true;
+				if (type3D > 0) dic["type3D"] = type3D;
 			}
 			
 			while (HostExistITag(itag)) itag++;
@@ -6886,8 +6869,8 @@ string PlayitemParse(const string &in path, dictionary &MetaData, array<dictiona
 	}
 	if (!thumb.empty()) MetaData["thumbnail"] = thumb;
 	
-	//if (is360) MetaData["is360"] = 1;
-	//if (type3D > 0) MetaData["type3D"] = type3D;
+	if (is360) MetaData["is360"] = 1;
+	if (type3D > 0) MetaData["type3D"] = type3D;
 	
 	if (@QualityList !is null && QualityList.length() > 0)
 	{
@@ -6897,7 +6880,7 @@ string PlayitemParse(const string &in path, dictionary &MetaData, array<dictiona
 		}
 		if (is360)
 		{
-			//_FillVR(QualityList, type3D);
+			_FillVR(QualityList, type3D);
 		}
 		
 		if (cfg.csl > 1)
@@ -7186,7 +7169,7 @@ string PlayitemParse(const string &in path, dictionary &MetaData, array<dictiona
 	{
 		HostPrintUTF8("[yt-dlp] Parsing complete (" + extractor + "). - " + ytd.qt(inUrl) +"\r\n");
 		
-		if (needPlaybackCookie > 0)
+		if (needPlaybackCookie)
 		{
 			string msg = "[yt-dlp] PotPlayer may not play this stream. The cookies are required during playback.";
 			msg += " - " + ytd.qt(inUrl) + "\r\n";
