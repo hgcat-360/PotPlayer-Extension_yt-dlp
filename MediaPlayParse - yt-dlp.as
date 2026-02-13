@@ -5,7 +5,7 @@
   Placed in \PotPlayer\Extension\Media\PlayParse\
 *************************************************************/
 
-string SCRIPT_VERSION = "260211";
+string SCRIPT_VERSION = "260213";
 
 
 string YTDLP_EXE = "yt-dlp.exe";
@@ -4542,17 +4542,13 @@ dictionary _PlaylistParse(string json, string imgUrl)
 	JsonValue root;
 	if (reader.parse(json, root) && root.isObject())
 	{
-		string url = _GetJsonValueString(root, "url");
+		string url = _GetJsonValueString(root, "original_url");
 		if (url.empty())
 		{
-			url = _GetJsonValueString(root, "original_url");
+			url = _GetJsonValueString(root, "webpage_url");
 			if (url.empty())
 			{
-				url = _GetJsonValueString(root, "webpage_url");
-				if (url.empty())
-				{
-					return {};
-				}
+				return {};
 			}
 		}
 		{
@@ -5233,6 +5229,7 @@ bool PlayitemCheck(const string &in path)
 	return true;
 }
 
+
 bool _RunAsync(string exePath, string para)
 {
 	// exePath / para: within the ASCII code
@@ -5265,22 +5262,69 @@ bool _RunAsync(string exePath, string para)
 	return ret;
 }
 
-void _PotPlayerAddList(string url, int mode)
+
+string _GetPotplayerExe()
 {
-	string potplayerExe = HostGetExecuteFolder() + "\\";
-	potplayerExe += "PotPlayerMini" + (HostIsWin64() ? "64" : "") + ".exe";
-	string options;
-	options = "\"" + url + "\"";
-	options += " /current";
-	if (mode == 0) options += " /insert";
-	else if (mode == 1) options += " /add";
-	else if (mode == -1) options += " /autoplay";
-	
-	if (!_RunAsync(potplayerExe, options))
+	if (HostGetExecuteFolder() == HostGetConfigFolder())
 	{
-		HostExecuteProgram(potplayerExe, options);
+		// portable installation
+		string name = "PotPlayerMini" + (HostIsWin64() ? "64" : "") + ".exe";
+		string exe = HostGetExecuteFolder() + name;
+		if (HostFileExist(exe))
+		{
+			return exe;
+		}
+		name.replace("Mini", "");
+		exe = HostGetExecuteFolder() + name;
+		if (HostFileExist(exe))
+		{
+			return exe;
+		}
 	}
+	else
+	{
+		// standard installation
+		array<string> folders = HostGetConfigFolder().split("\\");
+		if (folders.length() == 6)
+		{
+			if (folders[4] == "Roaming" && !folders[5].empty())
+			{
+				string name = folders[5] + ".exe";
+				
+				string exe = HostGetExecuteFolder() + name;
+				if (HostFileExist(exe))
+				{
+					return exe;
+				}
+			}
+		}
+	}
+	return "";
 }
+
+
+bool _PotPlayerAddList(string url, int mode)
+{
+	string potplayerExe = _GetPotplayerExe();
+	if (!potplayerExe.empty())
+	{
+		string options;
+		options = "\"" + url + "\"";
+		options += " /current";
+		if (mode == 0) options += " /insert";
+		else if (mode == 1) options += " /add";
+		else if (mode == -1) options += " /autoplay";
+		
+		if (!_RunAsync(potplayerExe, options))
+		{
+			HostExecuteProgram(potplayerExe, options);
+		}
+		
+		return true;
+	}
+	return false;
+}
+
 
 string _FormatDate(string date)
 {
@@ -6360,11 +6404,26 @@ string PlayitemParse(const string &in path, dictionary &MetaData, array<dictiona
 	
 	string title2;	// substantial title
 	{
-		if (!title.empty() && baseName == title + ext2) {}
-			// MetaData["title"] is empty if yt-dlp cannot get a substantial title,
-			// to prevent potplayer from overwriting the edited title in the playlist panel.
-		else if (sch.findI(title, "Shoutcast Server") == 0) {}
-		else
+		string _date;
+		if (!title.empty())
+		{
+			_date = sch.getRegExp(title, "( \\d{4}-\\d{2}-\\d{2} \\d{2}:\\d{2})$");
+			if (!_date.empty())
+			{
+				title = title.Left(title.length() - _date.length());
+			}
+			if (baseName == title + ext2)
+			{
+				title = "";
+				// MetaData["title"] is empty if yt-dlp cannot get a substantial title,
+				// to prevent potplayer from overwriting the edited title in the playlist panel.
+			}
+			else if (sch.findI(title, "Shoutcast Server") == 0)
+			{
+				title = "";
+			}
+		}
+		if (!title.empty())
 		{
 			title2 = title;
 		}
@@ -6400,10 +6459,9 @@ string PlayitemParse(const string &in path, dictionary &MetaData, array<dictiona
 				title2 = author + " (" + extractor + ") " + date;
 			}
 		}
-		if (title2.find(author) == 0)
+		if (title2.find(author) == 0 && !_date.empty())
 		{
-			string _date = sch.getRegExp(title2.substr(author.length()), "(?i)^ \\(live\\) (\\d{4}\\-\\d{2}\\-\\d{2}.*)$");
-			if (!_date.empty())
+			if (sch.findRegExp(title2.substr(author.length()), "(?i)^ \\(live\\)$") == 0)
 			{
 				if (!desc.empty())
 				{
@@ -6411,7 +6469,7 @@ string PlayitemParse(const string &in path, dictionary &MetaData, array<dictiona
 				}
 				else if (!isGeneric)
 				{
-					title2 = author + " (" + extractor + ") " + _date;
+					title2 = author + " (" + extractor + ")" + _date;
 				}
 			}
 		}
@@ -7171,7 +7229,7 @@ string PlayitemParse(const string &in path, dictionary &MetaData, array<dictiona
 		
 		if (needPlaybackCookie)
 		{
-			string msg = "[yt-dlp] PotPlayer may not play this stream. The cookies are required during playback.";
+			string msg = "[yt-dlp] PotPlayer may fail to play this stream due to its lack of cookie support.";
 			msg += " - " + ytd.qt(inUrl) + "\r\n";
 			HostPrintUTF8(msg);
 		}
