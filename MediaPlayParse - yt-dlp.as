@@ -5,7 +5,7 @@
   Placed in \PotPlayer\Extension\Media\PlayParse\
 *************************************************************/
 
-string SCRIPT_VERSION = "260325";
+string SCRIPT_VERSION = "260326";
 
 
 string YTDLP_EXE = "yt-dlp.exe";
@@ -2841,7 +2841,7 @@ class CACHE
 		}
 	}
 	
-	void addItem(string url, dictionary MetaData, array<dictionary> QualityList)
+	void addItem(string url, dictionary &MetaData, array<dictionary> &QualityList)
 	{
 		if (MetaData.empty()) return;
 		removeOld();
@@ -2861,7 +2861,7 @@ class CACHE
 		rec["MetaData"] = gzMetaData;
 		
 		string gzQualityList, sQualityList;
-		if (QualityList.length() > 0)
+		if (@QualityList !is null)
 		{
 			sQualityList = jsn.dictionaryListToJson(QualityList);
 			gzQualityList = HostGzipCompress(sQualityList);
@@ -3785,19 +3785,28 @@ class YTDLP
 	int _checkLogForbidden(string log, string url, string &inout referer)
 	{
 		// Server error 403 or 404
-		if (tx.findRegExp(log, "(?i)\\nERROR: [^\r\n]*HTTP Error 40[34]:") >= 0)
+		int pos = tx.findRegExp(log, "(?i)\\nERROR: [^\r\n]*HTTP Error 40[34]");
+		if (pos >= 0)
 		{
 			if (referer.empty())
 			{
-				referer = cfg.getStr("NETWORK", "referer");
-				if (!referer.empty())
+				string line = tx.getLine(log, pos + 1);
+				if (tx.findI(line, "Cloudflare anti-bot") >= 0)
 				{
-					if (referer.find("http") == 0)
+					return -2;
+				}
+				else
+				{
+					referer = cfg.getStr("NETWORK", "referer");
+					if (!referer.empty())
 					{
-						return -1;
+						if (referer.find("http") == 0)
+						{
+							return -1;
+						}
+						referer = "";
+						cfg.cmtoutKey("NETWORK", "referer");
 					}
-					referer = "";
-					cfg.cmtoutKey("NETWORK", "referer");
 				}
 			}
 			string msg = "Access forbidden or not found.";
@@ -3969,30 +3978,43 @@ class YTDLP
 		return jsonList;
 	}
 	
-	array<string> exec1(string url, int playlistMode, string referer = "")
+	array<string> exec1(string url, int playlistMode, string retry = "")
 	{
 		if (checkFileInfo() > 0) return {};
 		checkFileHash();
 		string tmpVersion = version;
 		
+		if (cfg.csl > 0)
+		{
+			string msg = "\r\n[yt-dlp] ";
+			if (playlistMode == 0)
+			{
+				msg += "Parsing";
+			}
+			else
+			{
+				msg += "Extracting entries";
+			}
+			if (retry.find("http") == 0)
+			{
+				msg += " (wtih referer)";
+			}
+			else if (!retry.empty())
+			{
+				msg += " (" + retry + ")";
+			}
+			msg += "... - " + tx.qt(url) + "\r\n";
+			HostPrintUTF8(msg);
+		}
+		
 		bool isYoutube = _IsUrlSite(url, "youtube");
 		
 		string options = "";
 		
-		if (playlistMode <= 0)
+		if (playlistMode == 0)
 		{
 			// a single video/audio
 			// called from PlayitemParse
-			
-			if (cfg.csl > 0)
-			{
-				string msg = "\r\n[yt-dlp] ";
-				if (playlistMode < 0) msg += "Retry ";
-				msg += "Parsing";
-				if (!referer.empty()) msg += " wtih referer";
-				msg += "... - " + tx.qt(url) + "\r\n";
-				HostPrintUTF8(msg);
-			}
 			
 			if (isYoutube)
 			{
@@ -4017,11 +4039,6 @@ class YTDLP
 		{
 			// playlist
 			// called from PlaylistParse
-			
-			if (cfg.csl > 0)
-			{
-				HostPrintUTF8("\r\n[yt-dlp] Extracting playlist entries... - " + tx.qt(url) + "\r\n");
-			}
 			
 			if (_IsPotentialBiliPart(url))
 			{
@@ -4058,7 +4075,7 @@ class YTDLP
 		
 		options += " --all-subs";
 		
-		if (playlistMode != -1)
+		if (retry != "retry live")
 		{
 			if (_IsUrlSite(url, "twitch.tv"))	// for twitch
 			{
@@ -4083,9 +4100,13 @@ class YTDLP
 		options += " --encoding \"utf8\"";	// prevent garbled text
 		
 		_addOptionsNetwork(options);
-		if (!referer.empty())
+		if (retry == "impersonate")
 		{
-			options += " --add-headers " + tx.qt("Referer: " + referer);
+			options += " --extractor-args " + tx.qt("generic:impersonate=safari,chrome-146");
+		}
+		else if (retry.find("http") == 0)	// referer
+		{
+			options += " --add-headers " + tx.qt("Referer: " + retry);
 		}
 		
 		string proxy = cfg.getStr("NETWORK", "proxy");
@@ -4106,7 +4127,7 @@ class YTDLP
 		
 		// Execute
 		string output;
-		if (playlistMode <= 0)
+		if (playlistMode == 0)
 		{
 			options += " -v";
 			options += " -- " + url;
@@ -4171,12 +4192,12 @@ class YTDLP
 			
 			if (_checkLogLiveFromStart(log))
 			{
-				if (playlistMode != -1)
+				if (retry.empty())
 				{
 					if (options.find(" --live-from-start") >= 0)
 					{
 						// Retry without --live-from-start
-						return exec1(url, -1, referer);
+						return exec1(url, playlistMode, "retry live");
 					}
 				}
 			}
@@ -4185,13 +4206,17 @@ class YTDLP
 			if (_checkLogServerBlock(log, url)) return {};
 			if (_checkLogGeoRestriction(log, url)) return {};
 			if (_checkLogRegisteredOnly(log, url)) return {};
-			int forbidden = _checkLogForbidden(log, url, referer);
+			int forbidden = _checkLogForbidden(log, url, retry);
 			if (forbidden != 0)
 			{
-				if (forbidden < 0 && !referer.empty())
+				if (forbidden == -1 && !retry.empty())
 				{
-					// Retry with the referer
-					return exec1(url, playlistMode, referer);
+					// Retry with the referer(=retry)
+					return exec1(url, playlistMode, retry);
+				}
+				else if (forbidden == -2)
+				{
+					return exec1(url, playlistMode, "impersonate");
 				}
 				return {};
 			}
@@ -5465,7 +5490,7 @@ bool _IsUrlPlaylist(string url)
 }
 
 
-int _CheckMetaDataPlaylist(dictionary MetaData)
+int _CheckMetaDataPlaylist(dictionary &MetaData)
 {
 	int playlistSelfCnt = int(MetaData["playlistSelfCount"]);
 	if (playlistSelfCnt > 0) return 2;
@@ -6997,7 +7022,7 @@ bool __IsQualityDuplicate(dictionary quality1, dictionary quality2)
 }
 
 
-bool _IsQualityDuplicate(dictionary Quality, array<dictionary> QualityList)
+bool _IsQualityDuplicate(dictionary Quality, array<dictionary> &QualityList)
 {
 	if (@QualityList is null) return false;
 	
@@ -7348,7 +7373,7 @@ string _SetRequestHeader(string url, JsonValue jFormat)
 }
 
 
-bool _CheckLiveThrough(dictionary MetaData, string url)
+bool _CheckLiveThrough(dictionary &MetaData, string url)
 {
 	if (bool(MetaData["liveThrough"]))
 	{
