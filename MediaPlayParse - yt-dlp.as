@@ -5,7 +5,7 @@
   Placed in \PotPlayer\Extension\Media\PlayParse\
 *************************************************************/
 
-string SCRIPT_VERSION = "260326";
+string SCRIPT_VERSION = "260329";
 
 
 string YTDLP_EXE = "yt-dlp.exe";
@@ -3257,7 +3257,8 @@ class YTDLP
 	string exePath;
 	string version;
 	string tmpHash;
-	bool updateCheck = false;
+	uint updateCheckTime = 0;	// milliseconds
+	uint UPDATE_CHECK_INTERVAL = 7200000;	// milliseconds
 	
 	array<string> errors = {"(OK)", "(NOT FOUND)", "(LOOKS INVALID)", "(CRITICAL ERROR!)"};
 	int error = 0;
@@ -4113,12 +4114,13 @@ class YTDLP
 		
 		if (cfg.getInt("MAINTENANCE", "update_ytdlp") == 1)
 		{
-			if (!updateCheck)
+			if (!tmpHash.empty() && tmpHash == cfg.getStr("MAINTENANCE", "ytdlp_hash"))
 			{
-				if (!tmpHash.empty() && tmpHash == cfg.getStr("MAINTENANCE", "ytdlp_hash"))
+				uint curTime = HostGetTickCount();
+				if (updateCheckTime == 0 || curTime - updateCheckTime >= UPDATE_CHECK_INTERVAL)
 				{
 					options += " -U";
-					updateCheck = true;
+					updateCheckTime = curTime;
 				}
 			}
 		}
@@ -4361,11 +4363,13 @@ class YTDLP
 			}
 			
 			string bgutilHttp = cfg.getStr("YOUTUBE", "potoken_bgutil_http");
+			bgutilHttp.replace(" ", "");
 			if (!bgutilHttp.empty())
 			{
 				options += " --extractor-args " + tx.qt("youtubepot-bgutilhttp:" + bgutilHttp);
 			}
 			string bgutilScript = cfg.getStr("YOUTUBE", "potoken_bgutil_script");
+			bgutilScript.replace(" ", "");
 			if (!bgutilScript.empty())
 			{
 				options += " --extractor-args " + tx.qt("youtubepot-bgutilscript:" + bgutilScript);
@@ -4381,11 +4385,13 @@ class YTDLP
 		youtubeArgs += "lang=" + cfg.baseLang;
 		
 		string playerClient = cfg.getStr("YOUTUBE", "player_client");
+		playerClient.replace(" ", "");
 		youtubeArgs += ";player_client=" + playerClient;
 		
 		if (hasCookie)
 		{
 			string poToken = cfg.getStr("YOUTUBE", "po_token");
+			poToken.replace(" ", "");
 			if (!poToken.empty())
 			{
 				youtubeArgs += ";po_token=" + poToken;
@@ -6400,17 +6406,17 @@ bool _BlockAutoRestore(array<dictionary> &MetaDataList, string path, uint startT
 		}
 		if (insertIdx >= 0)
 		{
-			array<dictionary> insertMetaDataList;
+			array<dictionary> insertList;
 			for (uint i = 0; i < 20; i++)
 			{
-				insertMetaDataList = cache.getPlaylist(prevUrl);
-				if (insertMetaDataList.length() > 0) break;
+				insertList = cache.getPlaylist(prevUrl);
+				if (insertList.length() > 0) break;
 				HostSleep(2000);
 			}
-			if (insertMetaDataList.length() > 0)
+			if (insertList.length() > 0)
 			{
 				MetaDataList.resize(0);
-				MetaDataList = insertMetaDataList;
+				MetaDataList = insertList;
 				
 				/*
 				if (playlistExpandMode == 2)
@@ -6421,7 +6427,7 @@ bool _BlockAutoRestore(array<dictionary> &MetaDataList, string path, uint startT
 				{
 					insertIdx += 1;
 				}
-				MetaDataList.insertAt(insertIdx, insertMetaDataList);
+				MetaDataList.insertAt(insertIdx, insertList);
 				*/
 				
 				return true;
@@ -7364,10 +7370,13 @@ string _SetRequestHeader(string url, JsonValue jFormat)
 		HostSetUrlCookieHTTP(url, cookie);
 	}
 	
+	/*
+	// HostSetUrlHeaderHTTP is called in PlaylistParse
 	if (!reqHeader.empty())
 	{
 		HostSetUrlHeaderHTTP(url, reqHeader);
 	}
+	*/
 	
 	return reqHeader;
 }
@@ -8860,6 +8869,8 @@ string _PlayitemParse(const string &in path, dictionary &MetaData, array<diction
 	
 	if (!reqHeader.empty())
 	{
+		MetaData["reqHeader"] = reqHeader;
+		
 		if (cfg.csl > 1)
 		{
 			bool existReferer = (tx.findRegExp(reqHeader, "(?:^|\\n)Referer: ") >= 0);
@@ -9201,15 +9212,20 @@ string PlayitemParse(const string &in path, dictionary &MetaData, array<dictiona
 	
 	string outUrl = _PlayitemParse(path, MetaData, QualityList, startTime);
 	
-	int idx = hist.find(path, startTime, 0);
-	int doubleCall = int(hist.list[idx]["doubleCall"]);
+	string reqHeader = string(MetaData["reqHeader"]);
+	{
+		if (!reqHeader.empty())
+		{
+			HostSetUrlHeaderHTTP(_ReviseUrl(path), reqHeader);
+		}
+	}
+	
+	int doubleCall = hist.getDoubleCall(path, startTime);
 	if (doubleCall > 0 && int(MetaData["playlistSelfCount"]) > 0)
 	{
 //HostPrintUTF8("AddList start");
 		_PlayerAddList(path, doubleCall == 2);
 	}
-	
-	hist.remove(path, startTime);
 	
 	if (bool(hist.list[0]["local"]))
 	{
@@ -9217,6 +9233,8 @@ string PlayitemParse(const string &in path, dictionary &MetaData, array<dictiona
 		HostMessageBox("[yt-dlp] Reopen the current file.\r\nPrevious URL session is conflicting.");
 		outUrl = string(hist.list[0]["path"]);
 	}
+	
+	hist.remove(path, startTime);
 	
 	return outUrl;
 }
