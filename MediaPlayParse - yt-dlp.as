@@ -5,7 +5,7 @@
   Placed in \PotPlayer\Extension\Media\PlayParse\
 *************************************************************/
 
-string SCRIPT_VERSION = "260329";
+string SCRIPT_VERSION = "260331";
 
 
 string YTDLP_EXE = "yt-dlp.exe";
@@ -27,7 +27,7 @@ string PLAYLIST_IMAGE = "yt-dlp_playlist.jpg";
 
 // Threshold time (milliseconds)
 uint DOUBLE_CALL_INTERVAL_1 = 2000;
-uint DOUBLE_CALL_INTERVAL_2 = 5000;
+uint DOUBLE_CALL_INTERVAL_2 = 4000;
 
 
 
@@ -1854,14 +1854,14 @@ class POTPLAYER
 	}
 	
 	
-	bool playerAddList(string url, int expandMode = 0)
+	bool playerAddList(string url, int playlistExpandMode = 0)
 	{
 		if (getPlayerExePath())
 		{
 			string options;
 			options = "\"" + url + "\"";
 			
-			if (expandMode == 1)
+			if (playlistExpandMode == 10)
 			{
 				options += " /new";	// add to the queue album of the new window
 			}
@@ -1870,15 +1870,15 @@ class POTPLAYER
 				options += " /current";	// current window
 			}
 			
-			if (expandMode == 0)
+			if (playlistExpandMode == 0)
 			{
-				// add to the default album
+				// add to the "default" album
 			}
-			else if (expandMode == 2)
+			else if (playlistExpandMode == 1)
 			{
 				options += " /add";	// add to the current album
 			}
-			else if (expandMode == 3)
+			else if (playlistExpandMode == 2)
 			{
 				options += " /insert";	// insert to the current album
 				// This has an issue in the external-playlist album.
@@ -2737,9 +2737,9 @@ class CACHE
 		return -1;
 	}
 	
-	void remove(uint idx)
+	void remove(int idx)
 	{
-		if (idx >= 0 && idx < list.length())
+		if (idx >= 0 && idx < int(list.length()))
 		{
 			totalSize -= int(list[idx]["size"]);
 			list.removeAt(idx);
@@ -2749,10 +2749,9 @@ class CACHE
 	void remove(string url, string key = "")
 	{
 		// Remove a record with the same url
-		int idx;
 		while (true)
 		{
-			idx = find(url, key);
+			int idx = find(url, key);
 			if (idx < 0) break;
 			remove(idx);
 		}
@@ -2800,56 +2799,64 @@ class CACHE
 		}
 	}
 	
-	void addJson(string url, string json)
+	void addJson(string url, string json, string imgUrl = "")
 	{
 		if (json.empty()) return;
 		removeOld();
 		
-		if (find(url) < 0)
+		if (find(url) >= 0) return ;
+		
+		// Add a new record
+		dictionary rec;
+		rec["url"] = url;
+		rec["time"] = HostGetTickCount();
+		
+		string gzJson = HostGzipCompress(json);
+		rec["json"] = gzJson;
+		
+		if (!imgUrl.empty())
 		{
-			// Add a new record
-			dictionary rec;
-			rec["url"] = url;
-			rec["time"] = HostGetTickCount();
-			
-			string gzJson = HostGzipCompress(json);
-			rec["json"] = gzJson;
-			
-			int size = gzJson.length();
-			rec["size"] = size;
-			totalSize += size;
-			list.insertAt(0, rec);
-			
-			if (cfg.csl > 1)
+			rec["imgUrl"] = imgUrl;
+		}
+		
+		int size = gzJson.length();
+		rec["size"] = size;
+		totalSize += size;
+		list.insertAt(0, rec);
+		
+		if (cfg.csl > 1)
+		{
+			if (json.length() > 0)
 			{
-				if (json.length() > 0)
+				if (false)
 				{
-					if (false)
-					{
-						int compRate = int(float(gzJson.length()) / float(json.length()) * 100);
-						HostPrintUTF8("Compression rate (temporary JSON): " + compRate + "%");
-					}
-					if (false)
-					{
-						string msg = "Cache size (temporary JSON): ";
-						msg += (size / 1024) + " / " + (totalSize / 1024) + " KB";
-						msg += " - " + tx.qt(url) + "\r\n";
-						HostPrintUTF8(msg);
-					}
+					int compRate = int(float(gzJson.length()) / float(json.length()) * 100);
+					HostPrintUTF8("Compression rate (temporary JSON): " + compRate + "%");
+				}
+				if (false)
+				{
+					string msg = "Cache size (temporary JSON): ";
+					msg += (size / 1024) + " / " + (totalSize / 1024) + " KB";
+					msg += " - " + tx.qt(url) + "\r\n";
+					HostPrintUTF8(msg);
 				}
 			}
 		}
 	}
 	
-	void addItem(string url, dictionary &MetaData, array<dictionary> &QualityList)
+	void addItem(string url, dictionary &MetaData, array<dictionary> &QualityList, bool edit = false)
 	{
 		if (MetaData.empty()) return;
 		removeOld();
 		
 		int idx = find(url, "MetaData");
-		if (idx >= 0) return;
-		idx = find(url, "json");
-		if (idx >= 0) remove(idx);
+		if (idx >= 0)
+		{
+			if (!edit) return;
+			remove(idx);
+		}
+		int idxJson = find(url, "json");
+		if (idxJson >= 0) remove(idxJson);
 		
 		// Add a new record
 		dictionary rec;
@@ -2892,15 +2899,19 @@ class CACHE
 		}
 	}
 	
-	void addPlaylist(string url, array<dictionary> MetaDataList)
+	void addPlaylist(string url, array<dictionary> MetaDataList, bool edit = false)
 	{
 		if (MetaDataList.length() == 0) return;
 		removeOld();
 		
 		int idx = find(url, "MetaDataList");
-		if (idx >= 0) return;
-		idx = find(url, "json");
-		if (idx >= 0) remove(idx);
+		if (idx >= 0)
+		{
+			if (!edit) return;
+			remove(idx);
+		}
+		int idxJson = find(url, "json");
+		if (idxJson >= 0) remove(idxJson);
 		
 		// Add a new record
 		dictionary rec;
@@ -2933,7 +2944,7 @@ class CACHE
 		}
 	}
 	
-	string getJson(string url)
+	string getJson(string url, string &inout imgUrl)
 	{
 		int idx = find(url, "json");
 		if (idx >= 0)
@@ -2944,6 +2955,7 @@ class CACHE
 			{
 				string gzJson = string(list[idx]["json"]);
 				string json = HostDecompress(gzJson);
+				imgUrl = string(list[idx]["imgUrl"]);
 				return json;
 			}
 			else
@@ -3027,17 +3039,20 @@ class HIST
 {
 	array<dictionary> list;
 	
-	int find(string path, uint startTime = 0, int finishMode = -1)
+	int find(string path, bool toAlbum, uint startTime = 0, int finishMode = -1)
 	{
 		for (uint i = 0; i < list.length(); i++)
 		{
 			if (string(list[i]["path"]) == path)
 			{
-				if (startTime == 0 || uint(list[i]["startTime"]) == startTime)
+				if (bool(list[i]["toAlbum"]) == toAlbum)
 				{
-					if (finishMode < 0 || bool(list[i]["finish"]) == (finishMode == 1))
+					if (startTime == 0 || uint(list[i]["startTime"]) == startTime)
 					{
-						return i;
+						if (finishMode < 0 || bool(list[i]["finish"]) == (finishMode == 1))
+						{
+							return i;
+						}
 					}
 				}
 			}
@@ -3045,18 +3060,21 @@ class HIST
 		return -1;
 	}
 	
-	int findPrev(string path, uint curStartTime = 0, int prevFinishMode = -1)
+	int findPrev(string path, bool toAlbum, uint curStartTime = 0, int prevFinishMode = -1)
 	{
-		int idx = find(path, curStartTime);
+		int idx = find(path, toAlbum, curStartTime);
 		if (idx >= 0)
 		{
 			for (uint i = idx + 1; i < list.length(); i++)
 			{
 				if (string(list[i]["path"]) == path)
 				{
-					if (prevFinishMode < 0 || bool(list[i]["finish"]) == (prevFinishMode == 1))
+					if (bool(list[i]["toAlbum"]) == toAlbum)
 					{
-						return i;
+						if (prevFinishMode < 0 || bool(list[i]["finish"]) == (prevFinishMode == 1))
+						{
+							return i;
+						}
 					}
 				}
 			}
@@ -3064,29 +3082,29 @@ class HIST
 		return -1;
 	}
 	
-	void add(string path, uint startTime, bool finish = false)
+	void add(string path, bool toAlbum, uint startTime, bool finish = false)
 	{
-		int idx = find(path, startTime, finish ? 1 : 0);
+		int idx = find(path, toAlbum, startTime, finish ? 1 : 0);
 		if (idx >= 0) return;
 		
 		dictionary item;
 		item.set("path", path);
-		//item.set("playlist", playlist);
+		item.set("toAlbum", toAlbum);
 		item.set("startTime", startTime);
 		item.set("finish", finish);
 		item.set("local", finish);
 		item.set("cancelTime", 0);
 		item.set("noSaveCache", false);
 		
-		int doubleCall = _judgeDoubleCall(path, startTime);
+		int doubleCall = _judgeDoubleCall(path, toAlbum, startTime);
 		item.set("doubleCall", doubleCall);
 		
 		list.insertAt(0, item);
 	}
 	
-	void remove(string path, uint startTime)
+	void remove(string path, bool toAlbum, uint startTime)
 	{
-		uint idx = find(path, startTime, 0);
+		uint idx = find(path, toAlbum, startTime, 0);
 		if (idx >= 0)
 		{
 			list[idx].set("finish", true);
@@ -3110,33 +3128,35 @@ class HIST
 		}
 	}
 	
-	int _judgeDoubleCall(string path, uint startTime)
+	int _judgeDoubleCall(string path, bool toAlbum, uint startTime)
 	{
 		int doubleCall = 0;
 		if (list.length() > 0)
 		{
-			string prevPath = string(list[0]["path"]);
-			if (prevPath == path)
+			if (string(list[0]["path"]) == path)
 			{
-				if (int(list[0]["doubleCall"]) == 0)
+				if (bool(list[0]["toAlbum"]) == toAlbum)
 				{
-					uint prevStartTime = uint(list[0]["startTime"]);
-					if (startTime >= prevStartTime)
+					if (int(list[0]["doubleCall"]) == 0)
 					{
-//HostPrintUTF8("diffTime: " + diffTime);
-						uint diffTime = startTime - prevStartTime;
-						if (diffTime < DOUBLE_CALL_INTERVAL_1)
+						uint prevStartTime = uint(list[0]["startTime"]);
+						if (startTime >= prevStartTime)
 						{
-							doubleCall = 1;
-						}
-						else if (diffTime < DOUBLE_CALL_INTERVAL_2)
-						{
-							doubleCall = 2;
-						}
-						if (doubleCall > 0)
-						{
-							list[0]["doubleCall"] = -1;
-							list[0]["noSaveCache"] = false;
+							uint diffTime = startTime - prevStartTime;
+	//HostPrintUTF8("diffTime: " + diffTime);
+							if (diffTime < DOUBLE_CALL_INTERVAL_1)
+							{
+								doubleCall = 1;
+							}
+							else if (diffTime < DOUBLE_CALL_INTERVAL_2)
+							{
+								doubleCall = 2;
+							}
+							if (doubleCall > 0)
+							{
+								list[0]["doubleCall"] = -1;
+								list[0]["noSaveCache"] = false;
+							}
 						}
 					}
 				}
@@ -3145,15 +3165,15 @@ class HIST
 		return doubleCall;
 	}
 	
-	int getDoubleCall(string path, uint startTime)
+	int getDoubleCall(string path, bool toAlbum, uint startTime)
 	{
-		int idx = find(path, startTime, 0);
+		int idx = find(path, toAlbum, startTime, 0);
 		return int(list[idx]["doubleCall"]);
 	}
 	
-	void blockSaveCache(string path, uint startTime)
+	void blockSaveCache(string path, bool toAlbum, uint startTime)
 	{
-		uint idx = find(path, startTime, 0);
+		uint idx = find(path, toAlbum, startTime, 0);
 		if (idx >= 0)
 		{
 			uint cancelTime = HostGetTickCount();
@@ -3162,17 +3182,20 @@ class HIST
 			{
 				if (string(list[i]["path"]) == path)
 				{
-					if (!bool(list[i]["finish"]))
+					if (bool(list[i]["toAlbum"]) == toAlbum)
 					{
-						if (uint(list[i]["cancelTime"]) == 0)
+						if (!bool(list[i]["finish"]))
 						{
-							list[i]["cancelTime"] = cancelTime;
-						}
-						if (!bool(list[i]["noSaveCache"]))
-						{
-							if (int(list[i]["doubleCall"]) == 0)
+							if (uint(list[i]["cancelTime"]) == 0)
 							{
-								list[i]["noSaveCache"] = true;
+								list[i]["cancelTime"] = cancelTime;
+							}
+							if (!bool(list[i]["noSaveCache"]))
+							{
+								if (int(list[i]["doubleCall"]) == 0)
+								{
+									list[i]["noSaveCache"] = true;
+								}
 							}
 						}
 					}
@@ -3218,12 +3241,12 @@ class HIST
 		}
 	}
 	
-	int checkCancel(string path, uint startTime, bool showMsg = true)
+	int checkCancel(string path, bool toAlbum, uint startTime, bool showMsg = true)
 	{
 		string inUrl = _ReviseUrl(path);
 		if (showMsg) showMsg = (cfg.csl > 0);
 		
-		int idx = find(path, startTime, 0);
+		int idx = find(path, toAlbum, startTime, 0);
 		if (idx >= 0)
 		{
 			uint cancelTime = uint(list[idx]["cancelTime"]);
@@ -3998,11 +4021,11 @@ class YTDLP
 			}
 			if (retry.find("http") == 0)
 			{
-				msg += " (wtih referer)";
+				msg += " (Retry wtih referer)";
 			}
 			else if (!retry.empty())
 			{
-				msg += " (" + retry + ")";
+				msg += " (Retry " + retry + ")";
 			}
 			msg += "... - " + tx.qt(url) + "\r\n";
 			HostPrintUTF8(msg);
@@ -4076,7 +4099,7 @@ class YTDLP
 		
 		options += " --all-subs";
 		
-		if (retry != "retry live")
+		if (retry != "twich live")
 		{
 			if (_IsUrlSite(url, "twitch.tv"))	// for twitch
 			{
@@ -4101,9 +4124,11 @@ class YTDLP
 		options += " --encoding \"utf8\"";	// prevent garbled text
 		
 		_addOptionsNetwork(options);
-		if (retry == "impersonate")
+		if (retry == "with impersonation")
 		{
-			options += " --extractor-args " + tx.qt("generic:impersonate=safari,chrome-146");
+			string impersonate = cfg.getStr("NETWORK", "impersonate");
+			impersonate.replace(" ", "");
+			options += " --extractor-args " + tx.qt("generic:impersonate=" + impersonate);
 		}
 		else if (retry.find("http") == 0)	// referer
 		{
@@ -4199,7 +4224,7 @@ class YTDLP
 					if (options.find(" --live-from-start") >= 0)
 					{
 						// Retry without --live-from-start
-						return exec1(url, playlistMode, "retry live");
+						return exec1(url, playlistMode, "twich live");
 					}
 				}
 			}
@@ -4211,14 +4236,14 @@ class YTDLP
 			int forbidden = _checkLogForbidden(log, url, retry);
 			if (forbidden != 0)
 			{
-				if (forbidden == -1 && !retry.empty())
+				if (forbidden == -1 && retry.find("http") == 0)
 				{
-					// Retry with the referer(=retry)
+					// Retry with referer(=retry)
 					return exec1(url, playlistMode, retry);
 				}
 				else if (forbidden == -2)
 				{
-					return exec1(url, playlistMode, "impersonate");
+					return exec1(url, playlistMode, "with impersonation");
 				}
 				return {};
 			}
@@ -5336,7 +5361,7 @@ void PlayitemCancel()
 
 bool PlaylistCheck(const string &in path)
 {
-	// Called when a new item is being opend from a location other than PotPlayer's playlist
+	// Called when a new item is being opend from a location other than PotPlayer's album
 //HostPrintUTF8("PlaylistCheck\r\n");
 	
 	string url = _ReviseUrl(path);
@@ -5345,8 +5370,8 @@ bool PlaylistCheck(const string &in path)
 	{
 		if (_IsTypicalMediaExt(url))
 		{
-			// Only if local contnt is being opened
-			hist.add(path, HostGetTickCount(), true);
+			// Only if local content is being opened
+			hist.add(path, true, HostGetTickCount(), true);
 			hist.cancelAll();
 		}
 		return false;
@@ -5723,51 +5748,6 @@ bool _ParseWholePlaylist(array<string> jsonList, string inUrl, string &out whole
 }
 
 
-dictionary _GetMetaData(string json, string inUrl, string imgUrl = "")
-{
-	if (json.empty()) return {};
-	
-	JsonReader reader;
-	JsonValue root;
-	if (reader.parse(json, root) && root.isObject())
-	{
-		dictionary MetaData = _ParseMetaData(root, inUrl);
-		
-		if (!MetaData.empty())
-		{
-			string thumb = string(MetaData["thumbnail"]);
-			if (thumb.empty())
-			{
-				if (!imgUrl.empty())
-				{
-					thumb = imgUrl;
-				}
-				else
-				{
-					if (bool(MetaData["isAudio"]))	// audio
-					{
-						string extractor = string(MetaData["extractor"]);
-						if (_IsGeneric(extractor))
-						{
-							if (cfg.getInt("TARGET", "radio_thumbnail") == 1)
-							{
-								thumb = _GetRadioThumb();
-							}
-						}
-					}
-				}
-				if (!thumb.empty())
-				{
-					MetaData["thumbnail"] = thumb;
-				}
-			}
-			return MetaData;
-		}
-	}
-	return {};
-}
-
-
 int _PlaylistParseDirect(string inUrl, array<dictionary> &MetaDataList)
 {
 	MetaDataList = {};
@@ -5858,7 +5838,7 @@ array<dictionary> _PlaylistParse(const string &in path, uint startTime, int play
 	
 	while (true)
 	{
-		int prevIdx = hist.findPrev(path, startTime, 0);
+		int prevIdx = hist.findPrev(path, true, startTime, 0);
 		if (prevIdx < 0)
 		{
 //HostPrintUTF8("pl loop.1");
@@ -5867,7 +5847,7 @@ array<dictionary> _PlaylistParse(const string &in path, uint startTime, int play
 		
 		if (playlistForceExpand == 2)
 		{
-			hist.blockSaveCache(path, startTime);
+			hist.blockSaveCache(path, true, startTime);
 //HostPrintUTF8("pl loop.2");
 			break;
 		}
@@ -5877,7 +5857,7 @@ array<dictionary> _PlaylistParse(const string &in path, uint startTime, int play
 		HostIncTimeOut(4000);
 		HostSleep(4000);
 		
-		if (hist.checkCancel(path, startTime, false) > 0)
+		if (hist.checkCancel(path, true, startTime, false) > 0)
 		{
 //HostPrintUTF8("pl loop.3");
 			return {};
@@ -5928,7 +5908,7 @@ array<dictionary> _PlaylistParse(const string &in path, uint startTime, int play
 	
 	if (playlistForceExpand < 2)
 	{
-		string json = cache.getJson(inUrl);
+		string json = cache.getJson(inUrl, imgUrl);
 		if (!json.empty())
 		{
 			jsonList.insertLast(json);
@@ -5941,7 +5921,7 @@ array<dictionary> _PlaylistParse(const string &in path, uint startTime, int play
 		if (jsonList.length() == 0) return {};
 	}
 	
-	if (hist.checkCancel(path, startTime) == 2) return {};
+	if (hist.checkCancel(path, true, startTime) == 2) return {};
 	
 	uint naCnt = 0;	// unavailable count
 	uint toCnt = 0;	// time out count
@@ -5962,14 +5942,14 @@ array<dictionary> _PlaylistParse(const string &in path, uint startTime, int play
 				jsonList = ytd.exec2(urls, 0, true);
 			}
 		}
-		if (hist.checkCancel(path, startTime) == 2) return {};
+		if (hist.checkCancel(path, true, startTime) == 2) return {};
 	}
 	
 	uint parseTime1 = HostGetTickCount();
 	{
 		for (uint i = 0; i < jsonList.length(); i++)
 		{
-			dictionary MetaData = _GetMetaData(jsonList[i], inUrl, imgUrl);
+			dictionary MetaData = _ParseMetaData(jsonList[i], inUrl, imgUrl, true);
 			if (string(MetaData["webUrl"]).empty()) break;
 			MetaDataList.insertLast(MetaData);
 		}
@@ -5980,13 +5960,14 @@ array<dictionary> _PlaylistParse(const string &in path, uint startTime, int play
 	{
 		HostPrintUTF8("JSON list parsing time: " + parseTime + "sec");
 	}
+	
 	if (MetaDataList.length() == 0) return {};
 	
 	if (ext0 == "m3u8")
 	{
 		if (_CheckM3u8Hls(inUrl) > 0)
 		{
-			HostPrintUTF8("[yt-dlp] This URL is not for a playlist. - " + tx.qt(inUrl) + "\r\n\r\n");
+			HostPrintUTF8("[yt-dlp] This URL is for an HLS stream. - " + tx.qt(inUrl) + "\r\n\r\n");
 			return MetaDataList;
 		}
 	}
@@ -6012,7 +5993,7 @@ array<dictionary> _PlaylistParse(const string &in path, uint startTime, int play
 		array<string> errIds = {};
 		array<string> jsonList2 = ytd.exec2(urls, _IsUrlSite(inUrl, "youtube") ? 1 : -1, flatPlaylist, errIds, execMsg);
 		
-		if (hist.checkCancel(path, startTime) == 2) return {};
+		if (hist.checkCancel(path, true, startTime) == 2) return {};
 		
 		// Remove error items
 		for (uint i = 0; i < jsonList2.length(); i++)
@@ -6040,7 +6021,7 @@ array<dictionary> _PlaylistParse(const string &in path, uint startTime, int play
 		// Collect metadata
 		for (uint i = 0; i < jsonList2.length(); i++)
 		{
-			dictionary MetaData1 = _GetMetaData(jsonList2[i], inUrl, imgUrl);
+			dictionary MetaData1 = _ParseMetaData(jsonList2[i], inUrl, imgUrl, true);
 			dictionary @MetaData0 = MetaDataList[arrIdx[i]];
 			string url1 = string(MetaData1["webUrl"]);
 			string url0 = string(MetaData0["webUrl"]);
@@ -6208,7 +6189,7 @@ array<dictionary> _PlaylistParse(const string &in path, uint startTime, int play
 		{
 			array<string> jsonList2 = ytd.exec2(urls2, 1, flatPlaylist, {}, "Collecting " + (urls2.length() == 1 ? "a thumbnail" : "thumbnails"));
 			
-			if (hist.checkCancel(path, startTime) == 2) return {};
+			if (hist.checkCancel(path, true, startTime) == 2) return {};
 			
 			for (uint i = 0; i < jsonList2.length(); i++)
 			{
@@ -6241,7 +6222,8 @@ array<dictionary> _PlaylistParse(const string &in path, uint startTime, int play
 			MetaData["title"] = title;
 			
 			string thumb = string(MetaData0["thumbnail"]);
-			if (thumb.empty())
+			//if (thumb.empty())
+			if (true)
 			{
 				thumb = _GetPlaylistThumb();
 			}
@@ -6289,12 +6271,12 @@ array<dictionary> _PlaylistParse(const string &in path, uint startTime, int play
 		}
 		ytd.backupExe();
 		
-		if (hist.checkCancel(path, startTime) == 2) return {};
+		if (hist.checkCancel(path, true, startTime) == 2) return {};
 		if (MetaDataList.length() == 1)
 		{
 			if (!isWholePlaylist)	// not a playlist
 			{
-				cache.addJson(inUrl, jsonList[0]);
+				cache.addJson(inUrl, jsonList[0], string(MetaDataList[0]["thumbnail"]));
 			}
 			else if (playlistMode == 0)	// non-expanded playlist
 			{
@@ -6307,7 +6289,7 @@ array<dictionary> _PlaylistParse(const string &in path, uint startTime, int play
 		}
 	}
 	
-	if (hist.checkCancel(path, startTime) > 0) return {};
+	if (hist.checkCancel(path, true, startTime) > 0) return {};
 	
 	if (cfg.csl > 0)
 	{
@@ -6367,21 +6349,21 @@ array<dictionary> PlaylistParse(const string &in path)
 	if (playlistExpandMode == -1)
 	{
 		// apply for the new PotPlayer window
-		playlistExpandMode = 1;
-		cfg.setInt("TARGET", "playlist_expand_mode", 1, true);
+		playlistExpandMode = 10;
+		cfg.setInt("TARGET", "playlist_expand_mode", playlistExpandMode, true);
 		playlistForceExpand = 2;
 	}
 	
 	array<dictionary> MetaDataList = {};
 	
 	uint startTime = HostGetTickCount();
-	hist.add(path, startTime);
+	hist.add(path, true, startTime);
 	{
 		MetaDataList = _PlaylistParse(path, startTime, playlistForceExpand);
 	}
-	hist.remove(path, startTime);
+	hist.remove(path, true, startTime);
 	
-	if (playlistExpandMode == 2 || playlistExpandMode == 3)
+	if (playlistExpandMode == 1 || playlistExpandMode == 2)
 	{
 		_BlockAutoRestore(MetaDataList, path, startTime, playlistExpandMode);
 	}
@@ -6419,15 +6401,16 @@ bool _BlockAutoRestore(array<dictionary> &MetaDataList, string path, uint startT
 				MetaDataList = insertList;
 				
 				/*
-				if (playlistExpandMode == 2)
+				if (playlistExpandMode == 1)
 				{
 					insertIdx += MetaDataList.length();
 				}
-				else	// playlistExpandMode == 3
+				else if (playlistExpandMode == 2)
 				{
 					insertIdx += 1;
 				}
 				MetaDataList.insertAt(insertIdx, insertList);
+				cache.addPlaylist(_ReviseUrl(path), MetaDataList, true);
 				*/
 				
 				return true;
@@ -6450,7 +6433,7 @@ string __BlockAutoRestoreAlbum(string path, uint startTime)
 	if (_IsYoutubeTabPlaylistType(inUrl))
 	{
 		// youtube plyalist tab
-		int curIdx = hist.find(path, startTime);
+		int curIdx = hist.find(path, true, startTime);
 		for (uint i = curIdx + 1; i < hist.list.length(); i++)
 		{
 			prevPath = string(hist.list[i]["path"]);
@@ -6466,7 +6449,7 @@ string __BlockAutoRestoreAlbum(string path, uint startTime)
 	else if (inUrl.find("https://space.bilibili.com/") == 0)
 	{
 		// bilibili playlist
-		int curIdx = hist.find(path, startTime);
+		int curIdx = hist.find(path, true, startTime);
 		for (uint i = curIdx + 1; i < hist.list.length(); i++)
 		{
 			prevPath = string(hist.list[i]["path"]);
@@ -6519,8 +6502,8 @@ bool PlayitemCheck(const string &in path)
 	{
 		if (_IsTypicalMediaExt(url))
 		{
-			// Only if local contnt is being opened
-			hist.add(path, HostGetTickCount(), true);
+			// Only if local content is being opened
+			hist.add(path, false, HostGetTickCount(), false);
 			hist.cancelAll();
 		}
 		return false;
@@ -6551,7 +6534,7 @@ bool PlayitemCheck(const string &in path)
 void _PlayerAddList(string url, bool reload)
 {
 	int playlistExpandMode = cfg.getInt("TARGET", "playlist_expand_mode");
-	if (playlistExpandMode == 1)
+	if (playlistExpandMode == 10)
 	{
 		cfg.setInt("TARGET", "playlist_expand_mode", -1, true);
 	}
@@ -7484,7 +7467,7 @@ string _PlayitemParseDirect(string inUrl, dictionary &MetaData, array<dictionary
 }
 
 
-dictionary _ParseMetaDataSimple(JsonValue &root)
+dictionary _ParseMetaDataSimple(JsonValue &root, string imgUrl, bool toAlbum)
 {
 	dictionary MetaData = {};
 	
@@ -7595,25 +7578,20 @@ dictionary _ParseMetaDataSimple(JsonValue &root)
 				}
 			}
 		}
-		/*
 		if (thumb.empty())
 		{
-			thumb = imgUrl;
-			if (thumb.empty())
+			if (!imgUrl.empty())
 			{
-				if (isAudio)
+				thumb = imgUrl;
+			}
+			else if (isAudio && toAlbum && _IsGeneric(extractor))
+			{
+				if (cfg.getInt("FORMAT", "radio_thumbnail") == 1)
 				{
-					if (_isGeneric(extractor))
-					{
-						if (cfg.getInt("FORMAT", "radio_thumbnail") == 1)
-						{
-							thumb = _GetRadioThumb();
-						}
-					}
+					thumb = _GetRadioThumb();
 				}
 			}
 		}
-		*/
 	}
 	if (!thumb.empty())
 	{
@@ -7654,13 +7632,13 @@ dictionary _ParseMetaDataSimple(JsonValue &root)
 }
 
 
-dictionary _ParseMetaData(JsonValue &root, string inUrl)
+dictionary _ParseMetaData(JsonValue &root, string inUrl, string imgUrl, bool toAlbum)
 {
 	JsonValue jFormats = root["formats"];
 	if (!jFormats.isArray() || jFormats.size() == 0)
 	{
-		// For items collected using a playlist (fast)
-		return _ParseMetaDataSimple(root);
+		// For a simple playlist (fast)
+		return _ParseMetaDataSimple(root, imgUrl, toAlbum);
 	}
 	
 	dictionary MetaData = {};
@@ -7892,10 +7870,21 @@ dictionary _ParseMetaData(JsonValue &root, string inUrl)
 		}
 		if (thumb.empty())
 		{
-			if (isLive && tx.findI(extractor, "TwitchVod") == 0)
+			if (!imgUrl.empty())
+			{
+				thumb = imgUrl;
+			}
+			else if (isLive && tx.findI(extractor, "TwitchVod") == 0)
 			{
 				// Remove the --live-from-start option
 				thumb = ytd.getThumbnail(inUrl);
+			}
+			else if (isAudio && toAlbum && _IsGeneric(extractor))
+			{
+				if (cfg.getInt("FORMAT", "radio_thumbnail") == 1)
+				{
+					thumb = _GetRadioThumb();
+				}
 			}
 		}
 	}
@@ -8110,24 +8099,36 @@ dictionary _ParseMetaData(JsonValue &root, string inUrl)
 }
 
 
+dictionary _ParseMetaData(string json, string inUrl, string imgUrl, bool toAlbum)
+{
+	JsonReader reader;
+	JsonValue root;
+	if (reader.parse(json, root) && root.isObject())
+	{
+		dictionary MetaData = _ParseMetaData(root, inUrl, imgUrl, toAlbum);
+		return MetaData;
+	}
+	return {};
+}
+
+
 string _PlayitemParse(const string &in path, dictionary &MetaData, array<dictionary> &QualityList, uint startTime)
 {
 	string inUrl = _ReviseUrl(path);
 	string outUrl;
 	
-	int doubleCall = hist.getDoubleCall(path, startTime);
-	if (doubleCall > 0)
+	int doubleCall = hist.getDoubleCall(path, false, startTime);
+	if (doubleCall == 1)
 	{
 		if (cfg.csl > 0)
 		{
-			HostPrintUTF8("\r\nDouble Call: " + doubleCall + " - " + tx.qt(inUrl) + "\r\n");
+			HostPrintUTF8("\r\nDouble Call - " + tx.qt(inUrl) + "\r\n");
 		}
-		HostSleep(4000);
 	}
 	
 	while (true)
 	{
-		int prevIdx = hist.findPrev(path, startTime, 0);
+		int prevIdx = hist.findPrev(path, false, startTime, 0);
 		if (prevIdx < 0)
 		{
 			break;
@@ -8138,7 +8139,7 @@ string _PlayitemParse(const string &in path, dictionary &MetaData, array<diction
 			uint prevStartTime = uint(hist.list[prevIdx]["startTime"]);
 			if (startTime >= prevStartTime && startTime - prevStartTime  >= DOUBLE_CALL_INTERVAL_2)
 			{
-				hist.blockSaveCache(path, startTime);
+				hist.blockSaveCache(path, false, startTime);
 				break;
 			}
 		}
@@ -8148,7 +8149,7 @@ string _PlayitemParse(const string &in path, dictionary &MetaData, array<diction
 		HostIncTimeOut(4000);
 		HostSleep(4000);
 		
-		if (hist.checkCancel(path, startTime, false) > 0) return "";
+		if (hist.checkCancel(path, false, startTime, false) > 0) return "";
 	}
 	
 	MetaData = cache.getItem(inUrl, QualityList);
@@ -8169,11 +8170,31 @@ string _PlayitemParse(const string &in path, dictionary &MetaData, array<diction
 			{
 				HostPrintUTF8("[yt-dlp] Used cache to play - " + tx.qt(inUrl) + "\r\n");
 			}
+			HostSleep(DOUBLE_CALL_INTERVAL_1);	// for waiting double call
 			return outUrl;
 		}
-		if (doubleCall == 1 && int(MetaData["playlistSelfCount"]) > 0)
+		
+		if (int(MetaData["playlistSelfCount"]) > 0)
 		{
+			if (doubleCall == 1)
+			{
 //HostPrintUTF8("MetaData cache.2");
+				if (cfg.csl > 0)
+				{
+					HostPrintUTF8("[yt-dlp] Used cache to play - " + tx.qt(inUrl) + "\r\n");
+				}
+				return outUrl;
+			}
+			else	// doubleCall == 2
+			{
+				if (cfg.csl > 0)
+				{
+					HostPrintUTF8("\r\nDouble Call (slow) - " + tx.qt(inUrl) + "\r\n");
+				}
+			}
+		}
+		else if (doubleCall == 2)
+		{
 			if (cfg.csl > 0)
 			{
 				HostPrintUTF8("[yt-dlp] Used cache to play - " + tx.qt(inUrl) + "\r\n");
@@ -8181,14 +8202,15 @@ string _PlayitemParse(const string &in path, dictionary &MetaData, array<diction
 			return outUrl;
 		}
 		
-		// doubleCall
 		uint cacheTime = cache.getTime(inUrl, "MetaData");
 		if (cacheTime > startTime - DOUBLE_CALL_INTERVAL_2)
 		{
+			// new cache
 //HostPrintUTF8("MetaData cache.3");
 			return outUrl;
 		}
 		
+		// reload without old cache
 //HostPrintUTF8("MetaData cache.4");
 		MetaData.deleteAll();
 		QualityList.resize(0);
@@ -8196,10 +8218,10 @@ string _PlayitemParse(const string &in path, dictionary &MetaData, array<diction
 		cache.remove(inUrl, "MetaData");
 	}
 	
-	string json = cache.getJson(inUrl);
+	string imgUrl = "";
+	string json = cache.getJson(inUrl, imgUrl);
 	if (!json.empty())
 	{
-//HostPrintUTF8("json cache");
 		if (doubleCall == 2 || doubleCall == 1 && jsn.getDirectValueInt(json, "playlist_index") == 0)
 		{
 			uint cacheTime = cache.getTime(inUrl, "json");
@@ -8232,7 +8254,7 @@ string _PlayitemParse(const string &in path, dictionary &MetaData, array<diction
 		if (jsonList.length() == 0) return "";
 		json = jsonList[0];
 		
-		int cancelMode = hist.checkCancel(path, startTime);
+		int cancelMode = hist.checkCancel(path, false, startTime);
 		if (cancelMode == 2) return "";
 		cache.addJson(inUrl, json);
 		if (cancelMode == 1) return "";
@@ -8247,14 +8269,14 @@ string _PlayitemParse(const string &in path, dictionary &MetaData, array<diction
 		ytd.criticalError(); return "";
 	}
 	
-	MetaData = _ParseMetaData(root, inUrl);
+	MetaData = _ParseMetaData(root, inUrl, imgUrl, false);
 	if (MetaData.empty()) return "";
 	
 	MetaData["url"] = inUrl;
 	
 	if (_CheckLiveThrough(MetaData, inUrl))
 	{
-		if (hist.checkCancel(path, startTime) == 2) return "";
+		if (hist.checkCancel(path, false, startTime) == 2) return "";
 		cache.addItem(inUrl, MetaData, {});
 		return "";
 	}
@@ -8294,24 +8316,26 @@ string _PlayitemParse(const string &in path, dictionary &MetaData, array<diction
 			thumb = string(MetaData["thumbnail"]);
 			// This is the thumbnail of the LAST item in the playlist except YouTube.
 		}
-		if (thumb.empty())
+		else
 		{
 			thumb = ytd.getThumbnail(inUrl);
-			if (!thumb.empty())
-			{
-				thumb = _ReviseThumbnail(thumb);
-			}
-			else
-			{
-				thumb = _GetPlaylistThumb();
-			}
 		}
-		
+		//if (!thumb.empty())
+		if (false)
+		{
+			thumb = _ReviseThumbnail(thumb);
+			outUrl = thumb;
+		}
+		else
+		{
+			thumb = _GetPlaylistThumb();
+			outUrl = inUrl;
+		}
 		MetaData["thumbnail"] = thumb;
-		outUrl = thumb;
+		
 		MetaData["playUrl"] = outUrl;
 		
-		int cancelMode = hist.checkCancel(path, startTime);
+		int cancelMode = hist.checkCancel(path, false, startTime);
 		if (cancelMode == 2) return "";
 		cache.addItem(inUrl, MetaData, {});
 		if (cancelMode == 1) return "";
@@ -9173,7 +9197,7 @@ string _PlayitemParse(const string &in path, dictionary &MetaData, array<diction
 	}
 	ytd.backupExe();
 	
-	int cancelMode = hist.checkCancel(path, startTime);
+	int cancelMode = hist.checkCancel(path, false, startTime);
 	if (cancelMode == 2) return "";
 	cache.addItem(inUrl, MetaData, QualityList);
 	if (cancelMode == 1) return "";
@@ -9203,12 +9227,12 @@ string PlayitemParse(const string &in path, dictionary &MetaData, array<dictiona
 	
 	if (cfg.getInt("TARGET", "playlist_expand_mode") < 0)
 	{
-		cfg.setInt("TARGET", "playlist_expand_mode", 1, true);
+		cfg.setInt("TARGET", "playlist_expand_mode", 10, true);
 	}
 	ytd.playlistForceExpand = 0;
 	
 	uint startTime = HostGetTickCount();
-	hist.add(path, startTime);
+	hist.add(path, false, startTime);
 	
 	string outUrl = _PlayitemParse(path, MetaData, QualityList, startTime);
 	
@@ -9220,21 +9244,21 @@ string PlayitemParse(const string &in path, dictionary &MetaData, array<dictiona
 		}
 	}
 	
-	int doubleCall = hist.getDoubleCall(path, startTime);
+	int doubleCall = hist.getDoubleCall(path, false, startTime);
 	if (doubleCall > 0 && int(MetaData["playlistSelfCount"]) > 0)
 	{
 //HostPrintUTF8("AddList start");
 		_PlayerAddList(path, doubleCall == 2);
 	}
 	
-	if (bool(hist.list[0]["local"]))
+	if (bool(hist.list[0]["local"]) && !bool(hist.list[0]["toAlbum"]))
 	{
 		// Mitigate an issue if the latter local file has been opened.
 		HostMessageBox("[yt-dlp] Reopen the current file.\r\nPrevious URL session is conflicting.");
 		outUrl = string(hist.list[0]["path"]);
 	}
 	
-	hist.remove(path, startTime);
+	hist.remove(path, false, startTime);
 	
 	return outUrl;
 }
