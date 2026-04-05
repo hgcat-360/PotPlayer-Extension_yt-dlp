@@ -23,9 +23,8 @@ PotPlayer is a Windows-only media player, so this extension is intended for use 
 The following applications are **not** included in this repository. Please obtain them separately.  
 
 * [PotPlayer](https://potplayer.tv/)  
-	PotPlayer **260114 or later** versions are currently supported.  
-	Versions earlier than 260114 have a garbled-text issue in the console.  
-	Compatible versions of this extension support PotPlayer **250226 or later**.  
+	This yt-dlp extension currently supports PotPlayer **260114 or later**.  
+	Older versions of this extension (before 260213) support PotPlayer **250226 or later**.
 	
 	Development builds of PotPlayer are available from the [developer community](https://cafe.daum.net/pot-tool) (Korean).  
 	Using Google Translate on this community site may cause page reload errors.  
@@ -65,9 +64,10 @@ Make sure that PotPlayer is installed in advance.
    >  
    > ***MediaPlayParse - yt-dlp.as*** and ***yt-dlp_default.ini*** are required.  
    > You must always update *yt-dlp_default.ini* at the same time as *MediaPlayParse - yt-dlp.as*.  
-   > You can customize the icon of *MediaPlayParse - yt-dlp.as* with the *.ico files renamed.  
-   > ***yt-dlp_radio1.jpg*** and ***yt-dlp_radio2.jpg*** are thumbnails for online radio, displayed in the PotPlayer's playlist panel.  
-   >Other files in the repository are not required in this folder.
+   > You can customize the icon of *MediaPlayParse - yt-dlp.as* by renaming *.ico files.  
+   > ***yt-dlp_radio1.jpg*** and ***yt-dlp_radio2.jpg*** are thumbnails for online radio, displayed in PotPlayer's album view.  
+   > ***yt-dlp_playlist.jpg*** might be used as a thumbnail for website playlists.  
+   > Other files in this repository are not required in this folder.  
 
 3. Place *yt-dlp.exe* in PotPlayer's module folder:  
     `(PotPlayer installation folder)\Module\`  

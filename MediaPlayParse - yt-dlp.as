@@ -5,7 +5,7 @@
   Placed in \PotPlayer\Extension\Media\PlayParse\
 *************************************************************/
 
-string SCRIPT_VERSION = "260405";
+string SCRIPT_VERSION = "260406";
 
 
 string YTDLP_EXE = "yt-dlp.exe";
@@ -2836,7 +2836,11 @@ class CACHE
 				if (false)
 				{
 					string msg = "Cache size (temporary JSON): ";
-					msg += (size / 1024) + " / " + (totalSize / 1024) + " KB";
+					uint kSize = size / 1024;
+					if (kSize == 0) kSize = 1;
+					uint kTotalSize = totalSize / 1024;
+					if (kTotalSize == 0) kTotalSize = 1;
+					msg += kSize + " / " + kTotalSize + " KB";
 					msg += " - " + tx.qt(url) + "\r\n";
 					HostPrintUTF8(msg);
 				}
@@ -2893,7 +2897,11 @@ class CACHE
 				HostPrintUTF8("Compression rate (QualityList): " + compRate2 + "%");
 			}
 			string msg = "Cache size (MetaData & QualityList): ";
-			msg += (size / 1024) + " / " + (totalSize / 1024) + " KB";
+			uint kSize = size / 1024;
+			if (kSize == 0) kSize = 1;
+			uint kTotalSize = totalSize / 1024;
+			if (kTotalSize == 0) kTotalSize = 1;
+			msg += kSize + " / " + kTotalSize + " KB";
 			msg += " - " + tx.qt(url) + "\r\n";
 			HostPrintUTF8(msg);
 		}
@@ -2937,7 +2945,11 @@ class CACHE
 					HostPrintUTF8("Compression rate (MetaDataList): " + compRate + "%");
 				}
 				string msg = "Cache size (MetaDataList): ";
-				msg += (size / 1024) + " / " + (totalSize / 1024) + " KB";
+				uint kSize = size / 1024;
+				if (kSize == 0) kSize = 1;
+				uint kTotalSize = totalSize / 1024;
+				if (kTotalSize == 0) kTotalSize = 1;
+				msg += kSize + " / " + kTotalSize + " KB";
 				msg += " - " + tx.qt(url) + "\r\n";
 				HostPrintUTF8(msg);
 			}
@@ -3814,23 +3826,15 @@ class YTDLP
 		{
 			if (referer.empty())
 			{
-				string line = tx.getLine(log, pos + 1);
-				if (tx.findI(line, "Cloudflare anti-bot") >= 0)
+				referer = cfg.getStr("NETWORK", "referer");
+				if (!referer.empty())
 				{
-					return -2;
-				}
-				else
-				{
-					referer = cfg.getStr("NETWORK", "referer");
-					if (!referer.empty())
+					if (referer.find("http") == 0)
 					{
-						if (referer.find("http") == 0)
-						{
-							return -1;
-						}
-						referer = "";
-						cfg.cmtoutKey("NETWORK", "referer");
+						return -1;
 					}
+					referer = "";
+					cfg.cmtoutKey("NETWORK", "referer");
 				}
 			}
 			string msg = "Access forbidden or not found.";
@@ -4124,13 +4128,8 @@ class YTDLP
 		options += " --encoding \"utf8\"";	// prevent garbled text
 		
 		_addOptionsNetwork(options);
-		if (retry == "with impersonation")
-		{
-			string impersonate = cfg.getStr("NETWORK", "impersonate");
-			impersonate.replace(" ", "");
-			options += " --extractor-args " + tx.qt("generic:impersonate=" + impersonate);
-		}
-		else if (retry.find("http") == 0)	// referer
+		
+		if (retry.find("http") == 0)	// referer
 		{
 			options += " --add-headers " + tx.qt("Referer: " + retry);
 		}
@@ -4228,11 +4227,12 @@ class YTDLP
 					}
 				}
 			}
-			if (_checkLogLiveOffline(log, url)) return {};
 			
+			if (_checkLogLiveOffline(log, url)) return {};
 			if (_checkLogServerBlock(log, url)) return {};
 			if (_checkLogGeoRestriction(log, url)) return {};
 			if (_checkLogRegisteredOnly(log, url)) return {};
+			
 			int forbidden = _checkLogForbidden(log, url, retry);
 			if (forbidden != 0)
 			{
@@ -4240,10 +4240,6 @@ class YTDLP
 				{
 					// Retry with referer(=retry)
 					return exec1(url, playlistMode, retry);
-				}
-				else if (forbidden == -2)
-				{
-					return exec1(url, playlistMode, "with impersonation");
 				}
 				return {};
 			}
