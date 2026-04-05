@@ -5,7 +5,7 @@
   Placed in \PotPlayer\Extension\Media\PlayParse\
 *************************************************************/
 
-string SCRIPT_VERSION = "260401";
+string SCRIPT_VERSION = "260405";
 
 
 string YTDLP_EXE = "yt-dlp.exe";
@@ -3104,7 +3104,7 @@ class HIST
 	
 	void remove(string path, bool toAlbum, uint startTime)
 	{
-		uint idx = find(path, toAlbum, startTime, 0);
+		int idx = find(path, toAlbum, startTime, 0);
 		if (idx >= 0)
 		{
 			list[idx].set("finish", true);
@@ -3143,7 +3143,7 @@ class HIST
 						if (startTime >= prevStartTime)
 						{
 							uint diffTime = startTime - prevStartTime;
-	//HostPrintUTF8("diffTime: " + diffTime);
+//HostPrintUTF8("diffTime: " + diffTime);
 							if (diffTime < DOUBLE_TRIGGER_INTERVAL_1)
 							{
 								doubleTrigger = 1;
@@ -3173,7 +3173,7 @@ class HIST
 	
 	void blockSaveCache(string path, bool toAlbum, uint startTime)
 	{
-		uint idx = find(path, toAlbum, startTime, 0);
+		int idx = find(path, toAlbum, startTime, 0);
 		if (idx >= 0)
 		{
 			uint cancelTime = HostGetTickCount();
@@ -3931,66 +3931,66 @@ class YTDLP
 		return false;
 	}
 	
-	array<string> _getJsonList(string str, uint &out logPos)
+	array<string> _getJsonList(string data, uint &out logPos)
 	{
 		array<string> jsonList = {};
 		logPos = 0;
 		
 		int pos1;
-		if (str.Left(1) == "{")
+		if (data.Left(1) == "{")
 		{
 			pos1 = 0;
 		}
 		else
 		{
-			pos1 = str.find("\n{", 0);
+			pos1 = data.find("\n{", 0);
 			if (pos1 >= 0) pos1 += 1;
 		}
 		
 		if (pos1 >= 0)
 		{
-			int top0;
+			int pos0;
 			do {
-				top0 = pos1;
-				int pos2 = str.find("}\n", pos1);
+				pos0 = pos1;
+				int pos2 = data.find("}\n", pos1);
 				if (pos2 < 0) break;
 				pos2 += 1;
-				string json = str.substr(pos1, pos2 - pos1);
+				string json = data.substr(pos1, pos2 - pos1);
 				jsonList.insertLast(json);
 				logPos = pos2 + 1;
-				pos1 = str.find("\n{", pos2);
+				pos1 = data.find("\n{", pos2);
 				if (pos1 < 0) break;
 				pos1 += 1;
-			} while (pos1 > top0);
+			} while (pos1 > pos0);
 		}
 		
 		return jsonList;
 	}
 	
-	array<string> _getJsonList(string str)
+	array<string> _getJsonList(string data)
 	{
 		uint logPos;
-		return _getJsonList(str, logPos);
+		return _getJsonList(data, logPos);
 	}
 	
-	array<string> _getJsonList2(string str, uint &out logPos)
+	array<string> _getJsonList2(string data, uint &out logPos)
 	{
 		// Too slow to handle a large playlist
 		
 		array<string> jsonList;
 		logPos = 0;
-		str = "\n" + str;
+		data = "\n" + data;
 		
 		int pos1 = 0;
 		int pos0;
 		do {
 			pos0 = pos1;
 			
-			pos1 = str.find("\n{", pos1);
+			pos1 = data.find("\n{", pos1);
 			if (pos1 >= 0)
 			{
 				pos1 += 1;
-				string json = tx.getLine(str, pos1);
+				string json = tx.getLine(data, pos1);
 				if (json.Right(1) == "}")
 				{
 					jsonList.insertLast(json);
@@ -4478,8 +4478,45 @@ class YTDLP
 		}
 	}
 	
-	uint _countJson(string &inout data, bool eraseMessage)
+	uint _countJson(string &inout data, bool eraseMsg)
 	{
+		uint cnt = 0;
+		int pos1 = 0;
+		int pos2 = 0;
+		
+		if (data.Left(1) != "{")
+		{
+			pos1 = data.find("\n{", pos2);
+		}
+		
+		while (pos1 >= 0)
+		{
+			if (eraseMsg && pos1 > pos2)
+			{
+				data.erase(pos2, pos1 - pos2);
+				pos1 = pos2;
+			}
+			pos2 = data.find("}\n", pos1);
+			if (pos2 < 0) break;
+			pos2 += 1;
+			cnt++;
+			
+			pos1 = data.find("\n{", pos2);
+			if (pos1 < 0) break;
+		}
+		
+		if (eraseMsg && pos1 < 0)
+		{
+			data = data.Left(pos2);
+		}
+		
+		return cnt;
+	}
+	
+	uint _countJson2(string &inout data, bool eraseMsg)
+	{
+		// Too slow to handle a large playlist
+		
 		uint cnt = 0;
 		int pos = 0;
 		do {
@@ -4489,7 +4526,7 @@ class YTDLP
 				cnt++;
 				pos = tx.findNextLineTop(data, pos);
 			}
-			else if (eraseMessage)
+			else if (eraseMsg)
 			{
 				tx.eraseLine(data, pos);
 			}
@@ -4525,12 +4562,13 @@ class YTDLP
 	{
 		if (url.empty()) return "";
 		string output;
-		int waitTime = cfg.getInt("TARGET", "playlist_items_timeout");
-		if (waitTime < 0)
+		int PlaylistItemsTimeout = cfg.getInt("TARGET", "playlist_items_timeout");
+		if (PlaylistItemsTimeout < 0)
 		{
 			cfg.setInt("TARGET", "playlist_items_timeout", 0);
-			waitTime = 0;
+			PlaylistItemsTimeout = 0;
 		}
+		uint waitTime = uint(PlaylistItemsTimeout);
 		
 		if (waitTime == 0)
 		{
@@ -4541,8 +4579,7 @@ class YTDLP
 			if (cfg.csl > 0)
 			{
 				uint cnt = _countJson(output, false);
-				int elapsedTime = (HostGetTickCount() - startTime)/1000;
-				if (elapsedTime < 0) elapsedTime = -1;
+				uint elapsedTime = (HostGetTickCount() - startTime)/1000;
 				string msg;
 				msg = "  Count: " + cnt;
 				msg += "\t\tTime: " + elapsedTime + " sec";
@@ -4587,8 +4624,7 @@ class YTDLP
 				cnt += addCnt;
 				if (addCnt > 0)
 				{
-					int elapsedTime = (HostGetTickCount() - startTime)/1000;
-					if (elapsedTime < 0) elapsedTime = -1;
+					uint elapsedTime = (HostGetTickCount() - startTime)/1000;
 					if (cfg.csl > 0)
 					{
 						string msg = "  Count: " + cnt;
@@ -4600,7 +4636,7 @@ class YTDLP
 						complete = 1;
 						break;
 					}
-					if (elapsedTime < 0 || elapsedTime >= waitTime)
+					if (elapsedTime >= waitTime)
 					{
 						break;
 					}
@@ -4631,7 +4667,7 @@ class YTDLP
 		string joinedUrls = "";
 		for (uint i = 0; i < urls.length(); i++) joinedUrls += " " + urls[i];
 		
-		int waitTime = cfg.getInt("TARGET", "playlist_items_timeout");
+		uint waitTime = uint(cfg.getInt("TARGET", "playlist_items_timeout"));
 		if (waitTime == 0)
 		{
 			HostIncTimeOut(2000000);
@@ -4641,8 +4677,7 @@ class YTDLP
 			if (cfg.csl > 0)
 			{
 				uint cnt = _countJson(output, false);
-				int elapsedTime = (HostGetTickCount() - startTime)/1000;
-				if (elapsedTime < 0) elapsedTime = -1;
+				uint elapsedTime = (HostGetTickCount() - startTime)/1000;
 				string msg;
 				{
 					msg += "  Count: " + cnt;
@@ -4672,8 +4707,7 @@ class YTDLP
 				options += " -I " + i + ":" + (i + unitIdx - 1);
 				string addOutput = HostExecuteProgram(tx.qt(exePath), options + " --" + joinedUrls);
 				uint addCnt = _countJson(addOutput, false);
-				int elapsedTime = (HostGetTickCount() - startTime)/1000;
-				if (elapsedTime < 0) elapsedTime = -1;
+				uint elapsedTime = (HostGetTickCount() - startTime)/1000;
 				if (addCnt > 0)
 				{
 					output += addOutput;
@@ -4686,7 +4720,7 @@ class YTDLP
 					}
 				}
 				if (addCnt < unitIdx) break;
-				if (elapsedTime < 0 || elapsedTime >= waitTime)
+				if (elapsedTime >= waitTime)
 				{
 					timeout = true;
 					break;
@@ -4710,19 +4744,20 @@ class YTDLP
 		if (urls.length() == 0) return "";
 		string output;
 		
-		int waitTime;
+		uint waitTime;
 		if (isResponsive)
 		{
-			waitTime = cfg.getInt("TARGET", "playlist_items_timeout");
+			waitTime = uint(cfg.getInt("TARGET", "playlist_items_timeout"));
 		}
 		else
 		{
-			waitTime = cfg.getInt("TARGET", "playlist_metadata_timeout");
-			if (waitTime < 0)
+			int PlaylistMetadataTimeout = cfg.getInt("TARGET", "playlist_metadata_timeout");
+			if (PlaylistMetadataTimeout < 0)
 			{
 				cfg.setInt("TARGET", "playlist_metadata_timeout", 0);
-				waitTime = 0;
+				PlaylistMetadataTimeout = 0;
 			}
+			waitTime = uint(PlaylistMetadataTimeout);
 		}
 		
 		uint unitIdx = 10;
@@ -4738,8 +4773,7 @@ class YTDLP
 			if (cfg.csl > 0)
 			{
 				uint cnt = _countJson(output, false);
-				int elapsedTime = (HostGetTickCount() - startTime)/1000;
-				if (elapsedTime < 0) elapsedTime = -1;
+				uint elapsedTime = (HostGetTickCount() - startTime)/1000;
 				string msg = "";
 				{
 					msg += "  Count: " + cnt;
@@ -4773,8 +4807,7 @@ class YTDLP
 				}
 				string addOutput = HostExecuteProgram(tx.qt(exePath), options + " --" + joinedUrls);
 				uint addCnt = _countJson(addOutput, false);
-				int elapsedTime = (HostGetTickCount() - startTime)/1000;
-				if (elapsedTime < 0) elapsedTime = -1;
+				uint elapsedTime = (HostGetTickCount() - startTime)/1000;
 				if (addCnt > 0)
 				{
 					output += addOutput;
@@ -4787,7 +4820,7 @@ class YTDLP
 					}
 				}
 				if (complete) break;
-				if (elapsedTime < 0 || elapsedTime >= waitTime) break;
+				if (elapsedTime >= waitTime) break;
 			}
 			if (cfg.csl > 0)
 			{
@@ -5846,14 +5879,12 @@ array<dictionary> _PlaylistParse(const string &in path, uint startTime, int play
 		int prevIdx = hist.findPrev(path, true, startTime, 0);
 		if (prevIdx < 0)
 		{
-//HostPrintUTF8("pl loop.1");
 			break;
 		}
 		
 		if (playlistForceExpand == 2)
 		{
 			hist.blockSaveCache(path, true, startTime);
-//HostPrintUTF8("pl loop.2");
 			break;
 		}
 		
@@ -5864,7 +5895,6 @@ array<dictionary> _PlaylistParse(const string &in path, uint startTime, int play
 		
 		if (hist.checkCancel(path, true, startTime, false) > 0)
 		{
-//HostPrintUTF8("pl loop.3");
 			return {};
 		}
 	}
@@ -5963,7 +5993,7 @@ array<dictionary> _PlaylistParse(const string &in path, uint startTime, int play
 	uint parseTime = (parseTime2 - parseTime1)/1000;
 	if (cfg.csl > 1 && parseTime > 4)
 	{
-		HostPrintUTF8("JSON list parsing time: " + parseTime + "sec");
+		HostPrintUTF8("JSON list parsing time: " + parseTime + " sec\r\n");
 	}
 	
 	if (MetaDataList.length() == 0) return {};
@@ -6276,9 +6306,10 @@ array<dictionary> _PlaylistParse(const string &in path, uint startTime, int play
 		ytd.backupExe();
 		
 		if (hist.checkCancel(path, true, startTime) == 2) return {};
+		
 		if (MetaDataList.length() == 1)
 		{
-			if (!isWholePlaylist)	// not a playlist
+			if (!isWholePlaylist)	// not a playlist, just an item
 			{
 				cache.addJson(inUrl, jsonList[0], string(MetaDataList[0]["thumbnail"]));
 			}
@@ -6286,8 +6317,12 @@ array<dictionary> _PlaylistParse(const string &in path, uint startTime, int play
 			{
 				cache.addItem(inUrl, MetaDataList[0], {});
 			}
+			else	// playlist including only one item
+			{
+				cache.addPlaylist(inUrl, MetaDataList);
+			}
 		}
-		else
+		else	// playlist including multiple items
 		{
 			cache.addPlaylist(inUrl, MetaDataList);
 		}
@@ -6355,7 +6390,7 @@ array<dictionary> PlaylistParse(const string &in path)
 		// apply for the new PotPlayer window
 		playlistExpandMode = 10;
 		cfg.setInt("TARGET", "playlist_expand_mode", playlistExpandMode, true);
-		playlistForceExpand = 2;
+		playlistForceExpand = 1;
 	}
 	
 	array<dictionary> MetaDataList = {};
@@ -6367,57 +6402,78 @@ array<dictionary> PlaylistParse(const string &in path)
 	}
 	hist.remove(path, true, startTime);
 	
-	if (playlistExpandMode == 1 || playlistExpandMode == 2)
-	{
-		_BlockAutoRestore(MetaDataList, path, startTime, playlistExpandMode);
-	}
+	_BlockAutoRestore(MetaDataList, path, startTime, playlistExpandMode);
+	
 	return MetaDataList;
 }
 
 
 bool _BlockAutoRestore(array<dictionary> &MetaDataList, string path, uint startTime, int playlistExpandMode)
 {
+	if (playlistExpandMode != 1 && playlistExpandMode != 2) return false;
+	if (MetaDataList.length() == 0) return false;
+	
 	string prevPath = __BlockAutoRestoreAlbum(path, startTime);
 	if (!prevPath.empty())
 	{
 		string prevUrl = _ReviseUrl(prevPath);
-		int insertIdx = -1;
-		for (uint i = 0; i < MetaDataList.length(); i++)
-		{
-			if (string(MetaDataList[i]["webUrl"]) == prevUrl)
-			{
-				insertIdx = i;
-				break;
-			}
-		}
-		if (insertIdx >= 0)
+		if (prevPath == path)
 		{
 			array<dictionary> insertList;
-			for (uint i = 0; i < 20; i++)
+			for (uint i = 0; i < 3; i++)
 			{
 				insertList = cache.getPlaylist(prevUrl);
 				if (insertList.length() > 0) break;
 				HostSleep(3000);
 			}
+//HostPrintUTF8("insertList.length: " + insertList.length());
 			if (insertList.length() > 0)
 			{
 				MetaDataList.resize(0);
-				MetaDataList = insertList;
-				
-				/*
-				if (playlistExpandMode == 1)
-				{
-					insertIdx += MetaDataList.length();
-				}
-				else if (playlistExpandMode == 2)
-				{
-					insertIdx += 1;
-				}
-				MetaDataList.insertAt(insertIdx, insertList);
-				cache.addPlaylist(_ReviseUrl(path), MetaDataList, true);
-				*/
-				
+				MetaDataList.insertAt(0, insertList);
 				return true;
+			}
+		}
+		else
+		{
+			int insertIdx = -1;
+			for (uint i = 0; i < MetaDataList.length(); i++)
+			{
+				if (string(MetaDataList[i]["webUrl"]) == prevUrl)
+				{
+					insertIdx = i;
+					break;
+				}
+			}
+			if (insertIdx >= 0)
+			{
+				array<dictionary> insertList;
+				for (uint i = 0; i < 3; i++)
+				{
+					insertList = cache.getPlaylist(prevUrl);
+					if (insertList.length() > 0) break;
+					HostSleep(3000);
+				}
+				if (insertList.length() > 0)
+				{
+					MetaDataList.resize(0);
+					MetaDataList.insertAt(0, insertList);
+					
+					/*
+					if (playlistExpandMode == 1)
+					{
+						insertIdx += MetaDataList.length();
+					}
+					else if (playlistExpandMode == 2)
+					{
+						insertIdx += 1;
+					}
+					MetaDataList.insertAt(insertIdx, insertList);
+					cache.addPlaylist(_ReviseUrl(path), MetaDataList, true);
+					*/
+					
+					return true;
+				}
 			}
 		}
 	}
@@ -6432,6 +6488,25 @@ string __BlockAutoRestoreAlbum(string path, uint startTime)
 	
 	string prevPath = "";
 	bool block = false;
+	
+	{
+		// When expanding a playlist by double trigger
+		int curIdx = hist.find(path, true, startTime);
+		for (uint i = curIdx + 1; i < hist.list.length(); i++)
+		{
+			prevPath = string(hist.list[i]["path"]);
+			if (prevPath == path)
+			{
+				//if (bool(hist.list[i]["toAlbum"]))
+				{
+					if (___BlockAutoRestoreAlbum(i, startTime))
+					{
+						return prevPath;
+					}
+				}
+			}
+		}
+	}
 	
 	string inUrl = _ReviseUrl(path);
 	if (_IsYoutubeTabPlaylistType(inUrl))
@@ -6479,14 +6554,14 @@ bool ___BlockAutoRestoreAlbum(uint prevIdx, uint startTime)
 		uint prevFinishTime = uint(hist.list[prevIdx]["finishTime"]);
 		if (prevFinishTime == 0)
 		{
+//HostPrintUTF8("finishTime: 0");
 			return true;
 		}
-		if (prevFinishTime > 0)
+		else
 		{
 			if (startTime < prevFinishTime + 100)
 			{
-int diffTime = int(startTime) - int(prevFinishTime);
-//HostPrintUTF8("diffTime: " + diffTime);
+//HostPrintUTF8("diffTime: " + (int(startTime) - int(prevFinishTime)));
 				return true;
 			}
 		}
@@ -6747,16 +6822,13 @@ string _SupposeLangName(string note)
 	else
 	{
 		array<string> qualities = {"low", "medium", "large"};
-		array<string> words = note.split(",");
+		array<string> words = tx.trimSplit(note, ",");
 		if (words.length() > 2)
 		{
 //HostPrintUTF8("Menu Word: " + words[1]);
-			for (uint i = 0; i < qualities.length(); i++)
+			if (qualities.find(words[1]) >= 0)
 			{
-				if (words[1] == " " + qualities[i])
-				{
-					return words[0];
-				}
+				return words[0];
 			}
 		}
 	}
@@ -8130,7 +8202,7 @@ string _PlayitemParse(const string &in path, dictionary &MetaData, array<diction
 	{
 		if (cfg.csl > 0)
 		{
-			HostPrintUTF8("\r\nDouble Trigger - " + tx.qt(inUrl) + "\r\n");
+			HostPrintUTF8("\r\n[yt-dlp] Double Trigger - " + tx.qt(inUrl) + "\r\n");
 		}
 	}
 	
@@ -8165,7 +8237,6 @@ string _PlayitemParse(const string &in path, dictionary &MetaData, array<diction
 	{
 		if (_CheckLiveThrough(MetaData, inUrl))
 		{
-//HostPrintUTF8("MetaData cache.0");
 			return "";
 		}
 		
@@ -8173,7 +8244,6 @@ string _PlayitemParse(const string &in path, dictionary &MetaData, array<diction
 		
 		if (doubleTrigger <= 0)
 		{
-//HostPrintUTF8("MetaData cache.1");
 			if (cfg.csl > 0)
 			{
 				HostPrintUTF8("[yt-dlp] Used cache to play - " + tx.qt(inUrl) + "\r\n");
@@ -8186,18 +8256,18 @@ string _PlayitemParse(const string &in path, dictionary &MetaData, array<diction
 		{
 			if (doubleTrigger == 1)
 			{
-//HostPrintUTF8("MetaData cache.2");
 				if (cfg.csl > 0)
 				{
 					HostPrintUTF8("[yt-dlp] Used cache to play - " + tx.qt(inUrl) + "\r\n");
+					HostPrintUTF8("[yt-dlp] Expanding playlist... - " + tx.qt(inUrl) + "\r\n");
 				}
 				return outUrl;
 			}
-			else	// doubleTrigger == 2
+			else if (doubleTrigger == 2)
 			{
 				if (cfg.csl > 0)
 				{
-					HostPrintUTF8("\r\nDouble Trigger (slow) - " + tx.qt(inUrl) + "\r\n");
+					HostPrintUTF8("\r\n[yt-dlp] Delayed Double Trigger: Expanding playlist via Force Reload... - " + tx.qt(inUrl) + "\r\n");
 				}
 			}
 		}
@@ -8214,12 +8284,10 @@ string _PlayitemParse(const string &in path, dictionary &MetaData, array<diction
 		if (cacheTime > startTime - DOUBLE_TRIGGER_INTERVAL_2)
 		{
 			// new cache
-//HostPrintUTF8("MetaData cache.3");
 			return outUrl;
 		}
 		
 		// reload without old cache
-//HostPrintUTF8("MetaData cache.4");
 		MetaData.deleteAll();
 		QualityList.resize(0);
 		outUrl = "";
@@ -8268,7 +8336,7 @@ string _PlayitemParse(const string &in path, dictionary &MetaData, array<diction
 		if (cancelMode == 1) return "";
 	}
 	
-//HostPrintUTF8("json parse start");
+//HostPrintUTF8("json parsing start");
 	JsonReader reader;
 	JsonValue root;
 	if (!reader.parse(json, root) || !root.isObject())
@@ -8352,12 +8420,18 @@ string _PlayitemParse(const string &in path, dictionary &MetaData, array<diction
 	
 	if (cfg.csl > 0)
 	{
-		HostPrintUTF8("\r\n");
+		string msg;
 		string title = string(MetaData["title"]);
-		HostPrintUTF8("Title: " + title + "\r\n");
-		//string desc = string(MetaData["content"]);
-		//HostPrintUTF8("\r\nDescription:\r\n" + desc + "\r\n");
-		HostPrintUTF8("\r\n");
+		msg += "\r\nTitle: " + title + "\r\n";
+		if (false && cfg.csl > 1)
+		{
+			string desc = string(MetaData["content"]);
+			msg += "\r\nDescription Start >>>>>>>>>>>>>>>>\r\n\r\n";
+			msg += desc;
+			msg += "\r\n\r\n<<<<<<<<<<<<<< Description End\r\n";
+		}
+		msg += "\r\n";
+		HostPrintUTF8(msg);
 	}
 	
 	string extractor = string(MetaData["extractor"]);
@@ -9254,7 +9328,6 @@ string PlayitemParse(const string &in path, dictionary &MetaData, array<dictiona
 	int doubleTrigger = hist.getDoubleTrigger(path, false, startTime);
 	if (doubleTrigger > 0 && int(MetaData["playlistSelfCount"]) > 0)
 	{
-//HostPrintUTF8("AddList start");
 		_PlayerAddList(path, doubleTrigger == 2);
 	}
 	
