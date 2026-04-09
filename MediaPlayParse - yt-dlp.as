@@ -5,7 +5,7 @@
   Placed in \PotPlayer\Extension\Media\PlayParse\
 *************************************************************/
 
-string SCRIPT_VERSION = "260406";
+string SCRIPT_VERSION = "260408";
 
 
 string YTDLP_EXE = "yt-dlp.exe";
@@ -68,7 +68,7 @@ class FILE_CONFIG
 		return str;
 	}
 	
-	string _changeToUtf8Basic(string str, string &out code)
+	string changeToUtf8Basic(string str, string &out code)
 	{
 		// Change to utf8 without top BOM
 		if (str.find(BOM_UTF8) == 0)
@@ -91,7 +91,7 @@ class FILE_CONFIG
 		return str;
 	}
 	
-	string _changeFromUtf8Basic(string str, string code)
+	string changeFromUtf8Basic(string str, string code)
 	{
 		if (code == "utf8_bom")
 		{
@@ -143,7 +143,7 @@ class FILE_CONFIG
 			}
 			else
 			{
-				str = _changeToUtf8Basic(str, codeDef);
+				str = changeToUtf8Basic(str, codeDef);
 				if (!HostRegExpParse(str, "(?:^|\\n)\\w+=", {}))
 				{
 					msg =
@@ -226,7 +226,7 @@ class FILE_CONFIG
 		{
 			str = HostFileRead(fp, HostFileLength(fp));
 			string code;
-			str = _changeToUtf8Basic(str, code);
+			str = changeToUtf8Basic(str, code);
 			if (str.findFirstNotOf("\r\n") < 0) str = "";
 		}
 		return fp;
@@ -239,7 +239,7 @@ class FILE_CONFIG
 		{
 			if (write)
 			{
-				str = _changeFromUtf8Basic(str, codeDef);
+				str = changeFromUtf8Basic(str, codeDef);
 				if (HostFileSetLength(fp, 0) == 0)
 				{
 					if (HostFileWrite(fp, str) == int(str.length()))
@@ -1207,6 +1207,7 @@ class TEXT
 			// Prevent the end quote from being escaped by the back-slash
 			str += "\\";
 		}
+		str.replace("\"", "\\\"");
 		str = "\"" + str + "\"";
 		return str;
 	}
@@ -1853,6 +1854,88 @@ class POTPLAYER
 		return false;
 	}
 	
+	string getConfigData(string section, string key = "")
+	{
+		if (section.empty()) return "";
+		
+		string data;
+		if (!getPlayerExePath() || playerExePath.empty())
+		{
+			if (cfg.csl > 0)
+			{
+				HostPrintUTF8("[yt-dlp] Cannot find PotPlsyer's exe file name.\r\n");
+			}
+			return "";
+		}
+		
+		string exeName = HostRegExpParse(playerExePath, "\\\\([^\\\\]+)\\.exe$");
+		string iniFile = HostGetConfigFolder() + exeName + ".ini";
+//HostPrintUTF8("iniFile: " + iniFile);
+		if (HostFileExist(iniFile))
+		{
+			// INI file
+			// Not updated in real time.
+			uintptr fp = HostFileOpen(iniFile);
+			if (fp > 0)
+			{
+				string str = HostFileRead(fp, HostFileLength(fp));
+				string code;
+				str = fc.changeToUtf8Basic(str, code);
+				string _section = "\n[" + section + "]";
+				int pos1 = str.find(_section);
+				if (pos1 >= 0)
+				{
+					pos1 += _section.length();
+					int pos2 = str.find("\n[", pos1);
+					if (pos2 < 0) pos2 = str.length();
+					else pos2 += 1;
+					if (pos2 > pos1)
+					{
+						data = str.substr(pos1, pos2 - pos1);
+						if (!key.empty())
+						{
+							data = HostRegExpParse(data, "\n" + key + "=([^\r\n]+)\r\n");
+						}
+					}
+				}
+			}
+			HostFileClose(fp);
+		}
+		else
+		{
+			// Regstry data
+			string path = "HKCU:\\Software\\DAUM\\" + exeName + "\\" + section;
+			
+			string cmd = "powershell";
+			string para = "-NoProfile -Command ";
+			string cmd2 = "[Console]::OutputEncoding = [System.Text.Encoding]::UTF8; ";
+			cmd2 += "$p = '" + path + "'; ";
+			cmd2 += "if(Test-Path $p) { ";
+			if (!key.empty())
+			{
+				cmd2 += "(Get-ItemProperty -Path $p).'" + key + "'";
+			}
+			else
+			{
+				cmd2 += "$k = Get-Item $p; ";
+				cmd2 += "$k.GetValueNames() | ForEach-Object { \"$_=$($k.GetValue($_))\" }";
+			}
+			cmd2 += " }";
+			para += tx.qt(cmd2);
+			
+			data = HostExecuteProgram(cmd, para);
+			
+			if (!key.empty())
+			{
+				while (data.Right(2) == "\r\n")
+				{
+					data = data.Left(data.length() - 2);
+				}
+			}
+		}
+		return data;
+	}
+	
 	
 	bool playerAddList(string url, int playlistExpandMode = 0)
 	{
@@ -2197,19 +2280,19 @@ class SHOUTPL
 		for (uint i = 0; i < 20; i++)
 		{
 			array<dictionary> match;
-			pos = tx.regExpParse(data, "<track>(.+?)</track>", match, pos);
+			pos = tx.regExpParse(data, "<track>([^<]+)</track>", match, pos);
 			if (pos < 0) break;
 			
 			string s0 = string(match[0]["str"]);
 			pos += s0.length();
 			string track = string(match[1]["str"]);
-			string title = HostRegExpParse(track, "<title>(.+?)</title>");
+			string title = HostRegExpParse(track, "<title>([^<]+)</title>");
 			{
 				title = _reviseName(title);
 				if (i == 0) getTitle = title;
 				else if (title != getTitle) break;
 			}
-			string fmtUrl = HostRegExpParse(track, "<location>(.+?)</location>");
+			string fmtUrl = HostRegExpParse(track, "<location>([^<]+)</location>");
 			if (outUrl.empty()) outUrl = fmtUrl;
 			
 			if (@QualityList !is null)
@@ -2524,10 +2607,10 @@ class JSON
 		
 		key1 = tx.escapeReg(key1);
 		key2 = tx.escapeReg(key2);
-		string key1Area = HostRegExpParse(json, "\"" + key1 + "\":\\s?\\[(.+?)\\]");
+		string key1Area = HostRegExpParse(json, "\"" + key1 + "\":\\s?\\[([^\\]]+)\\]");
 		if (key1Area.empty())
 		{
-			key1Area = HostRegExpParse(json, "\"" + key1 + "\":\\s?\\{(.+?)\\}");
+			key1Area = HostRegExpParse(json, "\"" + key1 + "\":\\s?\\{([^}]+)\\}");
 		}
 		if (!key1Area.empty())
 		{
@@ -2536,7 +2619,7 @@ class JSON
 			int pos = 0;
 			while (true)
 			{
-				pos = tx.findRegExp(key1Area, "\"" + key2 + "\":\\s?\"(.+?)\"", _value, pos);
+				pos = tx.findRegExp(key1Area, "\"" + key2 + "\":\\s?\"([^\"]+)\"", _value, pos);
 				if (pos < 0) break;
 				value = _value;
 				pos += 1;
@@ -3293,7 +3376,8 @@ class YTDLP
 	string version;
 	string tmpHash;
 	uint updateCheckTime = 0;	// milliseconds
-	uint UPDATE_CHECK_INTERVAL = 7200000;	// milliseconds
+	uint UPDATE_CHECK_INTERVAL = 7200000;	// milliseconds (2 hours)
+	string DUMMY_REFERER = "https://referer.example";
 	
 	array<string> errors = {"(OK)", "(NOT FOUND)", "(LOOKS INVALID)", "(CRITICAL ERROR!)"};
 	int error = 0;
@@ -3456,23 +3540,19 @@ class YTDLP
 		cfg.deleteKey("MAINTENANCE", "update_ytdlp");
 		string msg = "\"yt-dlp.exe\" did not work as expected.\r\n";
 		//HostPrintUTF8("\r\n[yt-dlp] CRITICAL ERROR! " + msg);
-		msg += "If there are no problems, set [critical_error] to 0 in the config file and reload the script.";
+		msg += "If there are no problems, set 'critical_error' to 0 in the config file and reload the script.";
 		HostMessageBox(msg, "[yt-dlp] CRITICAL ERROR", 3, 2);
 	}
 	
 	bool _fileCopy(string srcPath, string dstPath)
 	{
-		// Hidden files are not supported.
-		string cmd = "cmd.exe";
-		string para = "/c copy /y /b /v";
-		para += " " + tx.qt("\\\\?\\" + srcPath);
-		para += " " + tx.qt("\\\\?\\" + dstPath);
+		string cmd = "powershell";
+		string para = "-NoProfile -Command ";
+		string cmd2 = "(Copy-Item '" + srcPath + "' '" + dstPath + "' -PassThru).Count";
+		para += tx.qt(cmd2);
+		
 		string ret = HostExecuteProgram(cmd, para);
-//HostPrintUTF8("File Copy: " + ret);
-		if (ret.find("1 file(s) copied") >= 0)
-		{
-			return true;
-		}
+		if (parseInt(ret) == 1) return true;
 		return false;
 	}
 	
@@ -3562,13 +3642,14 @@ class YTDLP
 		if (output.find("ERROR:") >= 0)
 		{
 			output += "\r\n\r\n";
-			output += "If the folder is not writable, you can change the [ytdlp_location] setting.";
+			output += "If the folder is not writable, you can change the 'ytdlp_location' setting.";
 		}
 		HostMessageBox(output, "[yt-dlp] INFO: Update yt-dlp.exe", 2, 1);
 		
 		if (checkFileInfo() > 0)
 		{
 			restoreExe();
+			
 			if (checkFileInfo() > 0)
 			{
 				string msg =
@@ -3603,9 +3684,9 @@ class YTDLP
 						"Unable to overwrite:\r\n";
 					msg += exePath + "\r\n"
 						"\r\n"
-						"You can change the [ytdlp_location] setting to a location with write permission.\r\n"
+						"You can change the 'ytdlp_location' setting to a location with write permission.\r\n"
 						"\r\n"
-						"The [update_ytdlp] setting has been reset.";
+						"The 'update_ytdlp' setting has been reset.";
 					HostMessageBox(msg, "[yt-dlp] ALERT: Auto Update", 0, 0);
 					return -1;
 				}
@@ -3621,7 +3702,7 @@ class YTDLP
 					string msg =
 						"Automatic update seems to have failed.\r\n"
 						"\r\n"
-						"The [update_ytdlp] setting has been reset.\r\n";
+						"The 'update_ytdlp' setting has been reset.\r\n";
 					
 					if (checkFileInfo() > 0)	// fialed to restore
 					{
@@ -3631,7 +3712,7 @@ class YTDLP
 					}
 					else
 					{
-						msg += "Set [update_ytdlp] back to 1 to retry, or try setting it to 2.";
+						msg += "Try setting it to 2, or set it back to 1 to retry.";
 						HostMessageBox(msg, "[yt-dlp] ERROR: Auto Update", 0, 0);
 						return -1;
 					}
@@ -3699,11 +3780,11 @@ class YTDLP
 	bool _checkLogBrowser(string log)
 	{
 		bool check = false;
-		if (tx.findRegExp(log, "(?i)\\nERROR: Could not [^\r\n]+? cookies? database") >= 0) check = true;
+		if (tx.findRegExp(log, "(?i)\\nERROR: Could not [^\r\n]+ cookies? database") >= 0) check = true;
 		if (tx.findRegExp(log, "(?i)\\nERROR: Failed to decrypt with DPAPI") >= 0) check = true;
 		if (check)
 		{
-			string msg = "Check your [cookie_browser] setting.";
+			string msg = "Check your 'cookie_browser' setting.";
 			if (cfg.csl > 0) HostPrintUTF8("[yt-dlp] ERROR! " + msg + "\r\n");
 			msg += "\r\nIt will be commented out.";
 			HostMessageBox(msg, "[yt-dlp] ERROR: Cookie Browser", 0, 0);
@@ -3718,7 +3799,7 @@ class YTDLP
 		int pos1 = tx.findRegExp(log, "(?i)\nERROR: \\[youtube\\] [^\r\n]*(Unsupported language code:)");
 		if (pos1 >= 0)
 		{
-			if (cfg.csl > 0) HostPrintUTF8("[yt-dlp] ERROR! Your language code [base_lang] is not supported for the menu label on YouTube.\r\n");
+			if (cfg.csl > 0) HostPrintUTF8("[yt-dlp] ERROR! Your language code 'base_lang' is not supported for the menu label on YouTube.\r\n");
 			int pos2 = tx.findEol(log, pos1);
 			string msg = log.substr(pos1, pos2 - pos1);
 			int pos = tx.findRegExp(msg, ". Supported language codes");
@@ -3822,28 +3903,32 @@ class YTDLP
 	{
 		// Server error 403 or 404
 		int pos = tx.findRegExp(log, "(?i)\\nERROR: [^\r\n]*HTTP Error 40[34]");
-		if (pos >= 0)
+		if (pos < 0) return 0;
+		
+		if (!referer.empty())
 		{
-			if (referer.empty())
-			{
-				referer = cfg.getStr("NETWORK", "referer");
-				if (!referer.empty())
-				{
-					if (referer.find("http") == 0)
-					{
-						return -1;
-					}
-					referer = "";
-					cfg.cmtoutKey("NETWORK", "referer");
-				}
-			}
 			string msg = "Access forbidden or not found.";
 			if (cfg.csl > 0) HostPrintUTF8("[yt-dlp] " + msg + " - " + tx.qt(url) + "\r\n");
-			//msg += "\r\nIf you have a valid referer, set the referer option in the [NETWORK] section and try again.\r\n";
 			HostMessageBox(msg + "\r\n" + url, "[yt-dlp] INFO: Access Forbidden", 2, 1);
 			return 1;
 		}
-		return 0;
+		
+		referer = cfg.getStr("NETWORK", "referer");
+		if (!referer.empty())
+		{
+			if (referer.find("http") != 0)
+			{
+				cfg.cmtoutKey("NETWORK", "referer");
+				referer = "";
+			}
+		}
+		
+		if (referer.empty())
+		{
+			referer = DUMMY_REFERER;
+		}
+		
+		return -1;
 	}
 	
 	void _printNoEntries(string log, string url)
@@ -3924,7 +4009,7 @@ class YTDLP
 	bool _removeMetadata(string &inout log)
 	{
 		// Remove the metadata area that cannot be used for judgment.
-		string reg = "(?i)(\\n\\[debug\\] ffmpeg command line:.+?)\\n(?:\\[|error:|warning:)";
+		string reg = "(?i)(\\n\\[debug\\] ffmpeg command line:[^\r\n]+)\\n(?:\\[|error:|warning:)";
 		string _s;
 		int pos = tx.findRegExp(log, reg, _s);
 		if (pos >= 0)
@@ -4025,7 +4110,7 @@ class YTDLP
 			}
 			if (retry.find("http") == 0)
 			{
-				msg += " (Retry wtih referer)";
+				msg += " (with Referer)";
 			}
 			else if (!retry.empty())
 			{
@@ -4999,19 +5084,19 @@ string GetDesc()
 			case 1:
 				info += "\r\n\r\n"
 				"| Cannot find \"yt-dlp.exe\".\r\n"
-				"| Place \"yt-dlp.exe\" in [ytdlp_location]\r\n"
-				"| or check the [ytdlp_location] setting.\r\n";
+				"| Place \"yt-dlp.exe\" in 'ytdlp_location'\r\n"
+				"| or check the 'ytdlp_location' setting.\r\n";
 				break;
 			case 2:
 				info += "\r\n\r\n"
 				"| Your \"yt-dlp.exe\" may not be valid.\r\n"
 				"| Replace it with a proper one or\r\n"
-				"| check the [ytdlp_location] folder.\r\n";
+				"| check the 'ytdlp_location' folder.\r\n";
 				break;
 			case 3:
 				info += "\r\n\r\n"
 				"| Your \"yt-dlp.exe\" did not work as expected.\r\n"
-				"| After checking, set [critical_error] to 0\r\n"
+				"| After checking, set 'critical_error' to 0\r\n"
 				"| in the config file and reload the script.\r\n";
 				break;
 		}
@@ -5114,7 +5199,7 @@ bool _IsUrlSite(string url, string website)
 	}
 	else if (website == "kakao")
 	{
-		if (HostRegExpParse(url, "//(?:[-\\w.]+\\.)?kakao\\.com(?:[/?#].*)?$", {})) return false;
+		if (HostRegExpParse(url, "//(?:[-\\w.]+\\.)?kakao\\.com(?:[/?#].*)?$", {})) return true;
 	}
 	else if (website == "shoutcast")
 	{
@@ -5327,7 +5412,7 @@ string _GetChatUrl(string url)
 string _GetUrlExtension(string url)
 {
 	url.MakeLower();
-	string ext = HostRegExpParse(url, "^https?://[^\\?#]+/[^/?#]+\\.(\\w+)(?:[?#].+)?$");
+	string ext = HostRegExpParse(url, "^https?://[^\\\\?#]+/[^/?#]+\\.(\\w+)(?:[?#].+)?$");
 	return ext;
 }
 
@@ -5526,7 +5611,7 @@ bool _CheckRss(string url, string &out imgUrl)
 					string chHead = data.substr(pos1, pos2 - pos1);
 					
 					// Get the channel image, if available
-					string imgTag = HostRegExpParse(chHead, "<(?:\\w+:)?image(?:Link)?>(.+?)</(?:\\w+:)?image(?:Link)?>");
+					string imgTag = HostRegExpParse(chHead, "<(?:\\w+:)?image(?:Link)?>([^<]+)</(?:\\w+:)?image(?:Link)?>");
 					if (!imgTag.empty())
 					{
 						imgUrl = HostRegExpParse(imgTag, "\\b(http[^<\n]+\\.(?:jpg|png|gif))[<\n]");
@@ -5793,7 +5878,7 @@ int _PlaylistParseDirect(string inUrl, array<dictionary> &MetaDataList)
 			shoutpl.passPlaylist(inUrl, MetaDataList);
 			if (cfg.csl > 0)
 			{
-				HostPrintUTF8("[yt-dlp] Shoutcast playlist was not expanded according to the [shoutcast_playlist] setting. - " + tx.qt(inUrl) + "\r\n\r\n");
+				HostPrintUTF8("[yt-dlp] Shoutcast playlist was not expanded according to the 'shoutcast_playlist' setting. - " + tx.qt(inUrl) + "\r\n\r\n");
 			}
 		}
 		else
@@ -6706,6 +6791,32 @@ string _GetUrlDomain(string url)
 }
 
 
+string _GetUrlDomain2(string url)
+{
+	// Get domain literally
+	int pos1 = url.find("://");
+	if (pos1 > 0)
+	{
+		pos1 += 3;
+		int pos2 = url.find("/", pos1);
+		if (pos2 > pos1)
+		{
+			return url.substr(pos1, pos2 - pos1);
+		}
+	}
+	return "";
+}
+
+
+string _GetRefererFromPotHist(string url)
+{
+	if (url.empty()) return "";
+	string domain = _GetUrlDomain2(url);
+	string referer = pot.getConfigData("_UrlReferer", domain);
+	return referer;
+}
+
+
 string _ReviseWebString(string desc)
 {
 	desc.replace("\\r\\n", "\n");
@@ -6817,7 +6928,7 @@ string _SupposeLangName(string note)
 	}
 	else
 	{
-		array<string> qualities = {"low", "medium", "large"};
+		array<string> qualities = {"low", "medium", "high"};
 		array<string> words = tx.trimSplit(note, ",");
 		if (words.length() > 2)
 		{
@@ -7373,6 +7484,8 @@ string _ReviseCookie(string cookie)
 string _SetRequestHeader(string url, JsonValue jFormat)
 {
 	string reqHeader;
+	string referer;
+	string cookie;
 	
 	JsonValue jHeaders = jFormat["http_headers"];
 	if (jHeaders.isObject())
@@ -7386,7 +7499,6 @@ string _SetRequestHeader(string url, JsonValue jFormat)
 			//HostSetUrlUserAgentHTTP(url, userAgent);
 		}
 		
-		string referer;
 		jsn.getValueString(jHeaders, "Referer", referer);
 		if (!referer.empty())
 		{
@@ -7418,7 +7530,6 @@ string _SetRequestHeader(string url, JsonValue jFormat)
 		}
 	}
 	
-	string cookie;
 	jsn.getValueString(jFormat, "cookies", cookie);
 	if (!cookie.empty())
 	{
@@ -7429,13 +7540,10 @@ string _SetRequestHeader(string url, JsonValue jFormat)
 		HostSetUrlCookieHTTP(url, cookie);
 	}
 	
-	/*
-	// HostSetUrlHeaderHTTP is called in PlaylistParse
-	if (!reqHeader.empty())
+	if (!referer.empty() || !cookie.empty())
 	{
 		HostSetUrlHeaderHTTP(url, reqHeader);
 	}
-	*/
 	
 	return reqHeader;
 }
@@ -7447,7 +7555,7 @@ bool _CheckLiveThrough(dictionary &MetaData, string url)
 	{
 		if (cfg.csl > 0)
 		{
-			HostPrintUTF8("[yt-dlp] YouTube Live was passed through according to the [youtube_live] setting. - " + tx.qt(url) +"\r\n");
+			HostPrintUTF8("[yt-dlp] YouTube Live was passed through according to the 'youtube_live' setting. - " + tx.qt(url) +"\r\n");
 		}
 		return true;
 	}
@@ -8317,12 +8425,18 @@ string _PlayitemParse(const string &in path, dictionary &MetaData, array<diction
 		outUrl = _PlayitemParseDirect(inUrl, MetaData, QualityList);
 		if (!outUrl.empty())
 		{
-//HostPrintUTF8("direct");
+			// Direct link without yt-dlp.exe
 			return outUrl;
 		}
 		
 		// Execute yt-dlp
-		array<string> jsonList = ytd.exec1(inUrl, 0);
+		string referer = "";
+		if (doubleTrigger <= 0)
+		{
+			referer = _GetRefererFromPotHist(inUrl);
+			// Available only if the URL is a direct link (outUrl == inUrl).
+		}
+		array<string> jsonList = ytd.exec1(inUrl, 0, referer);
 		if (jsonList.length() == 0) return "";
 		json = jsonList[0];
 		
@@ -8332,7 +8446,7 @@ string _PlayitemParse(const string &in path, dictionary &MetaData, array<diction
 		if (cancelMode == 1) return "";
 	}
 	
-//HostPrintUTF8("json parsing start");
+	// JSON parsing start
 	JsonReader reader;
 	JsonValue root;
 	if (!reader.parse(json, root) || !root.isObject())
@@ -8418,16 +8532,25 @@ string _PlayitemParse(const string &in path, dictionary &MetaData, array<diction
 	{
 		string msg;
 		string title = string(MetaData["title"]);
-		msg += "\r\nTitle: " + title + "\r\n";
+		if (!title.empty())
+		{
+			msg += "\r\nTitle: " + title + "\r\n";
+		}
 		if (false && cfg.csl > 1)
 		{
 			string desc = string(MetaData["content"]);
-			msg += "\r\nDescription Start >>>>>>>>>>>>>>>>\r\n\r\n";
-			msg += desc;
-			msg += "\r\n\r\n<<<<<<<<<<<<<< Description End\r\n";
+			if (!desc.empty())
+			{
+				msg += "\r\nDescription Start >>>>>>>>>>>>>>>>\r\n\r\n";
+				msg += desc;
+				msg += "\r\n\r\n<<<<<<<<<<<<<< Description End\r\n";
+			}
 		}
-		msg += "\r\n";
-		HostPrintUTF8(msg);
+		if (!msg.empty())
+		{
+			msg += "\r\n";
+			HostPrintUTF8(msg);
+		}
 	}
 	
 	string extractor = string(MetaData["extractor"]);
@@ -8439,10 +8562,11 @@ string _PlayitemParse(const string &in path, dictionary &MetaData, array<diction
 	jsn.getValueInt(root, "duration", secDuration);
 	
 	
+	string AllReqHeader;
 	string reqHeader;
 	string resolution;
 	
-	// Exist a format in the top level of root directly
+	// The stream has a format in the top level of root directly
 	jsn.getValueString(root, "url", outUrl);
 	if (!outUrl.empty())
 	{
@@ -8455,6 +8579,8 @@ string _PlayitemParse(const string &in path, dictionary &MetaData, array<diction
 		else
 		{
 			reqHeader = _SetRequestHeader(outUrl, root);
+			MetaData["reqHeader"] = reqHeader;
+			AllReqHeader = reqHeader;
 			jsn.getValueString(root, "resolution", resolution);
 		}
 	}
@@ -8826,9 +8952,9 @@ string _PlayitemParse(const string &in path, dictionary &MetaData, array<diction
 			
 			string fmtReqHeader = _SetRequestHeader(fmtUrl, jFormat);
 			Quality["reqHeader"] = fmtReqHeader;
-			if (fmtReqHeader.length() > reqHeader.length())
+			if (AllReqHeader.empty())
 			{
-				reqHeader = fmtReqHeader;
+				AllReqHeader = fmtReqHeader;
 			}
 			
 			if (cfg.csl > 1)
@@ -8968,18 +9094,16 @@ string _PlayitemParse(const string &in path, dictionary &MetaData, array<diction
 		}
 	}
 	
-	if (!reqHeader.empty())
+	if (!AllReqHeader.empty())
 	{
-		MetaData["reqHeader"] = reqHeader;
-		
 		if (cfg.csl > 1)
 		{
-			bool existReferer = (tx.findRegExp(reqHeader, "(?:^|\\n)Referer: ") >= 0);
-			bool existCookie = (tx.findRegExp(reqHeader, "(?:^|\\n)Cookie: ") >= 0);
+			bool existReferer = (tx.findRegExp(AllReqHeader, "(?:^|\\n)Referer: ") >= 0);
+			bool existCookie = (tx.findRegExp(AllReqHeader, "(?:^|\\n)Cookie: ") >= 0);
 			if (existReferer || existCookie)
 			{
 				// for Windows PowerShell
-				string reqHeader2 = reqHeader;
+				string reqHeader2 = AllReqHeader;
 				reqHeader2.replace("\r", "`r");
 				reqHeader2.replace("\n", "`n");
 				
@@ -9283,7 +9407,7 @@ string _PlayitemParse(const string &in path, dictionary &MetaData, array<diction
 	{
 		HostPrintUTF8("[yt-dlp] Parsing complete (" + extractor + "). - " + tx.qt(inUrl) +"\r\n");
 		
-		if (tx.findRegExp(reqHeader, "(?:^|\\n)Cookie: ") >= 0)
+		if (tx.findRegExp(AllReqHeader, "(?:^|\\n)Cookie: ") >= 0)
 		{
 			string msg = "[yt-dlp] PotPlayer might fail to play this stream due to its lack of cookie support.";
 			msg += " - " + tx.qt(inUrl) + "\r\n";
@@ -9312,14 +9436,6 @@ string PlayitemParse(const string &in path, dictionary &MetaData, array<dictiona
 	hist.add(path, false, startTime);
 	
 	string outUrl = _PlayitemParse(path, MetaData, QualityList, startTime);
-	
-	string reqHeader = string(MetaData["reqHeader"]);
-	{
-		if (!reqHeader.empty())
-		{
-			HostSetUrlHeaderHTTP(_ReviseUrl(path), reqHeader);
-		}
-	}
 	
 	int doubleTrigger = hist.getDoubleTrigger(path, false, startTime);
 	if (doubleTrigger > 0 && int(MetaData["playlistSelfCount"]) > 0)
