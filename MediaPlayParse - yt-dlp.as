@@ -5,7 +5,7 @@
   Placed in \PotPlayer\Extension\Media\PlayParse\
 *************************************************************/
 
-string SCRIPT_VERSION = "260408";
+string SCRIPT_VERSION = "260410";
 
 
 string YTDLP_EXE = "yt-dlp.exe";
@@ -380,7 +380,7 @@ class CFG
 		if (str.empty() || pos < 0 || uint(pos) >= str.length()) {pos = -1; return "";}
 		
 		string section = "";
-		pos = tx.findRegExp(str, "(?:^|\\n)\\[([^\n\r\t\\]]*?)\\]", section, pos);
+		pos = tx.findRegExp(str, "(?:^|\\n)\\[([^\n\r\t\\]]*)\\]", section, pos);
 		if (pos > 0) pos -= 1;
 		return section;
 	}
@@ -2280,19 +2280,19 @@ class SHOUTPL
 		for (uint i = 0; i < 20; i++)
 		{
 			array<dictionary> match;
-			pos = tx.regExpParse(data, "<track>([^<]+)</track>", match, pos);
+			pos = tx.regExpParse(data, "<track>(.+?)</track>", match, pos);
 			if (pos < 0) break;
 			
 			string s0 = string(match[0]["str"]);
 			pos += s0.length();
 			string track = string(match[1]["str"]);
-			string title = HostRegExpParse(track, "<title>([^<]+)</title>");
+			string title = HostRegExpParse(track, "<title>(.+?)</title>");
 			{
 				title = _reviseName(title);
 				if (i == 0) getTitle = title;
 				else if (title != getTitle) break;
 			}
-			string fmtUrl = HostRegExpParse(track, "<location>([^<]+)</location>");
+			string fmtUrl = HostRegExpParse(track, "<location>(.+?)</location>");
 			if (outUrl.empty()) outUrl = fmtUrl;
 			
 			if (@QualityList !is null)
@@ -2337,6 +2337,9 @@ class SHOUTPL
 					{
 						MetaData["thumbnail"] = _GetRadioThumb("shoutcast");
 					}
+					
+					MetaData["playlistSelfCount"] = QualityList.length();
+					
 					return outUrl;
 				}
 			}
@@ -2586,7 +2589,7 @@ class JSON
 	string getDirectValueString(string json, string key)
 	{
 		// For key="url"
-		// The structural analysis is not accurate.
+		// The structure analysis may be inaccurate.
 		
 		key = tx.escapeReg(key);
 		string str = HostRegExpParse(json, "\"" + key +"\":\\s?\"([^\"]+)\"");
@@ -2603,7 +2606,7 @@ class JSON
 	string getDirectValueString(string json, string key1, string key2)
 	{
 		// For key1="thumbnails", key2 = "url"
-		// The structural analysis is not accurate.
+		// The structure analysis may be inaccurate.
 		
 		key1 = tx.escapeReg(key1);
 		key2 = tx.escapeReg(key2);
@@ -5839,41 +5842,54 @@ string _ReviseThumbnail(string thumb)
 }
 
 
-bool _ParseWholePlaylist(array<string> jsonList, string inUrl, string &out wholePlaylistTitle)
+string _getWholePlaylistTitle(array<string> jsonList, string inUrl)
 {
-	string jsonString0 = jsonList[0];
-	int playlistIdx = jsn.getDirectValueInt(jsonString0, "playlist_index");
-	bool isWholePlaylist = (playlistIdx > 0);
-	if (isWholePlaylist)
+	string playlistTitle;
+	
+	string json0 = jsonList[0];
+	int playlistIdx = jsn.getDirectValueInt(json0, "playlist_index");
+	if (playlistIdx > 0)
 	{
-		wholePlaylistTitle = jsn.getDirectValueString(jsonString0, "playlist_title");
-		if (wholePlaylistTitle.empty())
+		//playlistTitle = jsn.getDirectValueString(json0, "playlist_title");
+			// not accurate for the title string
+		
+		JsonReader reader;
+		JsonValue root;
+		if (reader.parse(json0, root) && root.isObject())
 		{
-			wholePlaylistTitle = _GetPageTitle(inUrl);
-			if (wholePlaylistTitle.empty())
+			jsn.getValueString(root, "playlist_title", playlistTitle);
+			
+			if (playlistTitle.empty())
 			{
-				wholePlaylistTitle = "PLAYLIST";
-				string extractor = jsn.getDirectValueString(jsonString0, "extractor");
-				if (!_IsGeneric(extractor))
+				playlistTitle = _GetPageTitle(inUrl);
+				
+				if (playlistTitle.empty())
 				{
-					wholePlaylistTitle += " (" + extractor + ")";
+					playlistTitle = "PLAYLIST";
+					string extractor;
+					jsn.getValueString(root, "extractor", extractor);
+					if (!_IsGeneric(extractor))
+					{
+						playlistTitle += " (" + extractor + ")";
+					}
 				}
 			}
 		}
-		wholePlaylistTitle = _ReviseWebString(wholePlaylistTitle);
-		wholePlaylistTitle = _CutOffString(wholePlaylistTitle);
+		playlistTitle = _ReviseWebString(playlistTitle);
+		playlistTitle = _CutOffString(playlistTitle);
+		return playlistTitle;
 	}
-	return isWholePlaylist;
+	return "";
 }
 
 
-int _PlaylistParseDirect(string inUrl, array<dictionary> &MetaDataList)
+int _PlaylistParseDirect(string inUrl, array<dictionary> &MetaDataList, bool forceExpnad)
 {
 	MetaDataList = {};
 	
 	if (_IsUrlSite(inUrl, "shoutcast"))
 	{
-		if (cfg.getInt("TARGET", "shoutcast_playlist") == 1)
+		if (!forceExpnad && cfg.getInt("TARGET", "shoutcast_playlist") == 1)
 		{
 			shoutpl.passPlaylist(inUrl, MetaDataList);
 			if (cfg.csl > 0)
@@ -6014,7 +6030,7 @@ array<dictionary> _PlaylistParse(const string &in path, uint startTime, int play
 		}
 	}
 	
-	if (_PlaylistParseDirect(inUrl, MetaDataList) != 0)
+	if (_PlaylistParseDirect(inUrl, MetaDataList, playlistForceExpand > 0) != 0)
 	{
 		// Online radio or online direct files
 		return MetaDataList;
@@ -6042,8 +6058,8 @@ array<dictionary> _PlaylistParse(const string &in path, uint startTime, int play
 	uint naCnt = 0;	// unavailable count
 	uint toCnt = 0;	// time out count
 	
-	string wholePlaylistTitle = "";
-	bool isWholePlaylist = _ParseWholePlaylist(jsonList, inUrl, wholePlaylistTitle);
+	string wholePlaylistTitle = _getWholePlaylistTitle(jsonList, inUrl);
+	bool isWholePlaylist = !wholePlaylistTitle.empty();
 	
 	if (_IsYoutubeTabPlaylistType(inUrl))
 	{
@@ -7303,7 +7319,7 @@ bool _GetRadioInfo(dictionary &inout MetaData, string httpHead, string url)
 		string data = http.getContent(url2, 5, 2047);
 		if (!data.empty())
 		{
-			data = HostRegExpParse(data, "<annotation>([^<]+)</annotation>");
+			data = HostRegExpParse(data, "<annotation>(.+?)</annotation>");
 			string title = http.getDataField(data, "Stream Title");
 			if (!title.empty())
 			{
@@ -9435,6 +9451,7 @@ string PlayitemParse(const string &in path, dictionary &MetaData, array<dictiona
 	uint startTime = HostGetTickCount();
 	hist.add(path, false, startTime);
 	
+	// Main Parse
 	string outUrl = _PlayitemParse(path, MetaData, QualityList, startTime);
 	
 	int doubleTrigger = hist.getDoubleTrigger(path, false, startTime);
