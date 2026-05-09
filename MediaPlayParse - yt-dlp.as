@@ -5,7 +5,7 @@
   Placed in \PotPlayer\Extension\Media\PlayParse\
 *************************************************************/
 
-string SCRIPT_VERSION = "260410";
+string SCRIPT_VERSION = "260510";
 
 
 string YTDLP_EXE = "yt-dlp.exe";
@@ -3905,7 +3905,7 @@ class YTDLP
 	int _checkLogForbidden(string log, string url, string &inout referer)
 	{
 		// Server error 403 or 404
-		int pos = tx.findRegExp(log, "(?i)\\nERROR: [^\r\n]*HTTP Error 40[34]");
+		int pos = tx.findRegExp(log, "(?i)\\nERROR: [^\r\n]*HTTP Error 40[34]\\b");
 		if (pos < 0) return 0;
 		
 		if (!referer.empty())
@@ -4094,11 +4094,15 @@ class YTDLP
 		return jsonList;
 	}
 	
-	array<string> exec1(string url, int playlistMode, string retry = "")
+	array<string> exec1(string url, int playlistMode, dictionary ex = {})
 	{
 		if (checkFileInfo() > 0) return {};
 		checkFileHash();
 		string tmpVersion = version;
+		
+		string referer = string(ex["referer"]);
+		bool retry = bool(ex["retry"]);
+		bool twichLive = bool(ex["twichLive"]);
 		
 		if (cfg.csl > 0)
 		{
@@ -4111,14 +4115,23 @@ class YTDLP
 			{
 				msg += "Extracting entries";
 			}
-			if (retry.find("http") == 0)
+			
+			//if (!ex.empty())
+			if (retry || !referer.empty() || twichLive)
 			{
-				msg += " (with Referer)";
+				msg += " (";
+				if (retry) msg += "Retry ";
+				if (twichLive)
+				{
+					msg += "twitch live";
+				}
+				else if (!referer.empty())
+				{
+					msg += "with Referer";
+				}
+				msg += ")";
 			}
-			else if (!retry.empty())
-			{
-				msg += " (Retry " + retry + ")";
-			}
+			
 			msg += "... - " + tx.qt(url) + "\r\n";
 			HostPrintUTF8(msg);
 		}
@@ -4191,7 +4204,7 @@ class YTDLP
 		
 		options += " --all-subs";
 		
-		if (retry != "twich live")
+		if (!twichLive)
 		{
 			if (_IsUrlSite(url, "twitch.tv"))	// for twitch
 			{
@@ -4200,26 +4213,26 @@ class YTDLP
 					options += " --live-from-start";
 				}
 			}
-			/*
-			else if (isYoutube)
-			{
-				if (cfg.getInt("YOUTUBE", "youtube_live") == 2)
-				{
-					// doesn't work
-					options += " --live-from-start";
-				}
-			}
-			*/
 		}
+		/*
+		if (isYoutube)
+		{
+			if (cfg.getInt("YOUTUBE", "youtube_live") == 2)
+			{
+				// doesn't work
+				options += " --live-from-start";
+			}
+		}
+		*/
 		
 		//options += " -R 3";	// default; 10
 		options += " --encoding \"utf8\"";	// prevent garbled text
 		
 		_addOptionsNetwork(options);
 		
-		if (retry.find("http") == 0)	// referer
+		if (!referer.empty())
 		{
-			options += " --add-headers " + tx.qt("Referer: " + retry);
+			options += " --add-headers " + tx.qt("Referer: " + referer);
 		}
 		
 		string proxy = cfg.getStr("NETWORK", "proxy");
@@ -4306,12 +4319,14 @@ class YTDLP
 			
 			if (_checkLogLiveFromStart(log))
 			{
-				if (retry.empty())
+				if (!twichLive)
 				{
 					if (options.find(" --live-from-start") >= 0)
 					{
 						// Retry without --live-from-start
-						return exec1(url, playlistMode, "twich live");
+						ex["retry"] = true;
+						ex["twichLive"] = true;
+						return exec1(url, playlistMode, ex);
 					}
 				}
 			}
@@ -4321,15 +4336,16 @@ class YTDLP
 			if (_checkLogGeoRestriction(log, url)) return {};
 			if (_checkLogRegisteredOnly(log, url)) return {};
 			
-			int forbidden = _checkLogForbidden(log, url, retry);
-			if (forbidden != 0)
+			int forbidden = _checkLogForbidden(log, url, referer);
+			if (forbidden == 1)
 			{
-				if (forbidden == -1 && retry.find("http") == 0)
-				{
-					// Retry with referer(=retry)
-					return exec1(url, playlistMode, retry);
-				}
 				return {};
+			}
+			else if (forbidden == -1)
+			{
+				ex["retry"] = true;
+				ex["referer"] = referer;
+				return exec1(url, playlistMode, ex);
 			}
 			
 			_printNoEntries(log, url);
@@ -7497,7 +7513,7 @@ string _ReviseCookie(string cookie)
 }
 
 
-string _SetRequestHeader(string url, JsonValue jFormat)
+string _SetRequestHeader(string url, JsonValue jFormat, dictionary &data)
 {
 	string reqHeader;
 	string referer;
@@ -7511,6 +7527,7 @@ string _SetRequestHeader(string url, JsonValue jFormat)
 		if (!userAgent.empty())
 		{
 			reqHeader += "User-Agent: " + userAgent + "\r\n";
+			data["userAgent"] = userAgent;
 			
 			//HostSetUrlUserAgentHTTP(url, userAgent);
 		}
@@ -7519,30 +7536,34 @@ string _SetRequestHeader(string url, JsonValue jFormat)
 		if (!referer.empty())
 		{
 			reqHeader += "Referer: " + referer + "\r\n";
+			data["referer"] = referer;
 			
 			// PP 260114 or later
 			HostSetUrlRefererHTTP(url, referer);
 		}
 		
-		string accept;
-		jsn.getValueString(jHeaders, "Accept", accept);
-		if (!accept.empty())
+		if (true)
 		{
-			reqHeader += "Accept: " + accept + "\r\n";
-		}
-		
-		string acceptLanguage;
-		jsn.getValueString(jHeaders, "Accept-Language", acceptLanguage);
-		if (!acceptLanguage.empty())
-		{
-			reqHeader += "Accept-Language: " + acceptLanguage + "\r\n";
-		}
-		
-		string secFetchMode;
-		jsn.getValueString(jHeaders, "Sec-Fetch-Mode", secFetchMode);
-		if (!secFetchMode.empty())
-		{
-			reqHeader += "Sec-Fetch-Mode: " + secFetchMode + "\r\n";
+			string accept;
+			jsn.getValueString(jHeaders, "Accept", accept);
+			if (!accept.empty())
+			{
+				reqHeader += "Accept: " + accept + "\r\n";
+			}
+			
+			string acceptLanguage;
+			jsn.getValueString(jHeaders, "Accept-Language", acceptLanguage);
+			if (!acceptLanguage.empty())
+			{
+				reqHeader += "Accept-Language: " + acceptLanguage + "\r\n";
+			}
+			
+			string secFetchMode;
+			jsn.getValueString(jHeaders, "Sec-Fetch-Mode", secFetchMode);
+			if (!secFetchMode.empty())
+			{
+				reqHeader += "Sec-Fetch-Mode: " + secFetchMode + "\r\n";
+			}
 		}
 	}
 	
@@ -7551,12 +7572,14 @@ string _SetRequestHeader(string url, JsonValue jFormat)
 	{
 		cookie = _ReviseCookie(cookie);
 		reqHeader += "Cookie: " + cookie + "\r\n";
+		data["cookie"] = cookie;
 		
 		// PP 260114 or later
 		HostSetUrlCookieHTTP(url, cookie);
 	}
 	
-	if (!referer.empty() || !cookie.empty())
+	if (!reqHeader.empty())
+	//if (!referer.empty() || !cookie.empty())
 	{
 		HostSetUrlHeaderHTTP(url, reqHeader);
 	}
@@ -7644,7 +7667,7 @@ string _PlayitemParseDirect(string inUrl, dictionary &MetaData, array<dictionary
 				if (cfg.csl > 0)
 				{
 					HostPrintUTF8("\r\nStation: " + string(MetaData["title"]) + "\r\n");
-					HostPrintUTF8("[yt-dlp] Got metadata for a streaming radio. - " + tx.qt(inUrl) + "\r\n\r\n");
+					HostPrintUTF8("[yt-dlp] Got metadata for streaming radio. - " + tx.qt(inUrl) + "\r\n\r\n");
 				}
 				return inUrl;
 			}
@@ -7656,7 +7679,7 @@ string _PlayitemParseDirect(string inUrl, dictionary &MetaData, array<dictionary
 				MetaData["playUrl"] = inUrl;
 				if (cfg.csl > 0)
 				{
-					HostPrintUTF8("[yt-dlp] This URL is for a streaming radio. - " + tx.qt(inUrl) + "\r\n\r\n");
+					HostPrintUTF8("[yt-dlp] This URL is for streaming radio. - " + tx.qt(inUrl) + "\r\n\r\n");
 				}
 				return inUrl;
 			}
@@ -8446,13 +8469,13 @@ string _PlayitemParse(const string &in path, dictionary &MetaData, array<diction
 		}
 		
 		// Execute yt-dlp
-		string referer = "";
-		if (doubleTrigger <= 0)
+		dictionary ex = {};
+		if (doubleTrigger == 0)
 		{
-			referer = _GetRefererFromPotHist(inUrl);
+			ex["referer"] = _GetRefererFromPotHist(inUrl);
 			// Available only if the URL is a direct link (outUrl == inUrl).
 		}
-		array<string> jsonList = ytd.exec1(inUrl, 0, referer);
+		array<string> jsonList = ytd.exec1(inUrl, 0, ex);
 		if (jsonList.length() == 0) return "";
 		json = jsonList[0];
 		
@@ -8578,9 +8601,10 @@ string _PlayitemParse(const string &in path, dictionary &MetaData, array<diction
 	jsn.getValueInt(root, "duration", secDuration);
 	
 	
-	string AllReqHeader;
-	string reqHeader;
 	string resolution;
+	string userAgent;
+	string referer;
+	string cookie;
 	
 	// The stream has a format in the top level of root directly
 	jsn.getValueString(root, "url", outUrl);
@@ -8594,9 +8618,11 @@ string _PlayitemParse(const string &in path, dictionary &MetaData, array<diction
 		}
 		else
 		{
-			reqHeader = _SetRequestHeader(outUrl, root);
-			MetaData["reqHeader"] = reqHeader;
-			AllReqHeader = reqHeader;
+			_SetRequestHeader(outUrl, root, MetaData);
+			userAgent = string(MetaData["userAgent"]);
+			referer = string(MetaData["referer"]);
+			cookie = string(MetaData["cookie"]);
+			
 			jsn.getValueString(root, "resolution", resolution);
 		}
 	}
@@ -8825,7 +8851,7 @@ string _PlayitemParse(const string &in path, dictionary &MetaData, array<diction
 			}
 		}
 		
-		if (@QualityList !is null)
+		//if (@QualityList !is null)
 		{
 			string fmtBitrate;
 			if (tbr > 0) fmtBitrate = HostFormatBitrate(int(tbr * 1000));
@@ -8923,13 +8949,17 @@ string _PlayitemParse(const string &in path, dictionary &MetaData, array<diction
 			if (fmtQuality.empty())
 			{
 				jsn.getValueString(jFormat, "format", fmtQuality);
+				if (fmtQuality.empty())
+				{
+					fmtQuality = fmtId;
+				}
 			}
 			
 			dictionary Quality;
 			Quality["url"] = fmtUrl;
 			Quality["format"] = fmtFormat;
 			Quality["quality"] = fmtQuality;
-			if (!fmtResolution.empty()) Quality["resolution"] = fmtResolution;
+			Quality["resolution"] = fmtResolution;
 			if (!fmtBitrate.empty()) Quality["bitrate"] = fmtBitrate;
 				//if (!vcodec.empty()) Quality["vcodec"] = vcodec;
 				//if (!acodec.empty()) Quality["acodec"] = acodec;
@@ -8966,12 +8996,10 @@ string _PlayitemParse(const string &in path, dictionary &MetaData, array<diction
 				}
 			}
 			
-			string fmtReqHeader = _SetRequestHeader(fmtUrl, jFormat);
-			Quality["reqHeader"] = fmtReqHeader;
-			if (AllReqHeader.empty())
-			{
-				AllReqHeader = fmtReqHeader;
-			}
+			_SetRequestHeader(fmtUrl, jFormat, Quality);
+			if (userAgent.empty()) userAgent = string(Quality["userAgent"]);
+			if (referer.empty()) referer = string(Quality["referer"]);
+			if (cookie.empty()) cookie = string(Quality["cookie"]);
 			
 			if (cfg.csl > 1)
 			{
@@ -8987,7 +9015,7 @@ string _PlayitemParse(const string &in path, dictionary &MetaData, array<diction
 				HostPrintUTF8(msg);
 			}
 			
-			QualityList.insertLast(Quality);
+			if (@QualityList !is null) QualityList.insertLast(Quality);
 		}
 		
 		if (va == "va")
@@ -8998,20 +9026,29 @@ string _PlayitemParse(const string &in path, dictionary &MetaData, array<diction
 			{
 				vaOutUrl = fmtUrl;
 			}
-			else if (reduceFormats == 1 && longSide > 1100)
+			else if (reduceFormats == 1)
 			{
-				// get if longSide is near 1200
-				vaOutUrl = fmtUrl;
+				if (longSide > 1500)
+				{
+					// get if longSide is near 1920
+					vaOutUrl = fmtUrl;
+				}
 			}
-			else if (reduceFormats == 2 && longSide < 700)
+			else if (reduceFormats == 2)
 			{
-				// get if longSide is near 640
-				vaOutUrl = fmtUrl;
+				if (longSide < 700)
+				{
+					// get if longSide is near 640
+					vaOutUrl = fmtUrl;
+				}
 			}
-			else if (longSide > 800)
+			else
 			{
-				// get if longSide is near 854
-				vaOutUrl = fmtUrl;
+				if (longSide > 1100)
+				{
+					// get if longSide is near 1280
+					vaOutUrl = fmtUrl;
+				}
 			}
 		}
 		else if (va == "v")
@@ -9021,20 +9058,29 @@ string _PlayitemParse(const string &in path, dictionary &MetaData, array<diction
 			{
 				vOutUrl = fmtUrl;
 			}
-			else if (reduceFormats == 1 && longSide > 1100)
+			else if (reduceFormats == 1)
 			{
-				// get if longSide is near 1200
-				vOutUrl = fmtUrl;
+				if (longSide > 1500)
+				{
+					// get if longSide is near 1920
+					vOutUrl = fmtUrl;
+				}
 			}
-			else if (reduceFormats == 2 && longSide < 700)
+			else if (reduceFormats == 2)
 			{
-				// get if longSide is near 640
-				vOutUrl = fmtUrl;
+				if (longSide < 700)
+				{
+					// get if longSide is near 640
+					vOutUrl = fmtUrl;
+				}
 			}
-			else if (longSide > 800)
+			else
 			{
-				// get if longSide is near 854
-				vOutUrl = fmtUrl;
+				if (longSide > 1100)
+				{
+					// get if longSide is near 1280
+					vOutUrl = fmtUrl;
+				}
 			}
 		}
 		else if (va == "a")
@@ -9048,14 +9094,13 @@ string _PlayitemParse(const string &in path, dictionary &MetaData, array<diction
 	}
 	if (outUrl.empty())
 	{
-		if (!vOutUrl.empty())
-		{
-			// prioritize DASH over HLS
-			outUrl = vOutUrl;
-		}
-		else if (!vaOutUrl.empty())
+		if (!vaOutUrl.empty())
 		{
 			outUrl = vaOutUrl;
+		}
+		else if (!vOutUrl.empty())
+		{
+			outUrl = vOutUrl;
 		}
 		else if (!aOutUrl.empty())
 		{
@@ -9110,34 +9155,15 @@ string _PlayitemParse(const string &in path, dictionary &MetaData, array<diction
 		}
 	}
 	
-	if (!AllReqHeader.empty())
+	if (cfg.csl > 1)
 	{
-		if (cfg.csl > 1)
+		if (!referer.empty())
 		{
-			bool existReferer = (tx.findRegExp(AllReqHeader, "(?:^|\\n)Referer: ") >= 0);
-			bool existCookie = (tx.findRegExp(AllReqHeader, "(?:^|\\n)Cookie: ") >= 0);
-			if (existReferer || existCookie)
-			{
-				// for Windows PowerShell
-				string reqHeader2 = AllReqHeader;
-				reqHeader2.replace("\r", "`r");
-				reqHeader2.replace("\n", "`n");
-				
-				string msg = "Request Header with ";
-				if (existReferer)
-				{
-					msg += "Referer";
-				}
-				if (existCookie)
-				{
-					if (existReferer) msg += " & ";
-					msg += "Cookie";
-				}
-				msg += " ---------------------------\r\n";
-				msg += reqHeader2;
-				msg += "\r\n\r\n";
-				HostPrintUTF8(msg);
-			}
+			HostPrintUTF8("Referer: " + referer + "\r\n");
+		}
+		if (!cookie.empty())
+		{
+			HostPrintUTF8("Cookie: " + cookie + "\r\n");
 		}
 	}
 	
@@ -9423,9 +9449,9 @@ string _PlayitemParse(const string &in path, dictionary &MetaData, array<diction
 	{
 		HostPrintUTF8("[yt-dlp] Parsing complete (" + extractor + "). - " + tx.qt(inUrl) +"\r\n");
 		
-		if (tx.findRegExp(AllReqHeader, "(?:^|\\n)Cookie: ") >= 0)
+		if (!cookie.empty())
 		{
-			string msg = "[yt-dlp] PotPlayer might fail to play this stream due to its lack of cookie support.";
+			string msg = "[yt-dlp] PotPlayer might fail to play this stream due to its lack of Cookie support.";
 			msg += " - " + tx.qt(inUrl) + "\r\n";
 			HostPrintUTF8(msg);
 		}
@@ -9475,4 +9501,4 @@ string PlayitemParse(const string &in path, dictionary &MetaData, array<dictiona
 	return outUrl;
 }
 
-
+
