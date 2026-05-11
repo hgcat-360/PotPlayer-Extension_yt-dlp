@@ -5,7 +5,7 @@
   Placed in \PotPlayer\Extension\Media\PlayParse\
 *************************************************************/
 
-string SCRIPT_VERSION = "260510";
+string SCRIPT_VERSION = "260511";
 
 
 string YTDLP_EXE = "yt-dlp.exe";
@@ -3077,7 +3077,7 @@ class CACHE
 				string sMetaData = HostDecompress(gzMetaData);
 				dictionary MetaData = jsn.jsonToDictionary(sMetaData);
 				
-				if (QualityList !is null)
+				if (@QualityList !is null)
 				{
 					string gzQualityList = string(list[idx]["QualityList"]);
 					string sQualityList = HostDecompress(gzQualityList);
@@ -6148,7 +6148,7 @@ array<dictionary> _PlaylistParse(const string &in path, uint startTime, int play
 		{
 			dictionary @MetaData0 = MetaDataList[arrIdx[i]];
 			
-			while (MetaData0 !is null)
+			while (@MetaData0 !is null)
 			{
 				if (_MatchIds(string(MetaData0["webUrl"]), errIds))
 				{
@@ -7513,7 +7513,7 @@ string _ReviseCookie(string cookie)
 }
 
 
-string _SetRequestHeader(string url, JsonValue jFormat, dictionary &data)
+void _SetRequestHeader(string url, JsonValue jFormat, dictionary &data)
 {
 	string reqHeader;
 	string referer;
@@ -7542,7 +7542,7 @@ string _SetRequestHeader(string url, JsonValue jFormat, dictionary &data)
 			HostSetUrlRefererHTTP(url, referer);
 		}
 		
-		if (true)
+		if (false)
 		{
 			string accept;
 			jsn.getValueString(jHeaders, "Accept", accept);
@@ -7578,13 +7578,11 @@ string _SetRequestHeader(string url, JsonValue jFormat, dictionary &data)
 		HostSetUrlCookieHTTP(url, cookie);
 	}
 	
-	if (!reqHeader.empty())
-	//if (!referer.empty() || !cookie.empty())
+	//if (!reqHeader.empty())
+	if (!referer.empty() || !cookie.empty())
 	{
 		HostSetUrlHeaderHTTP(url, reqHeader);
 	}
-	
-	return reqHeader;
 }
 
 
@@ -8602,7 +8600,6 @@ string _PlayitemParse(const string &in path, dictionary &MetaData, array<diction
 	
 	
 	string resolution;
-	string userAgent;
 	string referer;
 	string cookie;
 	
@@ -8619,7 +8616,6 @@ string _PlayitemParse(const string &in path, dictionary &MetaData, array<diction
 		else
 		{
 			_SetRequestHeader(outUrl, root, MetaData);
-			userAgent = string(MetaData["userAgent"]);
 			referer = string(MetaData["referer"]);
 			cookie = string(MetaData["cookie"]);
 			
@@ -8851,7 +8847,7 @@ string _PlayitemParse(const string &in path, dictionary &MetaData, array<diction
 			}
 		}
 		
-		//if (@QualityList !is null)
+		if (@QualityList !is null)
 		{
 			string fmtBitrate;
 			if (tbr > 0) fmtBitrate = HostFormatBitrate(int(tbr * 1000));
@@ -8997,7 +8993,6 @@ string _PlayitemParse(const string &in path, dictionary &MetaData, array<diction
 			}
 			
 			_SetRequestHeader(fmtUrl, jFormat, Quality);
-			if (userAgent.empty()) userAgent = string(Quality["userAgent"]);
 			if (referer.empty()) referer = string(Quality["referer"]);
 			if (cookie.empty()) cookie = string(Quality["cookie"]);
 			
@@ -9015,7 +9010,7 @@ string _PlayitemParse(const string &in path, dictionary &MetaData, array<diction
 				HostPrintUTF8(msg);
 			}
 			
-			if (@QualityList !is null) QualityList.insertLast(Quality);
+			QualityList.insertLast(Quality);
 		}
 		
 		if (va == "va")
@@ -9026,7 +9021,7 @@ string _PlayitemParse(const string &in path, dictionary &MetaData, array<diction
 			{
 				vaOutUrl = fmtUrl;
 			}
-			else if (reduceFormats == 1)
+			else if (reduceFormats == 1 || reduceFormats == 3)
 			{
 				if (longSide > 1500)
 				{
@@ -9042,7 +9037,7 @@ string _PlayitemParse(const string &in path, dictionary &MetaData, array<diction
 					vaOutUrl = fmtUrl;
 				}
 			}
-			else
+			else	// reduceFormats == 0
 			{
 				if (longSide > 1100)
 				{
@@ -9058,7 +9053,7 @@ string _PlayitemParse(const string &in path, dictionary &MetaData, array<diction
 			{
 				vOutUrl = fmtUrl;
 			}
-			else if (reduceFormats == 1)
+			else if (reduceFormats == 1 || reduceFormats == 3)
 			{
 				if (longSide > 1500)
 				{
@@ -9074,7 +9069,7 @@ string _PlayitemParse(const string &in path, dictionary &MetaData, array<diction
 					vOutUrl = fmtUrl;
 				}
 			}
-			else
+			else	// reduceFormats == 0
 			{
 				if (longSide > 1100)
 				{
@@ -9442,7 +9437,10 @@ string _PlayitemParse(const string &in path, dictionary &MetaData, array<diction
 	
 	int cancelMode = hist.checkCancel(path, false, startTime);
 	if (cancelMode == 2) return "";
-	cache.addItem(inUrl, MetaData, QualityList);
+	if (@QualityList !is null || !isYoutube)
+	{
+		cache.addItem(inUrl, MetaData, QualityList);
+	}
 	if (cancelMode == 1) return "";
 	
 	if (cfg.csl > 0)
@@ -9501,4 +9499,3 @@ string PlayitemParse(const string &in path, dictionary &MetaData, array<dictiona
 	return outUrl;
 }
 
-
