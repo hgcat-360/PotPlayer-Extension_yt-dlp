@@ -5,7 +5,7 @@
   Placed in \PotPlayer\Extension\Media\PlayParse\
 *************************************************************/
 
-string SCRIPT_VERSION = "260511";
+string SCRIPT_VERSION = "260530";
 
 
 string YTDLP_EXE = "yt-dlp.exe";
@@ -2885,7 +2885,7 @@ class CACHE
 		}
 	}
 	
-	void addJson(string url, string json, string imgUrl = "")
+	void addJson(string url, string json, string imgUrl = "", bool showMsg = false)
 	{
 		if (json.empty()) return;
 		removeOld();
@@ -2917,11 +2917,11 @@ class CACHE
 				if (false)
 				{
 					int compRate = int(float(gzJson.length()) / float(json.length()) * 100);
-					HostPrintUTF8("Compression rate (temporary JSON): " + compRate + "%");
+					HostPrintUTF8("Compression rate (JSON): " + compRate + "%");
 				}
-				if (false)
+				if (showMsg)
 				{
-					string msg = "Cache size (temporary JSON): ";
+					string msg = "Cache size (JSON): ";
 					uint kSize = size / 1024;
 					if (kSize == 0) kSize = 1;
 					uint kTotalSize = totalSize / 1024;
@@ -2945,8 +2945,7 @@ class CACHE
 			if (!edit) return;
 			remove(idx);
 		}
-		int idxJson = find(url, "json");
-		if (idxJson >= 0) remove(idxJson);
+		remove(url, "json");
 		
 		// Add a new record
 		dictionary rec;
@@ -2972,15 +2971,18 @@ class CACHE
 		
 		if (cfg.csl > 1)
 		{
-			if (false && sMetaData.length() > 0)
+			if (false)
 			{
-				int compRate1 = int(float(gzMetaData.length()) / float(sMetaData.length()) * 100);
-				HostPrintUTF8("Compression rate (MetaData): " + compRate1 + "%");
-			}
-			if (false && sQualityList.length() > 0)
-			{
-				int compRate2 = int(float(gzQualityList.length()) / float(sQualityList.length()) * 100);
-				HostPrintUTF8("Compression rate (QualityList): " + compRate2 + "%");
+				if (sMetaData.length() > 0)
+				{
+					int compRate1 = int(float(gzMetaData.length()) / float(sMetaData.length()) * 100);
+					HostPrintUTF8("Compression rate (MetaData): " + compRate1 + "%");
+				}
+				if (sQualityList.length() > 0)
+				{
+					int compRate2 = int(float(gzQualityList.length()) / float(sQualityList.length()) * 100);
+					HostPrintUTF8("Compression rate (QualityList): " + compRate2 + "%");
+				}
 			}
 			string msg = "Cache size (MetaData & QualityList): ";
 			uint kSize = size / 1024;
@@ -3004,8 +3006,7 @@ class CACHE
 			if (!edit) return;
 			remove(idx);
 		}
-		int idxJson = find(url, "json");
-		if (idxJson >= 0) remove(idxJson);
+		remove(url, "json");
 		
 		// Add a new record
 		dictionary rec;
@@ -6025,7 +6026,7 @@ array<dictionary> _PlaylistParse(const string &in path, uint startTime, int play
 			{
 				if (cfg.csl > 0)
 				{
-					HostPrintUTF8("[yt-dlp] Used cache to add - " + tx.qt(inUrl) + "\r\n");
+					HostPrintUTF8("[yt-dlp] Using playlist cache for adding items - " + tx.qt(inUrl) + "\r\n");
 				}
 				return MetaDataList;
 			}
@@ -6037,7 +6038,7 @@ array<dictionary> _PlaylistParse(const string &in path, uint startTime, int play
 			{
 				if (cfg.csl > 0)
 				{
-					HostPrintUTF8("[yt-dlp] Used cache to add - " + tx.qt(inUrl) + "\r\n");
+					HostPrintUTF8("[yt-dlp] Using metadata cache for adding the item - " + tx.qt(inUrl) + "\r\n");
 				}
 				MetaData["url"] = inUrl;
 				MetaDataList.insertLast(MetaData);
@@ -6059,6 +6060,10 @@ array<dictionary> _PlaylistParse(const string &in path, uint startTime, int play
 		string json = cache.getJson(inUrl, imgUrl);
 		if (!json.empty())
 		{
+			if (cfg.csl > 0)
+			{
+				HostPrintUTF8("[yt-dlp] Using JSON cache to parse and add the item - " + tx.qt(inUrl) + "\r\n");
+			}
 			jsonList.insertLast(json);
 		}
 	}
@@ -8387,7 +8392,7 @@ string _PlayitemParse(const string &in path, dictionary &MetaData, array<diction
 		{
 			if (cfg.csl > 0)
 			{
-				HostPrintUTF8("[yt-dlp] Used cache to play - " + tx.qt(inUrl) + "\r\n");
+				HostPrintUTF8("[yt-dlp] Using metadata cache for playback - " + tx.qt(inUrl) + "\r\n");
 			}
 			HostSleep(DOUBLE_TRIGGER_INTERVAL_1);	// for waiting Double Trigger
 			return outUrl;
@@ -8399,7 +8404,7 @@ string _PlayitemParse(const string &in path, dictionary &MetaData, array<diction
 			{
 				if (cfg.csl > 0)
 				{
-					HostPrintUTF8("[yt-dlp] Used cache to play - " + tx.qt(inUrl) + "\r\n");
+					HostPrintUTF8("[yt-dlp] Using metadata cache for playback - " + tx.qt(inUrl) + "\r\n");
 					HostPrintUTF8("[yt-dlp] Expanding playlist... - " + tx.qt(inUrl) + "\r\n");
 				}
 				return outUrl;
@@ -8416,7 +8421,7 @@ string _PlayitemParse(const string &in path, dictionary &MetaData, array<diction
 		{
 			if (cfg.csl > 0)
 			{
-				HostPrintUTF8("[yt-dlp] Used cache to play - " + tx.qt(inUrl) + "\r\n");
+				HostPrintUTF8("[yt-dlp] Using metadata cache for playback - " + tx.qt(inUrl) + "\r\n");
 			}
 			return outUrl;
 		}
@@ -8454,7 +8459,14 @@ string _PlayitemParse(const string &in path, dictionary &MetaData, array<diction
 	{
 		if (cfg.csl > 0)
 		{
-			HostPrintUTF8("[yt-dlp] Used temporary JSON cache to play - " + tx.qt(inUrl) + "\r\n");
+			if (@QualityList is null)
+			{
+				HostPrintUTF8("[yt-dlp] Using JSON cache for item parsing - " + tx.qt(inUrl) + "\r\n");
+			}
+			else
+			{
+				HostPrintUTF8("[yt-dlp] Using temporary JSON cache for item parsing - " + tx.qt(inUrl) + "\r\n");
+			}
 		}
 	}
 	else
@@ -8479,7 +8491,7 @@ string _PlayitemParse(const string &in path, dictionary &MetaData, array<diction
 		
 		int cancelMode = hist.checkCancel(path, false, startTime);
 		if (cancelMode == 2) return "";
-		cache.addJson(inUrl, json);
+		cache.addJson(inUrl, json, "", (@QualityList is null));
 		if (cancelMode == 1) return "";
 	}
 	
@@ -9437,7 +9449,7 @@ string _PlayitemParse(const string &in path, dictionary &MetaData, array<diction
 	
 	int cancelMode = hist.checkCancel(path, false, startTime);
 	if (cancelMode == 2) return "";
-	if (@QualityList !is null || !isYoutube)
+	if (@QualityList !is null)
 	{
 		cache.addItem(inUrl, MetaData, QualityList);
 	}
