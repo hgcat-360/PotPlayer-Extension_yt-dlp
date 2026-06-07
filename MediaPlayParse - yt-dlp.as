@@ -5,7 +5,7 @@
   Placed in \PotPlayer\Extension\Media\PlayParse\
 *************************************************************/
 
-string SCRIPT_VERSION = "260530";
+string SCRIPT_VERSION = "260606";
 
 
 string YTDLP_EXE = "yt-dlp.exe";
@@ -4103,7 +4103,7 @@ class YTDLP
 		
 		string referer = string(ex["referer"]);
 		bool retry = bool(ex["retry"]);
-		bool twichLive = bool(ex["twichLive"]);
+		bool isTwichLive = bool(ex["isTwichLive"]);
 		
 		if (cfg.csl > 0)
 		{
@@ -4118,13 +4118,13 @@ class YTDLP
 			}
 			
 			//if (!ex.empty())
-			if (retry || !referer.empty() || twichLive)
+			if (retry || !referer.empty() || isTwichLive)
 			{
 				msg += " (";
 				if (retry) msg += "Retry ";
-				if (twichLive)
+				if (isTwichLive)
 				{
-					msg += "twitch live";
+					msg += "Twitch Live";
 				}
 				else if (!referer.empty())
 				{
@@ -4205,7 +4205,7 @@ class YTDLP
 		
 		options += " --all-subs";
 		
-		if (!twichLive)
+		if (!isTwichLive)
 		{
 			if (_IsUrlSite(url, "twitch.tv"))	// for twitch
 			{
@@ -4320,13 +4320,13 @@ class YTDLP
 			
 			if (_checkLogLiveFromStart(log))
 			{
-				if (!twichLive)
+				if (!isTwichLive)
 				{
 					if (options.find(" --live-from-start") >= 0)
 					{
 						// Retry without --live-from-start
 						ex["retry"] = true;
-						ex["twichLive"] = true;
+						ex["isTwichLive"] = true;
 						return exec1(url, playlistMode, ex);
 					}
 				}
@@ -5382,11 +5382,11 @@ string _GetChatUrl(string url)
 	string chatUrl = "";
 	
 	string youtubeId = _GetYoutubeVideoId(url);
-	if (!youtubeId.empty())
+	if (!youtubeId.empty())	// YouTube
 	{
 		chatUrl = "https://www.youtube.com/live_chat?v=" + youtubeId + "&is_popout=1";
 	}
-	else if (_IsUrlSite(url, "twitch.tv"))
+	else if (_IsUrlSite(url, "twitch.tv"))	// Twitch
 	{
 		if (url.replace("twitch.tv/", "twitch.tv/popout/") > 0)
 		{
@@ -5397,7 +5397,7 @@ string _GetChatUrl(string url)
 			chatUrl = url;
 		}
 	}
-	else if (_IsUrlSite(url, "kick.com"))
+	else if (_IsUrlSite(url, "kick.com"))	// Kick
 	{
 		if (url.replace("kick.com/", "kick.com/popout/") > 0)
 		{
@@ -5408,7 +5408,15 @@ string _GetChatUrl(string url)
 			chatUrl = url;
 		}
 	}
-	else if (_IsUrlSite(url, "rumble"))
+	else if (_IsUrlSite(url, "chzzk.naver.com"))	// CHZZK
+	{
+		int pos = url.find("?");
+		if (pos > 0) url = url.Left(pos);
+		if (url.Right(1) != "/") url += "/";
+		url += "chat";
+		chatUrl = url;
+	}
+	else if (_IsUrlSite(url, "rumble"))	// Rumble
 	{
 		string data = HostUrlGetString(url);
 		if (data.length() > 1000)
@@ -6831,6 +6839,7 @@ string _GetUrlDomain(string url)
 string _GetUrlDomain2(string url)
 {
 	// Get domain literally
+	url.MakeLower();
 	int pos1 = url.find("://");
 	if (pos1 > 0)
 	{
@@ -7251,10 +7260,9 @@ int _TitleChannelMode(string url)
 {
 	int mode = cfg.getInt("FORMAT", "title_channel_standard");
 	if (mode < 0 || mode > 2) mode = 0;
-	string domain = _GetUrlDomain(url);
+	string domain = _GetUrlDomain2(url);
 	
 	string data = cfg.getStr("FORMAT", "title_channel_each");
-	data.MakeLower();
 	array<string> arrData = tx.trimSplit(data, ",");
 	
 	for (uint i = 0; i < arrData.length(); i++)
@@ -7262,7 +7270,7 @@ int _TitleChannelMode(string url)
 		array<string> item = tx.trimSplit(arrData[i], ":");
 		if (item.length() == 2)
 		{
-			string _domain = item[0];
+			string _domain = item[0].MakeLower();
 			if (domain.find(_domain) >= 0)
 			{
 				int _mode = parseInt(item[1]);
@@ -7518,75 +7526,31 @@ string _ReviseCookie(string cookie)
 }
 
 
-void _SetRequestHeader(string url, JsonValue jFormat, dictionary &data)
+void _SetRefererCookie(string url, JsonValue jFormat, dictionary &data)
 {
-	string reqHeader;
 	string referer;
-	string cookie;
-	
 	JsonValue jHeaders = jFormat["http_headers"];
 	if (jHeaders.isObject())
 	{
-		string userAgent;
-		jsn.getValueString(jHeaders, "User-Agent", userAgent);
-		if (!userAgent.empty())
-		{
-			reqHeader += "User-Agent: " + userAgent + "\r\n";
-			data["userAgent"] = userAgent;
-			
-			//HostSetUrlUserAgentHTTP(url, userAgent);
-		}
-		
 		jsn.getValueString(jHeaders, "Referer", referer);
 		if (!referer.empty())
 		{
-			reqHeader += "Referer: " + referer + "\r\n";
 			data["referer"] = referer;
 			
 			// PP 260114 or later
 			HostSetUrlRefererHTTP(url, referer);
 		}
-		
-		if (false)
-		{
-			string accept;
-			jsn.getValueString(jHeaders, "Accept", accept);
-			if (!accept.empty())
-			{
-				reqHeader += "Accept: " + accept + "\r\n";
-			}
-			
-			string acceptLanguage;
-			jsn.getValueString(jHeaders, "Accept-Language", acceptLanguage);
-			if (!acceptLanguage.empty())
-			{
-				reqHeader += "Accept-Language: " + acceptLanguage + "\r\n";
-			}
-			
-			string secFetchMode;
-			jsn.getValueString(jHeaders, "Sec-Fetch-Mode", secFetchMode);
-			if (!secFetchMode.empty())
-			{
-				reqHeader += "Sec-Fetch-Mode: " + secFetchMode + "\r\n";
-			}
-		}
 	}
 	
+	string cookie;
 	jsn.getValueString(jFormat, "cookies", cookie);
 	if (!cookie.empty())
 	{
 		cookie = _ReviseCookie(cookie);
-		reqHeader += "Cookie: " + cookie + "\r\n";
 		data["cookie"] = cookie;
 		
 		// PP 260114 or later
 		HostSetUrlCookieHTTP(url, cookie);
-	}
-	
-	//if (!reqHeader.empty())
-	if (!referer.empty() || !cookie.empty())
-	{
-		HostSetUrlHeaderHTTP(url, reqHeader);
 	}
 }
 
@@ -7724,6 +7688,7 @@ dictionary _ParseMetaDataSimple(JsonValue &root, string imgUrl, bool toAlbum)
 		}
 	}
 	MetaData["extractor"] = extractor;
+	bool isGeneric = _IsGeneric(extractor);
 	
 	string ext;
 	jsn.getValueString(root, "ext", ext);
@@ -7810,7 +7775,7 @@ dictionary _ParseMetaDataSimple(JsonValue &root, string imgUrl, bool toAlbum)
 			{
 				thumb = imgUrl;
 			}
-			else if (isAudio && toAlbum && _IsGeneric(extractor))
+			else if (isAudio && toAlbum && isGeneric)
 			{
 				if (cfg.getInt("FORMAT", "radio_thumbnail") == 1)
 				{
@@ -7852,7 +7817,24 @@ dictionary _ParseMetaDataSimple(JsonValue &root, string imgUrl, bool toAlbum)
 			author.replace("_", " ");
 		}
 	}
-	MetaData["author"] = author + " @" + extractor;
+	if (isGeneric)
+	{
+		if (author.empty())
+		{
+			string urlDomain;
+			jsn.getValueString(root, "webpage_url_domain", urlDomain);
+			if (!urlDomain.empty())
+			{
+				author = _GetUrlDomain(urlDomain);
+			}
+		}
+	}
+	else
+	{
+		if (!author.empty()) author += " ";
+		author += "@" + extractor;
+	}
+	MetaData["author"] = author;
 	
 	return MetaData;
 }
@@ -8105,7 +8087,7 @@ dictionary _ParseMetaData(JsonValue &root, string inUrl, string imgUrl, bool toA
 				// Remove the --live-from-start option
 				thumb = ytd.getThumbnail(inUrl);
 			}
-			else if (isAudio && toAlbum && _IsGeneric(extractor))
+			else if (isAudio && toAlbum && isGeneric)
 			{
 				if (cfg.getInt("FORMAT", "radio_thumbnail") == 1)
 				{
@@ -8278,31 +8260,29 @@ dictionary _ParseMetaData(JsonValue &root, string inUrl, string imgUrl, bool toA
 	MetaData["title"] = title2;
 	MetaData["content"] = desc;
 	
-	string author2 = author;	// substantial author
-	if (author2.empty())
+	if (isGeneric)
 	{
-		if (isGeneric)
+		if (isShoutcast)
+		{
+			if (!author.empty()) author += " ";
+			author +=  "@ShoutcastCh";
+		}
+		else if (author.empty())
 		{
 			string urlDomain;
 			jsn.getValueString(root, "webpage_url_domain", urlDomain);
 			if (!urlDomain.empty())
 			{
-				author2 = _GetUrlDomain(urlDomain);
+				author = _GetUrlDomain(urlDomain);
 			}
-		}
-	}
-	if (isGeneric)
-	{
-		if (isShoutcast)
-		{
-			author2 += (!author.empty() ? " " : "") + "@ShoutcastCh";
 		}
 	}
 	else
 	{
-		author2 += (!author.empty() ? " " : "") + "@" + extractor;
+		if (!author.empty()) author += " ";
+		author += "@" + extractor;
 	}
-	MetaData["author"] = author2;
+	MetaData["author"] = author;
 	
 	int viewCount;
 	jsn.getValueInt(root, "view_count", viewCount);
@@ -8474,7 +8454,7 @@ string _PlayitemParse(const string &in path, dictionary &MetaData, array<diction
 		outUrl = _PlayitemParseDirect(inUrl, MetaData, QualityList);
 		if (!outUrl.empty())
 		{
-			// Direct link without yt-dlp.exe
+			// Direct link without using yt-dlp.exe
 			return outUrl;
 		}
 		
@@ -8627,7 +8607,7 @@ string _PlayitemParse(const string &in path, dictionary &MetaData, array<diction
 		}
 		else
 		{
-			_SetRequestHeader(outUrl, root, MetaData);
+			_SetRefererCookie(outUrl, root, MetaData);
 			referer = string(MetaData["referer"]);
 			cookie = string(MetaData["cookie"]);
 			
@@ -9004,7 +8984,7 @@ string _PlayitemParse(const string &in path, dictionary &MetaData, array<diction
 				}
 			}
 			
-			_SetRequestHeader(fmtUrl, jFormat, Quality);
+			_SetRefererCookie(fmtUrl, jFormat, Quality);
 			if (referer.empty()) referer = string(Quality["referer"]);
 			if (cookie.empty()) cookie = string(Quality["cookie"]);
 			
@@ -9496,6 +9476,7 @@ string PlayitemParse(const string &in path, dictionary &MetaData, array<dictiona
 		_PlayerAddList(path, doubleTrigger == 2);
 	}
 	
+//HostPrintUTF8("playling file: " + HostGetPlayingFileName());
 	if (false)
 	{
 		if (bool(hist.list[0]["local"]) && !bool(hist.list[0]["toAlbum"]))
