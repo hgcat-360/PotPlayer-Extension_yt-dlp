@@ -243,6 +243,10 @@ You can also run PotPlayer with administrator privileges, but this may restrict 
 Check whether the URL includes a playlist ID.  
 See: https://github.com/hgcat-360/PotPlayer-Extension_yt-dlp/wiki/Extracting-Playlists#playlist-or-single-video
 
+### Stream loading is unstable or fails in PotPlayer. What can I do?
+Try changing the source filter used by PotPlayer.  
+See: https://github.com/hgcat-360/PotPlayer-Extension_yt-dlp/wiki/Streaming-Source-Filter
+
 ### How can I automatically skip promotion or intro segments on YouTube using SponsorBlock?
 For **SponsorBlock**, configure the chapter categories using the ***sponsor_block*** setting in the [YOUTUBE] section of the configuration file.  
 Then enable PotPlayer's auto-skip feature for the corresponding chapter titles.  

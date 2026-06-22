@@ -5,7 +5,7 @@
   Placed in \PotPlayer\Extension\Media\PlayParse\
 *************************************************************/
 
-string SCRIPT_VERSION = "260606";
+string SCRIPT_VERSION = "260622";
 
 
 string YTDLP_EXE = "yt-dlp.exe";
@@ -453,7 +453,7 @@ class CFG
 		return pos;
 	}
 	
-	void _parseKeyDataDef(KeyData &inout kd)
+	void _parseKeyDataDef(KeyData &kd)
 	{
 		if (kd.key.empty()) {kd.init(); return;}
 		if (kd.areaStr.empty()) {kd.init(); return;}
@@ -527,7 +527,7 @@ class CFG
 		return true;
 	}
 	
-	void _keyCommentOut(KeyData &inout kd)
+	void _keyCommentOut(KeyData &kd)
 	{
 		string str = kd.areaStr;
 		int pos = 0;
@@ -551,7 +551,7 @@ class CFG
 		kd.areaStr = str;
 	}
 	
-	void _parseKeyDataCst(KeyData &inout kd)
+	void _parseKeyDataCst(KeyData &kd)
 	{
 		array<string> patterns = {
 			"(?i)(?:^|\\n) *" + kd.key + " *= *(\\S[^\t\r\n]*)",	// specified value
@@ -2125,7 +2125,7 @@ class SPONSOR_BLOCK
 		return cnt;
 	}
 	
-	int _findChapterNear(array<dictionary> chapterList, int time)
+	int _findChapterNear(array<dictionary> &chapterList, int time)
 	{
 		// time: milliseconds
 		int nearTime = -1;
@@ -2148,7 +2148,7 @@ class SPONSOR_BLOCK
 		return nearTime;
 	}
 	
-	int _findChapterNear(array<dictionary> chapterList, int time, string &out inheritTitle)
+	int _findChapterNear(array<dictionary> &chapterList, int time, string &out inheritTitle)
 	{
 		// time: milliseconds
 		int nearTime = -1;
@@ -2851,7 +2851,7 @@ class CACHE
 		{
 			uint curTime = HostGetTickCount();
 			
-			for (int i = int(list.length()) - 1; i >= 0; i--)
+			for (int i = list.length() - 1; i >= 0; i--)
 			{
 				uint prevTime = int(list[i]["time"]);
 				if (curTime < prevTime || totalSize > maxSize)
@@ -3213,7 +3213,7 @@ class HIST
 		if (list.length() > 2)
 		{
 			//uint curTime = HostGetTickCount();
-			for (int i = int(list.length() - 1); i >= 2; i--)
+			for (int i = list.length() - 1; i >= 2; i--)
 			{
 				if (bool(list[i]["finish"]))
 				{
@@ -4095,15 +4095,15 @@ class YTDLP
 		return jsonList;
 	}
 	
-	array<string> exec1(string url, int playlistMode, dictionary ex = {})
+	array<string> exec1(string url, int playlistMode, dictionary &exArg1 = {})
 	{
 		if (checkFileInfo() > 0) return {};
 		checkFileHash();
 		string tmpVersion = version;
 		
-		string referer = string(ex["referer"]);
-		bool retry = bool(ex["retry"]);
-		bool isTwichLive = bool(ex["isTwichLive"]);
+		string referer = string(exArg1["referer"]);
+		bool retry = bool(exArg1["retry"]);
+		bool isTwichLive = bool(exArg1["isTwichLive"]);
 		
 		if (cfg.csl > 0)
 		{
@@ -4117,7 +4117,6 @@ class YTDLP
 				msg += "Extracting entries";
 			}
 			
-			//if (!ex.empty())
 			if (retry || !referer.empty() || isTwichLive)
 			{
 				msg += " (";
@@ -4226,7 +4225,7 @@ class YTDLP
 		}
 		*/
 		
-		//options += " -R 3";	// default; 10
+		options += " -R 3";	// default; 10
 		options += " --encoding \"utf8\"";	// prevent garbled text
 		
 		_addOptionsNetwork(options);
@@ -4264,7 +4263,9 @@ class YTDLP
 		}
 		else
 		{
-			output = _extractPlaylist(url, options);
+			dictionary timeOut;
+			output = _extractPlaylist1(url, options, timeOut);
+			exArg1["timeOut"] = timeOut;
 		}
 		//output = _reviseLog(output);
 		
@@ -4325,9 +4326,9 @@ class YTDLP
 					if (options.find(" --live-from-start") >= 0)
 					{
 						// Retry without --live-from-start
-						ex["retry"] = true;
-						ex["isTwichLive"] = true;
-						return exec1(url, playlistMode, ex);
+						exArg1["retry"] = true;
+						exArg1["isTwichLive"] = true;
+						return exec1(url, playlistMode, exArg1);
 					}
 				}
 			}
@@ -4344,9 +4345,9 @@ class YTDLP
 			}
 			else if (forbidden == -1)
 			{
-				ex["retry"] = true;
-				ex["referer"] = referer;
-				return exec1(url, playlistMode, ex);
+				exArg1["retry"] = true;
+				exArg1["referer"] = referer;
+				return exec1(url, playlistMode, exArg1);
 			}
 			
 			_printNoEntries(log, url);
@@ -4356,9 +4357,11 @@ class YTDLP
 	}
 	
 	
-	array<string> exec2(array<string> urls, int opItem, bool opFlat = false, array<string> &errIds = {}, string headMsg = "")
+	array<string> exec2(array<string> urls, int opItem, bool opFlat, dictionary &exArg2 = {})
 	{
 		if (urls.length() == 0) return {};
+		
+		string headMsg = string(exArg2["headMsg"]);
 		
 		if (cfg.csl > 0)
 		{
@@ -4411,7 +4414,7 @@ class YTDLP
 			options += " --no-playlist";
 		}
 		
-		//options += " -R 3";	// default; 10
+		options += " -R 3";	// default; 10
 		options += " --encoding \"utf8\"";	// prevent garbled text
 		
 		_addOptionsNetwork(options);
@@ -4430,20 +4433,24 @@ class YTDLP
 		
 		// Execute
 		string output;
+		dictionary timeOut;
 		if (opItem == 0)
 		{
-			output = _extractPlaylist2(urls, options);
+			output = _extractPlaylist2(urls, options, timeOut);
 		}
 		else
 		{
-			output = _getMetadata(urls, options, opFlat);
+			output = _getMetadata(urls, options, opFlat, timeOut);
 		}
 		//output = _reviseLog(output);
+		exArg2["timeOut"] = timeOut;
 		
 		uint logPos = 0;
 		array<string> jsonList = _getJsonList(output, logPos);
 		string log = output.substr(logPos).TrimLeft("\r\n");
-		errIds = _getErrorIds(log);
+		
+		array<string> errIds = _getErrorIds(log);
+		exArg2["errIds"] = errIds;
 		
 		if (cfg.csl == 1)
 		{
@@ -4587,16 +4594,11 @@ class YTDLP
 		
 		if (data.Left(1) != "{")
 		{
-			pos1 = data.find("\n{", pos2);
+			pos1 = data.find("\n{", 0);
 		}
 		
 		while (pos1 >= 0)
 		{
-			if (eraseMsg && pos1 > pos2)
-			{
-				data.erase(pos2, pos1 - pos2);
-				pos1 = pos2;
-			}
 			pos2 = data.find("}\n", pos1);
 			if (pos2 < 0) break;
 			pos2 += 1;
@@ -4606,9 +4608,9 @@ class YTDLP
 			if (pos1 < 0) break;
 		}
 		
-		if (eraseMsg && pos1 < 0)
+		if (eraseMsg && pos2 > 0)
 		{
-			data = data.Left(pos2);
+			data = data.Left(pos2 + 1);
 		}
 		
 		return cnt;
@@ -4641,25 +4643,15 @@ class YTDLP
 	
 	int _findJsonEnd(string data)
 	{
-		int pos1 = -1;
-		int pos0;
-		do {
-			pos0 = pos1;
-			pos1 = data.findLast("}}\n", pos1);
-			if (pos1 >= 0)
-			{
-				int pos2 = tx.findLineTop(data, pos1);
-				if (data.substr(pos2, 1) == "{")
-				{
-					return pos1 + 3;
-				}
-				pos1 = tx.findLineTop(data, pos1);
-			}
-		} while (pos1 > pos0);
-		return 0;
+		int pos = data.findLast("\r\n[");
+		if (pos < 0)
+		{
+			pos = data.length();
+		}
+		return pos;
 	}
 	
-	string _extractPlaylist(string url, string options)
+	string _extractPlaylist1(string url, string options, dictionary &timeOut)
 	{
 		if (url.empty()) return "";
 		string output;
@@ -4751,17 +4743,28 @@ class YTDLP
 			if (cfg.csl > 0)
 			{
 				string msg;
-				if (complete > 0) msg = "  Complete.\r\n";
-				else if (complete < 0) msg = "  Failed to get.\r\n";
-				else msg = "  Time out.\r\n";
+				if (complete > 0)
+				{
+					msg = "  Complete.\r\n";
+				}
+				else if (complete < 0)
+				{
+					msg = "  Failed to get.\r\n";
+				}
+				else
+				{
+					msg = "  Time out.\r\n";
+					timeOut["type"] = "item";
+					timeOut["time"] = waitTime;
+					timeOut["count"] = cnt;
+				}
 				HostPrintUTF8(msg);
 			}
 		}
-		output.replace("\r\n{", "{");
 		return output;
 	}
 	
-	string _extractPlaylist2(array<string> urls, string options)
+	string _extractPlaylist2(array<string> urls, string options, dictionary &timeOut)
 	{
 		if (urls.length() == 0) return "";
 		string output;
@@ -4799,7 +4802,7 @@ class YTDLP
 			}
 			uint unitIdx = 200;
 			uint cnt = 0;
-			bool timeout = false;
+			bool isTimeout = false;
 			uint startTime = HostGetTickCount();
 			for (uint i = 1; i <= 10000 + unitIdx; i += unitIdx)
 			{
@@ -4823,24 +4826,35 @@ class YTDLP
 				if (addCnt < unitIdx) break;
 				if (elapsedTime >= waitTime)
 				{
-					timeout = true;
+					isTimeout = true;
 					break;
 				}
 			}
 			if (cfg.csl > 0)
 			{
 				string msg;
-				if (timeout) msg = "  Time out.\r\n";
-				else if (cnt == 0) msg = "  Failed to get.\r\n";
-				else msg = "  Complete.\r\n";
+				if (isTimeout)
+				{
+					msg = "  Time out.\r\n";
+					timeOut["type"] = "item";
+					timeOut["time"] = waitTime;
+					timeOut["count"] = cnt;
+				}
+				else if (cnt == 0)
+				{
+					msg = "  Failed to get.\r\n";
+				}
+				else
+				{
+					msg = "  Complete.\r\n";
+				}
 				HostPrintUTF8(msg);
 			}
 		}
-		output.replace("\r\n{", "{");
 		return output;
 	}
 	
-	string _getMetadata(array<string> urls, string options, bool isResponsive)
+	string _getMetadata(array<string> urls, string options, bool isResponsive, dictionary &timeOut)
 	{
 		if (urls.length() == 0) return "";
 		string output;
@@ -4926,9 +4940,21 @@ class YTDLP
 			if (cfg.csl > 0)
 			{
 				string msg2;
-				if (cnt == 0) msg2 = "  Failed to get.\r\n";
-				else if (complete) msg2 = "  Complete.\r\n";
-				else msg2 = "  Time out.\r\n";
+				if (cnt == 0)
+				{
+					msg2 = "  Failed to get.\r\n";
+				}
+				else if (complete)
+				{
+					msg2 = "  Complete.\r\n";
+				}
+				else
+				{
+					msg2 = "  Time out.\r\n";
+					timeOut["type"] = isResponsive ? "item" : "metadata";
+					timeOut["time"] = waitTime;
+					timeOut["count"] = cnt;
+				}
 				HostPrintUTF8(msg2);
 			}
 		}
@@ -4938,7 +4964,9 @@ class YTDLP
 	
 	string getThumbnail(string url)
 	{
-		array<string> jsonList = ytd.exec2({url}, 1, false, {}, "Collecting a thumbnail");
+		dictionary exArg2;
+		exArg2["headMsg"] = "Collecting a thumbnail";
+		array<string> jsonList = ytd.exec2({url}, 1, false, exArg2);
 		if (jsonList.length() == 1)
 		{
 			JsonReader reader;
@@ -5708,15 +5736,15 @@ array<string> _RemoveEntryYoutubeTab(array<string> jsonList)
 	return outJsonList;
 }
 
-array<string> _MakeUrlArrayAll(array<string> jsonList)
+array<string> _MakeUrlListAll(array<string> jsonList)
 {
-	array<string> urls = {};
+	array<string> urlList = {};
 	for (uint i = 0; i < jsonList.length(); i++)
 	{
 		string url = jsn.getDirectValueString(jsonList[i], "webpage_url");
-		if (!url.empty()) urls.insertLast(url);
+		if (!url.empty()) urlList.insertLast(url);
 	}
-	return urls;
+	return urlList;
 }
 
 uint _GetAllCount(array<string> jsonList)
@@ -5731,51 +5759,58 @@ uint _GetAllCount(array<string> jsonList)
 }
 
 
-array<string> _MakeUrlArrayMetadata1(array<dictionary> MetaDataList, uint type, array<uint> &out arrIdx, bool &out existTitle)
+array<string> _UrlListMissingTitle(array<dictionary> &MetaDataList, bool &inout existTitle, array<uint> &idxList = {})
 {
-	array<string> urls = {};
-	arrIdx = {};
-	existTitle = false;
+	array<string> urlList = {};
+	idxList = {};
+	bool removeSource = existTitle;
 	
-	for (uint i = 0; i < MetaDataList.length(); i++)
+	for (int i = 0; i < int(MetaDataList.length()); i++)
 	{
-		int make = 0;
-		
-		if ((type & 0x1) > 0 && string(MetaDataList[i]["title"]).empty())
+		if (string(MetaDataList[i]["title"]).empty())
 		{
-			make = 3;
+			string url = string(MetaDataList[i]["webUrl"]);
+			urlList.insertLast(url);
+			idxList.insertLast(i);
+			if (removeSource)
+			{
+				MetaDataList.removeAt(i);
+				i--; continue;
+			}
 		}
-		else if ((type & 0x10) > 0 && _CheckMetaDataPlaylist(MetaDataList[i]) == 1)
-		{
-			make = 2;
-		}
-		else if ((type & 0x100) > 0 && string(MetaDataList[i]["thumbnail"]).empty())
-		{
-			make = 1;
-		}
-		else if ((type & 0x1000) > 0 && string(MetaDataList[i]["duration"]).empty())
-		{
-			make = 1;
-		}
-		
-		if (make > 0)
-		{
-			urls.insertLast(string(MetaDataList[i]["webUrl"]));
-			arrIdx.insertLast(i);
-		}
-		if ((type & 0x1) > 0 && make < 3)
+		else
 		{
 			existTitle = true;
 		}
 	}
 	
-	return urls;
+	return urlList;
 }
 
-array<string> _MakeUrlArrayMetadata2(array<dictionary> MetaDataList, array<uint> &out arrIdx)
+array<string> _UrlListCheckPlaylist(array<dictionary> &MetaDataList, array<uint> &idxList = {})
 {
-	array<string> urls = {};
-	arrIdx = {};
+	// For YouTube
+	
+	array<string> urlList = {};
+	idxList = {};
+	
+	for (uint i = 0; i < MetaDataList.length(); i++)
+	{
+		string url = string(MetaDataList[i]["webUrl"]);
+		if (_IsUrlPlaylist(url))
+		{
+			urlList.insertLast(url);
+			idxList.insertLast(i);
+		}
+	}
+	
+	return urlList;
+}
+
+array<string> _UrlListMissingThumbnail(array<dictionary> &MetaDataList, array<uint> &idxList = {})
+{
+	array<string> urlList = {};
+	idxList = {};
 	for (uint i = 0; i < MetaDataList.length(); i++)
 	{
 		if (!string(MetaDataList[i]["title"]).empty())
@@ -5784,21 +5819,38 @@ array<string> _MakeUrlArrayMetadata2(array<dictionary> MetaDataList, array<uint>
 			{
 				if (_CheckMetaDataPlaylist(MetaDataList[i]) > 0)
 				{
-					urls.insertLast(string(MetaDataList[i]["webUrl"]));
-					arrIdx.insertLast(i);
+					urlList.insertLast(string(MetaDataList[i]["webUrl"]));
+					idxList.insertLast(i);
 				}
 			}
 		}
 	}
-	return urls;
+	return urlList;
 }
 
-bool _MatchIds(string url, array<string> ids)
+int _FindMetaDataUrl(array<dictionary> &MetaDataList, string url, uint from = 0)
 {
-	for (uint i = 0; i < ids.length(); i++)
+	if (url.empty()) return -1;
+	for (uint i = from; i < MetaDataList.length(); i++)
 	{
-		if (ids[i].empty()) continue;
-		if (url.find(ids[i]) >= 0) return true;
+		if (string(MetaDataList[i]["webUrl"]) == url)
+		{
+			return i;
+		}
+	}
+	return -1;
+}
+
+bool _RemoveMetaDataUrl(array<dictionary> &MetaDataList, string url)
+{
+	if (url.empty()) return false;
+	for (uint i = 0; i < MetaDataList.length(); i++)
+	{
+		if (string(MetaDataList[i]["webUrl"]) == url)
+		{
+			MetaDataList.removeAt(i);
+			return true;
+		}
 	}
 	return false;
 }
@@ -5994,7 +6046,7 @@ array<dictionary> _PlaylistParse(const string &in path, uint startTime, int play
 		playlistMode = _WebsitePlaylistMode(inUrl);
 	}
 	
-	array<dictionary> MetaDataList = {};
+	array<dictionary> MetaDataList1 = {};
 	
 	while (true)
 	{
@@ -6029,14 +6081,14 @@ array<dictionary> _PlaylistParse(const string &in path, uint startTime, int play
 	{
 		if (playlistMode > 0)
 		{
-			MetaDataList = cache.getPlaylist(inUrl);
-			if (MetaDataList.length() > 0)
+			MetaDataList1 = cache.getPlaylist(inUrl);
+			if (MetaDataList1.length() > 0)
 			{
 				if (cfg.csl > 0)
 				{
 					HostPrintUTF8("[yt-dlp] Using playlist cache for adding items - " + tx.qt(inUrl) + "\r\n");
 				}
-				return MetaDataList;
+				return MetaDataList1;
 			}
 		}
 		if (playlistForceExpand == 0)
@@ -6049,19 +6101,19 @@ array<dictionary> _PlaylistParse(const string &in path, uint startTime, int play
 					HostPrintUTF8("[yt-dlp] Using metadata cache for adding the item - " + tx.qt(inUrl) + "\r\n");
 				}
 				MetaData["url"] = inUrl;
-				MetaDataList.insertLast(MetaData);
-				return MetaDataList;
+				MetaDataList1.insertLast(MetaData);
+				return MetaDataList1;
 			}
 		}
 	}
 	
-	if (_PlaylistParseDirect(inUrl, MetaDataList, playlistForceExpand > 0) != 0)
+	if (_PlaylistParseDirect(inUrl, MetaDataList1, playlistForceExpand > 0) != 0)
 	{
 		// Online radio or online direct files
-		return MetaDataList;
+		return MetaDataList1;
 	}
 	
-	array<string> jsonList = {};
+	array<string> jsonList1 = {};
 	
 	if (playlistForceExpand < 2)
 	{
@@ -6072,35 +6124,44 @@ array<dictionary> _PlaylistParse(const string &in path, uint startTime, int play
 			{
 				HostPrintUTF8("[yt-dlp] Using JSON cache to parse and add the item - " + tx.qt(inUrl) + "\r\n");
 			}
-			jsonList.insertLast(json);
+			jsonList1.insertLast(json);
 		}
 	}
-	if (jsonList.length() == 0)
+	
+	dictionary exArg1;
+	if (jsonList1.length() == 0)
 	{
 		// Execute yt-dlp
-		jsonList = ytd.exec1(inUrl, (playlistMode == 0 ? 1 : playlistMode));
-		if (jsonList.length() == 0) return {};
+		jsonList1 = ytd.exec1(inUrl, (playlistMode == 0 ? 1 : playlistMode), exArg1);
+		if (jsonList1.length() == 0) return {};
 	}
 	
 	if (hist.checkCancel(path, true, startTime) == 2) return {};
 	
 	uint naCnt = 0;	// unavailable count
 	uint toCnt = 0;	// time out count
+	bool removeNoData = (cfg.getInt("TARGET", "playlist_without_metadata") != 1);
 	
-	string wholePlaylistTitle = _getWholePlaylistTitle(jsonList, inUrl);
+	bool isYoutube = _IsUrlSite(inUrl, "youtube");
+	
+	string wholePlaylistTitle = _getWholePlaylistTitle(jsonList1, inUrl);
 	bool isWholePlaylist = !wholePlaylistTitle.empty();
 	
-	if (_IsYoutubeTabPlaylistType(inUrl))
+	if (isYoutube && _IsYoutubeTabPlaylistType(inUrl))
 	{
-		jsonList = _RemoveEntryYoutubeTab(jsonList);
+		jsonList1 = _RemoveEntryYoutubeTab(jsonList1);
 		
 		if (cfg.getInt("YOUTUBE", "keep_tab_playlist") != 1)
 		{
 			// Extract all nested playlists
-			array<string> urls = _MakeUrlArrayAll(jsonList);
-			if (urls.length() > 0)
+			array<string> _urls = _MakeUrlListAll(jsonList1);
+			if (_urls.length() > 0)
 			{
-				jsonList = ytd.exec2(urls, 0, true);
+				dictionary _exArg2;
+				jsonList1 = ytd.exec2(_urls, 0, true, _exArg2);
+				
+				array<string> errIds = array<string>(_exArg2["errIds"]);
+				naCnt += errIds.length();
 			}
 		}
 		if (hist.checkCancel(path, true, startTime) == 2) return {};
@@ -6108,11 +6169,11 @@ array<dictionary> _PlaylistParse(const string &in path, uint startTime, int play
 	
 	uint parseTime1 = HostGetTickCount();
 	{
-		for (uint i = 0; i < jsonList.length(); i++)
+		for (uint i = 0; i < jsonList1.length(); i++)
 		{
-			dictionary MetaData = _ParseMetaData(jsonList[i], inUrl, imgUrl, true);
+			dictionary MetaData = _ParseMetaData(jsonList1[i], inUrl, imgUrl, true);
 			if (string(MetaData["webUrl"]).empty()) break;
-			MetaDataList.insertLast(MetaData);
+			MetaDataList1.insertLast(MetaData);
 		}
 	}
 	uint parseTime2 = HostGetTickCount();
@@ -6122,209 +6183,242 @@ array<dictionary> _PlaylistParse(const string &in path, uint startTime, int play
 		HostPrintUTF8("JSON list parsing time: " + parseTime + " sec\r\n");
 	}
 	
-	if (MetaDataList.length() == 0) return {};
+	if (MetaDataList1.length() == 0) return {};
 	
 	if (ext0 == "m3u8")
 	{
 		if (_CheckM3u8Hls(inUrl) > 0)
 		{
 			HostPrintUTF8("[yt-dlp] This URL is for an HLS stream. - " + tx.qt(inUrl) + "\r\n\r\n");
-			return MetaDataList;
+			return MetaDataList1;
 		}
 	}
 	
-	string extractor = string(MetaDataList[0]["extractor"]);
+	string extractor = string(MetaDataList1[0]["extractor"]);
 	
-	array<uint> arrIdx = {};
-	bool existTitle = false;
-	array<string> urls = _MakeUrlArrayMetadata1(MetaDataList, 0x11, arrIdx, existTitle);
+	array<uint> idxList;
+	bool existTitle = isYoutube ? true : false;
+	array<string> urls = _UrlListMissingTitle(MetaDataList1, existTitle, idxList);
+	if (isYoutube)
+	{
+		if (urls.length() > 0)
+		{
+			// Remove unavailable videos on YouTube
+			naCnt += urls.length();
+		}
+		
+		urls = _UrlListCheckPlaylist(MetaDataList1, idxList);
+	}
 //HostPrintUTF8("urls.length: " + urls.length());
 	bool flatPlaylist = existTitle;
+	dictionary exArg2;
 	if (urls.length() > 0)
 	{
-		// Need collecting more metadata.
-		string execMsg = "";
 		uint sampleMax = 3;
 		if (playlistMode == 0 && urls.length() > sampleMax)
 		{
 			// Not necessary to get all items
-			urls.removeRange(sampleMax, urls.length() - sampleMax);
-			execMsg = "Sampling metadata";
+			//urls.removeRange(sampleMax, urls.length() - sampleMax);
+			exArg2["headMsg"] = "Sampling metadata";
 		}
-		array<string> errIds = {};
-		array<string> jsonList2 = ytd.exec2(urls, _IsUrlSite(inUrl, "youtube") ? 1 : -1, flatPlaylist, errIds, execMsg);
+		
+		// Need collecting more metadata.
+		array<string> jsonList2 = ytd.exec2(urls, isYoutube ? 1 : -1, flatPlaylist, exArg2);
 		
 		if (hist.checkCancel(path, true, startTime) == 2) return {};
 		
-		// Remove error items
+		array<dictionary> MetaDataList2;
 		for (uint i = 0; i < jsonList2.length(); i++)
 		{
-			dictionary @MetaData0 = MetaDataList[arrIdx[i]];
-			
-			while (@MetaData0 !is null)
+			dictionary MetaData2 = _ParseMetaData(jsonList2[i], inUrl, imgUrl, true);
+			MetaDataList2.insertLast(MetaData2);
+		}
+		
+		array<string> removeUrls;
+			// urls.length() == idxList.length()
+			// idxList.length() == MetaDataList2.length() + naCnt + toCnt
+		
+		// Timed-out items
+		dictionary timeOut2 = dictionary(exArg2["timeOut"]);
+		string type2 = string(timeOut2["type"]);
+		if (type2 == "metadata")
+		{
+			uint cnt2 = uint(timeOut2["count"]);
+			if (cnt2 > 0)
 			{
-				if (_MatchIds(string(MetaData0["webUrl"]), errIds))
+				toCnt = urls.length() - cnt2;
+				if (toCnt > 0)
 				{
-					naCnt++;
-					MetaDataList.removeAt(arrIdx[i]);
-					arrIdx.removeAt(i);
-					for (uint j = i; j < arrIdx.length(); j++)
+					if (removeNoData)
 					{
-						arrIdx[j] = arrIdx[j] - 1;
+						for (uint i = cnt2; i < urls.length(); i++)
+						{
+							removeUrls.insertLast(urls[i]);
+						}
 					}
-					@MetaData0 = MetaDataList[arrIdx[i]];
-					continue;
+					urls.removeRange(cnt2, toCnt);
+					idxList.removeRange(cnt2, toCnt);
 				}
-				break;
 			}
 		}
 		
-		// Collect metadata
-		for (uint i = 0; i < jsonList2.length(); i++)
+		// Error items
+		array<string> errIds = array<string>(exArg2["errIds"]);
+		naCnt = errIds.length();
+		if (naCnt > 0)
 		{
-			dictionary MetaData1 = _ParseMetaData(jsonList2[i], inUrl, imgUrl, true);
-			dictionary @MetaData0 = MetaDataList[arrIdx[i]];
-			string url1 = string(MetaData1["webUrl"]);
-			string url0 = string(MetaData0["webUrl"]);
-			
-			int playlistIdx = int(MetaData1["playlistIndex"]);
-			bool isSelfPlaylist = (playlistIdx > 0);
-			if (isSelfPlaylist)	// for playlist
+			for (uint i = 0; i < errIds.length(); i++)
 			{
-				int playlistSelfCnt = int(MetaData1["playlistCount"]);
-				if (playlistSelfCnt > 0)
+				for (uint j = 0; j < urls.length() - toCnt; j++)
 				{
-					MetaData0["playlistSelfCount"] = playlistSelfCnt;
-				}
-				
-				if (string(MetaData0["playlistNote"]).empty())
-				{
-					string author = string(MetaData1["author"]);
-					string playlistNote = _GetPlaylistNote(inUrl, playlistSelfCnt, author, extractor);
-					if (!playlistNote.empty())
+					if (urls[j].find(errIds[i]) >= 0)
 					{
-						MetaData0["playlistNote"] = playlistNote;
-						MetaData0["author"] = playlistNote;
-						MetaData0["originalAuthor"] = author;
+						if (_FindMetaDataUrl(MetaDataList2, urls[j], idxList[j]) < 0)
+						{
+							removeUrls.insertLast(urls[j]);
+							urls.removeAt(j);
+							idxList.removeAt(j);
+							break;
+						}
 					}
 				}
 			}
-			else
+		}
+		
+		if (idxList.length() != MetaDataList2.length())
+		{
+			if (cfg.csl > 0) HostPrintUTF8("[yt-dlp] ERROR! Playlist item count does not match.\r\n");
+		}
+		else
+		{
+			for (uint i = 0; i < MetaDataList2.length(); i++)
 			{
-				string author = string(MetaData1["author"]);
-				if  (!author.empty())
+				dictionary MetaData2 = MetaDataList2[i];
+				dictionary @MetaData1 = MetaDataList1[idxList[i]];
+				
+				int playlistIdx = int(MetaData2["playlistIndex"]);
+				bool isSelfPlaylist = (playlistIdx > 0);
+				if (isSelfPlaylist)	// for playlist
 				{
-					MetaData0["author"] = author;
+					int playlistSelfCnt = int(MetaData2["playlistCount"]);
+					if (playlistSelfCnt > 0)
+					{
+						MetaData1["playlistSelfCount"] = playlistSelfCnt;
+					}
+					
+					if (string(MetaData1["playlistNote"]).empty())
+					{
+						string author = string(MetaData2["author"]);
+						string playlistNote = _GetPlaylistNote(inUrl, playlistSelfCnt, author, extractor);
+						if (!playlistNote.empty())
+						{
+							MetaData1["playlistNote"] = playlistNote;
+							MetaData1["author"] = playlistNote;
+							MetaData1["originalAuthor"] = author;
+						}
+					}
+				}
+				else
+				{
+					string author = string(MetaData2["author"]);
+					if  (!author.empty())
+					{
+						MetaData1["author"] = author;
+					}
+				}
+				
+				string title;
+				if (isSelfPlaylist)
+				{
+					title = string(MetaData2["playlistTitle"]);
+				}
+				else
+				{
+					title = string(MetaData2["title"]);
+				}
+				if (!title.empty())
+				{
+					MetaData1["title"] = title;
+				}
+				
+				string url0 = string(MetaData1["webUrl"]);
+				if (playlistIdx < 2 || _IsPotentialBiliPart(url0))
+				{
+					string thumb = string(MetaData2["thumbnail"]);
+					if (!thumb.empty())
+					{
+						MetaData1["thumbnail"] = thumb;
+					}
+				}
+				
+				if (isSelfPlaylist)
+				{
+					MetaData1["duration"] = "";
+				}
+				else
+				{
+					string duration = string(MetaData2["duration"]);
+					if (!duration.empty())
+					{
+						MetaData1["duration"] = duration;
+					}
+				}
+				
+				if (playlistMode == 0)
+				{
+					if (!string(MetaData1["title"]).empty())
+					{
+						// Enough to get only a single valid item
+						break;
+					}
 				}
 			}
 			
-			string title;
-			if (isSelfPlaylist)
+			// Remove error/timed-out items from MetaDataList
+			if (removeUrls.length() > 0)
 			{
-				title = string(MetaData1["playlistTitle"]);
-			}
-			else
-			{
-				title = string(MetaData1["title"]);
-			}
-			if (!title.empty())
-			{
-				MetaData0["title"] = title;
-			}
-			
-			if (playlistIdx < 2 || _IsPotentialBiliPart(url0))
-			{
-				string thumb = string(MetaData1["thumbnail"]);
-				if (!thumb.empty())
+				for (uint i = 0; i < removeUrls.length(); i++)
 				{
-					MetaData0["thumbnail"] = thumb;
-				}
-			}
-			
-			if (isSelfPlaylist)
-			{
-				MetaData0["duration"] = "";
-			}
-			else
-			{
-				string duration = string(MetaData1["duration"]);
-				if (!duration.empty())
-				{
-					MetaData0["duration"] = duration;
-				}
-			}
-			
-			if (playlistMode == 0)
-			{
-				if (!string(MetaData0["title"]).empty())
-				{
-					// Enough to get only a single valid item
-					break;
+					_RemoveMetaDataUrl(MetaDataList1, removeUrls[i]);
 				}
 			}
 		}
 	}
 	
-	if (MetaDataList.length() == 1)
+	if (MetaDataList1.length() == 1)
 	{
 		if (!isWholePlaylist || playlistMode == 0)	// not a playlist
 		{
-			if (bool(MetaDataList[0]["isAudio"]))	// audio
+			if (bool(MetaDataList1[0]["isAudio"]))	// audio
 			{
 				// Treat the audio clip as a playlist to set the thumbnail
 			}
-			else if (!string(MetaDataList[0]["title"]).empty())
+			else if (!string(MetaDataList1[0]["title"]).empty())
 			{
 				// Treat the URL as a playlist that contains only a single video.
 			}
 			else
 			{
-				MetaDataList = {};
+				MetaDataList1 = {};
 			}
 		}
 	}
 	
-	bool removeNoData = (cfg.getInt("TARGET", "playlist_without_metadata") != 1);
-	if (MetaDataList.length() > 0)
+	if (MetaDataList1.length() > 0)
 	{
-		// Remove items if their metadata has not been collected yet
-		if (removeNoData)
+		// Remove unavailable videos on YouTube (Out of use)
+		if (isYoutube)
 		{
-			for (int i = 0; i < int(MetaDataList.length()); i++)
+			for (int i = 0; i < int(MetaDataList1.length()); i++)
 			{
-				if (string(MetaDataList[uint(i)]["title"]).empty())
-				{
-					toCnt++;
-					MetaDataList.removeAt(i);
-					i--; continue;
-				}
-			}
-		}
-		else
-		{
-			for (int i = 0; i < int(MetaDataList.length()); i++)
-			{
-				if (string(MetaDataList[uint(i)]["title"]).empty())
-				{
-					// just count
-					toCnt++;
-				}
-			}
-		}
-		
-		// Remove unavailable videos on YouTube
-		if (_IsUrlSite(inUrl, "youtube"))
-		{
-			for (int i = 0; i < int(MetaDataList.length()); i++)
-			{
-				dictionary @MetaData = MetaDataList[uint(i)];
+				dictionary @MetaData = MetaDataList1[uint(i)];
 				if (_CheckMetaDataPlaylist(MetaData) == 0)
 				{
 					string thumb = string(MetaData["thumbnail"]);
 					if (thumb.find("no_thumbnail.") >= 0)
 					{
 						naCnt++;
-						MetaDataList.removeAt(i);
+						MetaDataList1.removeAt(i);
 						i--; continue;
 					}
 				}
@@ -6333,29 +6427,29 @@ array<dictionary> _PlaylistParse(const string &in path, uint startTime, int play
 		
 		// Get the thumbnail of playlist items
 		array<string> urls2;
-		array<uint> arrIdx2 = {};
+		array<uint> idxList2;
 		if (isWholePlaylist && playlistMode == 0)
 		{
 			urls2 = {inUrl};
-			arrIdx2 = {0};
+			idxList2 = {0};
 			flatPlaylist = false;
 		}
 		else
 		{
-			urls2 = _MakeUrlArrayMetadata2(MetaDataList, arrIdx2);
+			urls2 = _UrlListMissingThumbnail(MetaDataList1, idxList2);
 		}
 //HostPrintUTF8("urls2.length: " + urls2.length());
 		
-		if (urls2.length() > 0)
+		if (urls2.length() == MetaDataList1.length())
 		{
-			array<string> jsonList2 = ytd.exec2(urls2, 1, flatPlaylist, {}, "Collecting " + (urls2.length() == 1 ? "a thumbnail" : "thumbnails"));
+			dictionary _exArg2;
+			_exArg2["headMsg"] = "Collecting " + (urls2.length() == 1 ? "a thumbnail" : "thumbnails");
+			array<string> jsonList2 = ytd.exec2(urls2, 1, flatPlaylist, _exArg2);
 			
 			if (hist.checkCancel(path, true, startTime) == 2) return {};
 			
 			for (uint i = 0; i < jsonList2.length(); i++)
 			{
-				dictionary @MetaData0 = MetaDataList[arrIdx2[i]];
-				
 				string thumb = jsn.getDirectValueString(jsonList2[i], "thumbnail");
 				if (thumb.empty())
 				{
@@ -6364,7 +6458,13 @@ array<dictionary> _PlaylistParse(const string &in path, uint startTime, int play
 				if (!thumb.empty())
 				{
 					thumb = _ReviseThumbnail(thumb);
-					MetaData0["thumbnail"] = thumb;
+					string _url = jsn.getDirectValueString(jsonList2[i], "webpage_url");
+					int _idx = _FindMetaDataUrl(MetaDataList1, _url);
+					if (_idx >= 0)
+					{
+						dictionary @MetaData1 = MetaDataList1[_idx];
+						MetaData1["thumbnail"] = thumb;
+					}
 				}
 			}
 		}
@@ -6372,7 +6472,7 @@ array<dictionary> _PlaylistParse(const string &in path, uint startTime, int play
 		if (isWholePlaylist && playlistMode == 0)
 		{
 			dictionary MetaData = {};
-			dictionary @MetaData0 = MetaDataList[0];
+			dictionary @MetaData1 = MetaDataList1[0];
 			
 			MetaData["webUrl"] = inUrl;
 			MetaData["url"] = inUrl;
@@ -6382,7 +6482,7 @@ array<dictionary> _PlaylistParse(const string &in path, uint startTime, int play
 			string title = wholePlaylistTitle;
 			MetaData["title"] = title;
 			
-			string thumb = string(MetaData0["thumbnail"]);
+			string thumb = string(MetaData1["thumbnail"]);
 			if (thumb.empty())
 			{
 				thumb = _GetPlaylistThumb();
@@ -6392,13 +6492,13 @@ array<dictionary> _PlaylistParse(const string &in path, uint startTime, int play
 			
 			MetaData["duration"] = "";
 			
-			uint playlistSelfCnt = MetaDataList.length();
-			//uint playlistSelfCnt = uint(MetaData0["playlistCount"]);
+			uint playlistSelfCnt = MetaDataList1.length();
+			//uint playlistSelfCnt = uint(MetaData1["playlistCount"]);
 			MetaData["playlistSelfCount"] = playlistSelfCnt;
-			string playlistNote = string(MetaData0["playlistNote"]);
+			string playlistNote = string(MetaData1["playlistNote"]);
 			
-			string author = string(MetaData0["originalAuthor"]);
-			if (author.empty()) author = string(MetaData0["author"]);
+			string author = string(MetaData1["originalAuthor"]);
+			if (author.empty()) author = string(MetaData1["author"]);
 			
 			playlistNote = _GetPlaylistNote(inUrl, playlistSelfCnt, author, extractor);
 			if (!playlistNote.empty())
@@ -6408,16 +6508,16 @@ array<dictionary> _PlaylistParse(const string &in path, uint startTime, int play
 				MetaData["originalAuthor"] = author;
 			}
 			
-			// MetaDataList has only a single MetaData
-			MetaDataList.resize(0);
-			MetaDataList.insertLast(MetaData);
+			// MetaDataList1 has only a single MetaData
+			MetaDataList1.resize(0);
+			MetaDataList1.insertLast(MetaData);
 		}
 		
-		if (MetaDataList.length() == 1 && inUrl != string(MetaDataList[0]["url"]))
+		if (MetaDataList1.length() == 1 && inUrl != string(MetaDataList1[0]["url"]))
 		{
 			if (!isWholePlaylist || playlistMode == 0)
 			{
-				MetaDataList[0]["url"] = inUrl;
+				MetaDataList1[0]["url"] = inUrl;
 			}
 		}
 		
@@ -6433,24 +6533,24 @@ array<dictionary> _PlaylistParse(const string &in path, uint startTime, int play
 		
 		if (hist.checkCancel(path, true, startTime) == 2) return {};
 		
-		if (MetaDataList.length() == 1)
+		if (MetaDataList1.length() == 1)
 		{
 			if (!isWholePlaylist)	// not a playlist, just an item
 			{
-				cache.addJson(inUrl, jsonList[0], string(MetaDataList[0]["thumbnail"]));
+				cache.addJson(inUrl, jsonList1[0], string(MetaDataList1[0]["thumbnail"]));
 			}
 			else if (playlistMode == 0)	// non-expanded playlist
 			{
-				cache.addItem(inUrl, MetaDataList[0], {});
+				cache.addItem(inUrl, MetaDataList1[0], {});
 			}
 			else	// playlist including only one item
 			{
-				cache.addPlaylist(inUrl, MetaDataList);
+				cache.addPlaylist(inUrl, MetaDataList1);
 			}
 		}
 		else	// playlist including multiple items
 		{
-			cache.addPlaylist(inUrl, MetaDataList);
+			cache.addPlaylist(inUrl, MetaDataList1);
 		}
 	}
 	
@@ -6458,7 +6558,7 @@ array<dictionary> _PlaylistParse(const string &in path, uint startTime, int play
 	
 	if (cfg.csl > 0)
 	{
-		if (MetaDataList.length() > 0)
+		if (MetaDataList1.length() > 0)
 		{
 			HostPrintUTF8("\r\n[yt-dlp] Extracting entries complete (" + extractor + "). - " + tx.qt(inUrl) +"\r\n");
 			
@@ -6469,10 +6569,10 @@ array<dictionary> _PlaylistParse(const string &in path, uint startTime, int play
 				{
 					if (toCnt > 0 || naCnt > 0)
 					{
-						msg += "  Items extracted: " + MetaDataList.length() + "\r\n";
+						msg += "  Items extracted: " + MetaDataList1.length() + "\r\n";
 						if (toCnt > 0)
 						{
-							msg += "  Timed-out / error items: " + toCnt + "  (" + (removeNoData ? "removed" : "included") + ")\r\n";
+							msg += "  Timed-out items: " + toCnt + "  (" + (removeNoData ? "removed" : "included") + ")\r\n";
 						}
 						if (naCnt > 0)
 						{
@@ -6481,12 +6581,31 @@ array<dictionary> _PlaylistParse(const string &in path, uint startTime, int play
 						msg += "\r\n";
 					}
 					msg += "Playlist Title: " + wholePlaylistTitle + "\r\n";
-					msg += "Playlist Count: " + MetaDataList.length() + "\r\n";
+					msg += "Playlist Count: " + MetaDataList1.length();
+					dictionary timeOut1 = dictionary(exArg1["timeOut"]);
+					string type1 = string(timeOut1["type"]);
+					uint time1 = uint(timeOut1["time"]);
+					if (type1 == "item")
+					{
+						msg += "    (playlist_items_timeout: " + time1 + " sec)";
+					}
+					dictionary timeOut2 = dictionary(exArg2["timeOut"]);
+					string type2 = string(timeOut2["type"]);
+					uint time2 = uint(timeOut2["time"]);
+					if (type2 == "item")
+					{
+						msg += "    (playlist_items_timeout: " + time2 + " sec)";
+					}
+					else if (type2 == "metadata")
+					{
+						msg += "    (playlist_metadata_timeout: " + time2 + " sec)";
+					}
+					msg += "\r\n";
 				}
 				else
 				{
 					msg += "Playlist Title: " + wholePlaylistTitle + "\r\n";
-					msg += "Playlist Count: " + int(MetaDataList[0]["playlistSelfCount"]) + "\r\n";
+					msg += "Playlist Count: " + int(MetaDataList1[0]["playlistSelfCount"]) + "\r\n";
 				}
 				HostPrintUTF8(msg);
 			}
@@ -6496,7 +6615,7 @@ array<dictionary> _PlaylistParse(const string &in path, uint startTime, int play
 			HostPrintUTF8("\r\n[yt-dlp] Extracting entries failed. - " + tx.qt(inUrl) +"\r\n");
 		}
 	}
-	return MetaDataList;
+	return MetaDataList1;
 }
 
 
@@ -7325,7 +7444,7 @@ bool _CheckRadioServer(string httpHead)
 	return false;
 }
 
-bool _GetRadioInfo(dictionary &inout MetaData, string httpHead, string url)
+bool _GetRadioInfo(dictionary &MetaData, string httpHead, string url)
 {
 	if (httpHead.empty()) return false;
 	
@@ -7429,7 +7548,7 @@ bool _GetRadioInfo(dictionary &inout MetaData, string httpHead, string url)
 }
 
 
-void _SetFileInfo(dictionary &inout MetaData, string url, string httpHead, bool setThumb)
+void _SetFileInfo(dictionary &MetaData, string url, string httpHead, bool setThumb)
 {
 	MetaData["playUrl"] = url;
 	
@@ -8459,13 +8578,13 @@ string _PlayitemParse(const string &in path, dictionary &MetaData, array<diction
 		}
 		
 		// Execute yt-dlp
-		dictionary ex = {};
+		dictionary exArg1 = {};
 		if (doubleTrigger == 0)
 		{
-			ex["referer"] = _GetRefererFromPotHist(inUrl);
+			exArg1["referer"] = _GetRefererFromPotHist(inUrl);
 			// Available only if the URL is a direct link (outUrl == inUrl).
 		}
-		array<string> jsonList = ytd.exec1(inUrl, 0, ex);
+		array<string> jsonList = ytd.exec1(inUrl, 0, exArg1);
 		if (jsonList.length() == 0) return "";
 		json = jsonList[0];
 		
@@ -9491,4 +9610,4 @@ string PlayitemParse(const string &in path, dictionary &MetaData, array<dictiona
 	
 	return outUrl;
 }
-
+
