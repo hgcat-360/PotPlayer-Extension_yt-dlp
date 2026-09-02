@@ -254,7 +254,7 @@ If necessary, adjust the timeout settings in the [TARGET] section of the configu
 
 Aside from this, *yt-dlp.exe* may occasionally hang while processing a URL.  
 In such cases, PotPlayer will remain stuck on the “*Opening...*” message.  
-If *yt-dlp.exe* hangs for opening a YouTube video that was uploaded within the past few days, make sure that *ffmpeg.exe* is available to *yt-dlp.exe*.  
+If *yt-dlp.exe* hangs for opening a YouTube video that was uploaded within the past few days, make sure that *ffmpeg.exe* and logged-in cookies are available to *yt-dlp.exe*.  
 
 #### Stop yt-dlp Process
 
@@ -263,13 +263,14 @@ Next, check whether any *yt-dlp.exe* processes are still running in the backgrou
 If any are found, terminate them forcibly to prevent unnecessary resource usage.  
 However, if *yt-dlp.exe* is not actually hanging and is only taking a long time to process, its process will eventually terminate automatically.  
 
-Note that PotPlayer or yt-dlp cannot forcibly terminate these processes on their own.  
-You will need to use your system’s **Task Manager** or, preferably, a more user-friendly external tool such as [Process Explorer](https://learn.microsoft.com/sysinternals/downloads/process-explorer) or [System Explorer](https://systemexplorer.net/).  
+You can use your system’s **Task Manager** or, preferably, a more user-friendly external tool such as [Process Explorer](https://learn.microsoft.com/sysinternals/downloads/process-explorer), [System Explorer](https://systemexplorer.net/), or [System Informer](https://systeminformer.io/).  
 
 <img width="959" height="475" alt="2025-08-15\_21h14\_42" src="https://github.com/user-attachments/assets/6afc599a-1f96-4091-993f-40dad6b4071f" />
 
-It’s a basic shortcoming that you have to monitor processes with an external tool.  
-This comes from server restrictions, faulty processing of *yt-dlp.exe* and limitations in the design of the PotPlayer extension.  
+<br>
+<br>
+
+>This extension added a feature to forcibly terminate hanging yt-dlp.exe processes in some cases, starting with version 260901.  
 
 <br>
 
