@@ -5,7 +5,7 @@
   Placed in \PotPlayer\Extension\Media\PlayParse\
 *************************************************************/
 
-string SCRIPT_VERSION = "260901";
+string SCRIPT_VERSION = "260902";
 
 
 string YTDLP_EXE = "yt-dlp.exe";
@@ -7006,6 +7006,7 @@ array<dictionary> _PlaylistParse(const string &in path, uint startTime, PLAYLIST
 					if (string(MetaDataList1[0]["webUrl"]) != inUrl)
 					{
 						MetaDataList1[0]["webUrl"] = inUrl;
+						MetaDataList1[0]["url"] = inUrl;
 					}
 				}
 			}
