@@ -5,7 +5,7 @@
   Placed in \PotPlayer\Extension\Media\PlayParse\
 *************************************************************/
 
-string SCRIPT_VERSION = "260902";
+string SCRIPT_VERSION = "260905";
 
 
 string YTDLP_EXE = "yt-dlp.exe";
@@ -3187,10 +3187,13 @@ class HistItem
 	bool toAlbum;
 	uint startTime;
 	bool finish = false;
-	uint exeStartTime = 0;
-	uint cancelTime = 0;
 	uint finishTime = 0;
+	uint exeStartTime = 0;
+	//int cancel = 0;
+		// 1: normal / 2: not save cache / 3: forcibly terminate
+	uint cancelTime = 0;
 	bool noSaveCache = false;
+	bool terminate = false;
 	int doubleTrigger = 0;
 	
 	HistItem(string _path, bool _toAlbum, uint _startTime, int _doubleTrigger)
@@ -3245,27 +3248,33 @@ class HIST
 		}
 	}
 	
-	void remove(string path, bool toAlbum, uint startTime)
+	void _remove(int idx)
 	{
-		//LockGuard lock(mtx);
+		uint retainNum = 5;	// Minimum number of items to keep
 		
-		int idx = _find(path, toAlbum, startTime, 0);
-		if (idx >= 0)
+		if (idx >= 0 && idx < int(list.length()))
 		{
 			list[idx].finish = true;
 			list[idx].finishTime = HostGetTickCount();
-		}
-		
-		if (list.length() > 2)
-		{
-			for (int i = int(list.length()) - 1; i >= 2; i--)
+			
+			if (list.length() > retainNum)
 			{
-				if (list[i].finish)
+				for (int i = int(list.length()) - 1; i >= int(retainNum); i--)
 				{
-					list.removeAt(i);
+					if (list[i].finish)
+					{
+						list.removeAt(i);
+					}
 				}
 			}
 		}
+	}
+	
+	void remove(string path, bool toAlbum, uint startTime)
+	{
+		//LockGuard lock(mtx);
+		int idx = _find(path, toAlbum, startTime, 0);
+		_remove(idx);
 	}
 	
 	int _judgeDoubleTrigger(string path, bool toAlbum, uint startTime)
@@ -3283,7 +3292,6 @@ class HIST
 						if (startTime >= prevStartTime)
 						{
 							uint diffTime = startTime - prevStartTime;
-//HostPrintUTF8("diffTime: " + diffTime);
 							if (diffTime < DOUBLE_TRIGGER_INTERVAL_1)
 							{
 								doubleTrigger = 1;
@@ -3350,69 +3358,128 @@ class HIST
 		}
 	}
 	
-	void cancelPlayitem(bool noSaveCache = false)
+	int checkCancel(string path, bool toAlbum, uint startTime, bool showMsg = true)
 	{
 		//LockGuard lock(mtx);
-		uint cancelTime = HostGetTickCount();
+		if (showMsg) showMsg = (cfg.csl > 0);
 		
-		for (uint i = 0; i < list.length(); i++)
+		int idx = _find(path, toAlbum, startTime);
+		if (idx >= 0)
+		{
+			if (list[idx].cancelTime > 0 && list[idx].cancelTime >= startTime)
+			{
+				if (showMsg && list[idx].doubleTrigger >= 0)
+				{
+					string inUrl = _ReviseUrl(path);
+					HostPrintUTF8("[yt-dlp] Canceled - " + tx.qt(inUrl) + "\r\n");
+				}
+				if (list[idx].terminate)
+				{
+					return 3;
+				}
+				else if (list[idx].noSaveCache)
+				{
+					return 2;
+				}
+				else
+				{
+					return 1;
+				}
+			}
+		}
+		return 0;
+	}
+	
+	bool _terminate(int idx)
+	{
+		if (idx >= 0 && idx < int(list.length()))
+		{
+			string url = _ReviseUrl(list[idx].path);
+			if (_YoutubeChannel(url) == 2)	// youtube channel top
+			{
+				url = _ChangeUrlYoutubeChannelTop(url);
+			}
+			uint pid = ytd.getProcessId(" -- " + url);
+			if (pid > 0)
+			{
+				for (uint t = 0; t < 3; t++)
+				{
+					if (ytd.terminate(pid, false))
+					{
+						list[idx].exeStartTime = 0;
+						list[idx].terminate = true;
+						list[idx].cancelTime = HostGetTickCount();
+						list[idx].noSaveCache = true;
+						_remove(idx);
+						return true;
+					}
+					HostSleep(200);
+				}
+			}
+		}
+		return false;
+	}
+	
+	bool terminate(string path, bool toAlbum, uint startTime)
+	{
+		//LockGuard lock(mtx);
+		int idx = _find(path, toAlbum, startTime);
+		return _terminate(idx);
+	}
+	
+	void _cancel(int toAlbumMode, bool noSaveCache = false)
+	{
+		uint curTime = HostGetTickCount();
+		
+		for (int i = int(list.length()) - 1; i >= 0; i--)
 		{
 			if (!list[i].finish)	// the process is still running
 			{
-				if (!list[i].toAlbum)
+				if (toAlbumMode < 0 || list[i].toAlbum == (toAlbumMode == 1))
 				{
-					if (list[i].cancelTime == 0)
+					if (curTime > list[i].startTime)
 					{
-						list[i].cancelTime = cancelTime;
-					}
-					if (!list[i].noSaveCache)
-					{
-						if (list[i].doubleTrigger == 0)
+						if (curTime - list[i].startTime >= DOUBLE_TRIGGER_INTERVAL_2)
 						{
-							uint startTime = list[i].startTime;
-							if (cancelTime >= startTime)
+							if (list[i].exeStartTime > 0)
 							{
-								if (noSaveCache)
-								{
-									list[i].noSaveCache = true;
-								}
-								else if (cancelTime - startTime < 1000)
-								{
-									list[i].noSaveCache = true;
-								}
+								_terminate(i);
+							}
+							else
+							{
+								list[i].cancelTime = curTime;
+								list[i].noSaveCache = noSaveCache;
+								_remove(i);
 							}
 						}
+					}
+					else
+					{
+						list[i].cancelTime = curTime;
+						list[i].noSaveCache = true;
+						_remove(i);
 					}
 				}
 			}
 		}
 	}
 	
-	int checkCancel(string path, bool toAlbum, uint startTime, bool showMsg = true)
+	void cancelPlayitem(bool noSaveCache = false)
 	{
 		//LockGuard lock(mtx);
-		string inUrl = _ReviseUrl(path);
-		if (showMsg) showMsg = (cfg.csl > 0);
-		
-		int idx = _find(path, toAlbum, startTime, 0);
-		if (idx >= 0)
-		{
-			uint cancelTime = list[idx].cancelTime;
-			if (cancelTime > 0 && cancelTime >= startTime)
-			{
-				int doubleTrigger = list[idx].doubleTrigger;
-				if (showMsg && doubleTrigger >= 0)
-				{
-					HostPrintUTF8("[yt-dlp] Canceled - " + tx.qt(inUrl) + "\r\n");
-				}
-				if (list[idx].noSaveCache)
-				{
-					return 2;
-				}
-				return 1;
-			}
-		}
-		return 0;
+		_cancel(0, noSaveCache);
+	}
+	
+	void cancelPlaylist(bool noSaveCache = false)
+	{
+		//LockGuard lock(mtx);
+		_cancel(1, noSaveCache);
+	}
+	
+	void cancelAll(bool noSaveCache = false)
+	{
+		//LockGuard lock(mtx);
+		_cancel(-1, noSaveCache);
 	}
 	
 	void setExeStartTime(string path, bool toAlbum, uint startTime)
@@ -3449,7 +3516,7 @@ class HIST
 	uint getPrevStartTime(string path, bool toAlbum, uint startTime = 0, int prevFinishMode = -1)
 	{
 		//LockGuard lock(mtx);
-		int idx = _find(path, toAlbum, startTime);
+		int idx = _find(path, toAlbum, startTime, prevFinishMode);
 		if (idx >= 0)
 		{
 			for (uint i = idx + 1; i < list.length(); i++)
@@ -3461,7 +3528,7 @@ class HIST
 						if (prevFinishMode < 0 || list[i].finish == (prevFinishMode == 1))
 						{
 							uint prevStartTime = list[i].startTime;
-							if (prevStartTime <= startTime)
+							if (prevStartTime < startTime)
 							{
 								return prevStartTime;
 							}
@@ -3541,6 +3608,16 @@ HIST hist;
 
 
 
+class ExecArg
+{
+	string options;
+	uint incTimeout;
+	
+	string path;
+	uint startTime;
+	bool toAlbum;
+}
+
 class TimeoutArg
 {
 	// for YTDLP
@@ -3553,6 +3630,11 @@ class TimeoutArg
 class ExecExarg1
 {
 	// for ytd.exec1
+	
+	string path;
+	uint startTime;
+	bool toAlbum;
+	
 	string referer;
 	bool retry;
 	bool isTwichLive;
@@ -3561,17 +3643,24 @@ class ExecExarg1
 	bool noPrintLog;
 	bool useFlatPlaylist;
 	bool indexReverse;
+	
 	TimeoutArg timeout;
 }
 
 class ExecExarg2
 {
 	// for ytd.exec2
+	
+	string path;
+	uint startTime;
+	bool toAlbum;
+	
+	bool isResponsive;
 	string headMsg;
+	
 	TimeoutArg timeout;
 	array<string> errIds;
 }
-
 
 class YTDLP
 {
@@ -3828,7 +3917,12 @@ class YTDLP
 			return;
 		}
 		
-		string output = execExe(" -U", 30000, "");
+		ExecArg execArg;
+		{
+			execArg.options = " -U";
+			execArg.incTimeout = 30000;
+		}
+		string output = execExe(execArg);
 		
 		if (output.find("Latest version:") < 0 && output.find("ERROR:") < 0)
 		{
@@ -3933,6 +4027,16 @@ class YTDLP
 			}
 		}
 		return 0;
+	}
+	
+	bool _checkCancel(ExecExarg1 &exArg1)
+	{
+		int canceled = hist.checkCancel(exArg1.path, exArg1.toAlbum, exArg1.startTime, true);
+		if (canceled > 0)
+		{
+			return true;
+		}
+		return false;
 	}
 	
 	bool _checkLogCommand(string log)
@@ -4173,8 +4277,8 @@ class YTDLP
 			}
 			else
 			{
-				msg = "\"yt-dlp.exe\" failed to return the correct data.";
-				HostPrintUTF8("[yt-dlp] ERROR! " + msg + " - " + tx.qt(url) + "\r\n");
+				msg = "ERROR! \"yt-dlp.exe\" failed to return the correct data.";
+				HostPrintUTF8("[yt-dlp] " + msg + " - " + tx.qt(url) + "\r\n");
 			}
 		}
 	}
@@ -4317,7 +4421,7 @@ class YTDLP
 		return jsonList;
 	}
 	
-	array<string> exec1(string url, int playlistMode, ExecExarg1 exArg1)
+	array<string> exec1(string url, int playlistMode, ExecExarg1 &exArg1)
 	{
 		if (checkFileInfo() > 0) return {};
 		checkFileHash();
@@ -4375,7 +4479,6 @@ class YTDLP
 			if (exArg1.indexReverse)
 			{
 				options += " -I -" + exArg1.itemNum;	// get playlist_count
-				
 			}
 			else if (isYoutube || playlistMode < 0)
 			{
@@ -4450,16 +4553,14 @@ class YTDLP
 				}
 			}
 		}
-		/*
 		if (isYoutube)
 		{
 			if (cfg.getInt("YOUTUBE", "youtube_live") == 2)
 			{
-				// doesn't work
+				// PP 260819 and later
 				options += " --live-from-start";
 			}
 		}
-		*/
 		
 		options += " -R 3";	// default; 10
 		options += " --encoding \"utf8\"";	// prevent garbled text
@@ -4495,13 +4596,20 @@ class YTDLP
 			options += " -v";
 			options += " -- " + url;
 			
-			output = execExe(options, 30000, url, false);
+			ExecArg execArg;
+			{
+				execArg.options = options;
+				execArg.incTimeout = 30000;
+				
+				execArg.path = exArg1.path;
+				execArg.startTime = exArg1.startTime;
+				execArg.toAlbum = exArg1.toAlbum;
+			}
+			output = execExe(execArg);
 		}
 		else
 		{
-			TimeoutArg timeout;
-			output = _extractPlaylist1(url, options, timeout);
-			exArg1.timeout = timeout;
+			output = _extractPlaylist1(url, options, exArg1);
 		}
 		//output = _reviseLog(output);
 		
@@ -4536,6 +4644,7 @@ class YTDLP
 			}
 		}
 		
+		if (_checkCancel(exArg1)) return {};
 		if (_checkLogCommand(log)) return {};
 		
 		int update = _checkLogUpdate(log);
@@ -4685,11 +4794,12 @@ class YTDLP
 		string output;
 		if (opItem == 0)
 		{
-			output = _extractPlaylist2(urls, options, exArg2.timeout);
+			output = _extractPlaylist2(urls, options, exArg2);
 		}
 		else
 		{
-			output = _getMetadata(urls, options, opFlat, exArg2.timeout);
+			exArg2.isResponsive = opFlat;
+			output = _getMetadata(urls, options, exArg2);
 		}
 		//output = _reviseLog(output);
 		
@@ -4716,17 +4826,16 @@ class YTDLP
 	}
 	
 	
-	string execExe(string options, uint incTimeout, string url = "", bool toAlbum = false)
+	string execExe(ExecArg &execArg)
 	{
-		dictionary threadArg;
-		threadArg["options"] = options;
-		threadArg["timeout"] = incTimeout;
-		threadArg["url"] = url;
-		threadArg["toAlbum"] = toAlbum;
-		//HostCreateThread(timeoutThread, threadArg);	// PP 260716 or later
+		//HostCreateThread(TimeoutThread, execArg);	// PP 260716 or later
 		
-		HostIncTimeOut(incTimeout);
-		string output = HostExecuteProgram(tx.qt(exePath), options);
+		HostIncTimeOut(execArg.incTimeout);
+		
+		hist.setExeStartTime(execArg.path, execArg.toAlbum, execArg.startTime);
+		string output = HostExecuteProgram(tx.qt(exePath), execArg.options);
+		hist.resetExeStartTime(execArg.path, execArg.toAlbum, execArg.startTime);
+		
 		return output;
 	}
 	
@@ -4912,7 +5021,7 @@ class YTDLP
 		return pos;
 	}
 	
-	string _extractPlaylist1(string url, string options, TimeoutArg &timeout)
+	string _extractPlaylist1(string url, string options, ExecExarg1 &exArg1)
 	{
 		if (url.empty()) return "";
 		string output;
@@ -4928,7 +5037,17 @@ class YTDLP
 		{
 			uint startTime = HostGetTickCount();
 			string wholeOption = " -v" + options + " -- " + url;
-			output = execExe(wholeOption, 200000, url, true);
+			
+			ExecArg execArg;
+			{
+				execArg.options = wholeOption;
+				execArg.incTimeout = 200000;
+				
+				execArg.path = exArg1.path;
+				execArg.startTime = exArg1.startTime;
+				execArg.toAlbum = exArg1.toAlbum;
+			}
+			output = execExe(execArg);
 			
 			if (cfg.csl > 0)
 			{
@@ -4947,12 +5066,10 @@ class YTDLP
 		{
 			// for devided downloads
 			string url2 = url;
-			bool youtubeChannelTop = false;
-			string joinedUrls = _ChangeUrlYoutubeChannelTop(url);
-			if (!joinedUrls.empty())
+			bool youtubeChannelTop = (_YoutubeChannel(url) == 2);
+			if (youtubeChannelTop)
 			{
-				url2 = joinedUrls;
-				youtubeChannelTop = true;
+				url2 = _ChangeUrlYoutubeChannelTop(url);
 			}
 			
 			if (cfg.csl > 0)
@@ -4972,7 +5089,17 @@ class YTDLP
 				string wholeOption = " -I " + i + ":" + (i + unitIdx - 1);
 				if (i == 1) wholeOption += " -v";
 				wholeOption += options + " -- " + url2;
-				string addOutput = execExe(wholeOption, 100000, url, true);
+				
+				ExecArg execArg;
+				{
+					execArg.options = wholeOption;
+					execArg.incTimeout = 100000;
+					
+					execArg.path = exArg1.path;
+					execArg.startTime = exArg1.startTime;
+					execArg.toAlbum = exArg1.toAlbum;
+				}
+				string addOutput = execExe(execArg);
 				
 				uint addCnt = _countJson(addOutput, (i > 1));
 				if (youtubeChannelTop) _eraseYoutubeTabError(addOutput);
@@ -5018,10 +5145,10 @@ class YTDLP
 				else
 				{
 					msg = "  Time out.\r\n";
-					timeout.type = "item";
-					timeout.waitTime = waitTime;
-					timeout.progress = progress;
-					timeout.count = cnt;
+					exArg1.timeout.type = "item";
+					exArg1.timeout.waitTime = waitTime;
+					exArg1.timeout.progress = progress;
+					exArg1.timeout.count = cnt;
 				}
 				HostPrintUTF8(msg);
 			}
@@ -5029,7 +5156,7 @@ class YTDLP
 		return output;
 	}
 	
-	string _extractPlaylist2(array<string> urls, string options, TimeoutArg &timeout)
+	string _extractPlaylist2(array<string> urls, string options, ExecExarg2 &exArg2)
 	{
 		if (urls.length() == 0) return "";
 		string output;
@@ -5040,7 +5167,16 @@ class YTDLP
 		if (waitTime == 0)
 		{
 			uint startTime = HostGetTickCount();
-			output = execExe(options + " --" + joinedUrls, 200000);
+			ExecArg execArg;
+			{
+				execArg.options = options + " --" + joinedUrls;
+				execArg.incTimeout = 200000;
+				
+				execArg.path = exArg2.path;
+				execArg.startTime = exArg2.startTime;
+				execArg.toAlbum = exArg2.toAlbum;
+			}
+			output = execExe(execArg);
 			
 			if (cfg.csl > 0)
 			{
@@ -5072,7 +5208,17 @@ class YTDLP
 			{
 				if (i > 600) unitIdx = 400;
 				options += " -I " + i + ":" + (i + unitIdx - 1);
-				string addOutput = execExe(options + " --" + joinedUrls, 100000);
+				
+				ExecArg execArg;
+				{
+					execArg.options = options + " --" + joinedUrls;
+					execArg.incTimeout = 100000;
+					
+					execArg.path = exArg2.path;
+					execArg.startTime = exArg2.startTime;
+					execArg.toAlbum = exArg2.toAlbum;
+				}
+				string addOutput = execExe(execArg);
 				uint addCnt = _countJson(addOutput, false);
 				uint elapsedTime = (HostGetTickCount() - startTime)/1000;
 				if (addCnt > 0)
@@ -5099,10 +5245,10 @@ class YTDLP
 				if (progress > 0)
 				{
 					msg = "  Time out.\r\n";
-					timeout.type = "item";
-					timeout.waitTime = waitTime;
-					timeout.progress = progress;
-					timeout.count = cnt;
+					exArg2.timeout.type = "item";
+					exArg2.timeout.waitTime = waitTime;
+					exArg2.timeout.progress = progress;
+					exArg2.timeout.count = cnt;
 				}
 				else if (cnt == 0)
 				{
@@ -5118,13 +5264,13 @@ class YTDLP
 		return output;
 	}
 	
-	string _getMetadata(array<string> urls, string options, bool isResponsive, TimeoutArg &timeout)
+	string _getMetadata(array<string> urls, string options, ExecExarg2 &exArg2)
 	{
 		if (urls.length() == 0) return "";
 		string output;
 		
 		uint waitTime;
-		if (isResponsive)
+		if (exArg2.isResponsive)
 		{
 			waitTime = uint(cfg.getInt("TARGET", "playlist_items_timeout"));
 		}
@@ -5146,7 +5292,17 @@ class YTDLP
 			for (uint i = 0; i < urls.length(); i++) joinedUrls += " " + urls[i];
 			
 			uint startTime = HostGetTickCount();
-			output = execExe(options + " --" + joinedUrls, 200000);
+			
+			ExecArg execArg;
+			{
+				execArg.options = options + " --" + joinedUrls;
+				execArg.incTimeout = 200000;
+				
+				execArg.path = exArg2.path;
+				execArg.startTime = exArg2.startTime;
+				execArg.toAlbum = exArg2.toAlbum;
+			}
+			output = execExe(execArg);
 			
 			if (cfg.csl > 0)
 			{
@@ -5167,7 +5323,7 @@ class YTDLP
 		{
 			if (cfg.csl > 0)
 			{
-				string msg = isResponsive ? "  playlist_items_timeout: " : "  playlist_metadata_timeout: ";
+				string msg = exArg2.isResponsive ? "  playlist_items_timeout: " : "  playlist_metadata_timeout: ";
 				msg += waitTime + " sec";
 				HostPrintUTF8(msg);
 			}
@@ -5189,7 +5345,17 @@ class YTDLP
 					}
 				}
 				progress = j;
-				string addOutput = execExe(options + " --" + joinedUrls, 100000);
+				
+				ExecArg execArg;
+				{
+					execArg.options = options + " --" + joinedUrls;
+					execArg.incTimeout = 100000;
+					
+					execArg.path = exArg2.path;
+					execArg.startTime = exArg2.startTime;
+					execArg.toAlbum = exArg2.toAlbum;
+				}
+				string addOutput = execExe(execArg);
 				uint addCnt = _countJson(addOutput, false);
 				uint elapsedTime = (HostGetTickCount() - startTime)/1000;
 				if (addCnt > 0)
@@ -5220,10 +5386,10 @@ class YTDLP
 				else
 				{
 					msg2 = "  Time out.\r\n";
-					timeout.type = isResponsive ? "item" : "metadata";
-					timeout.waitTime = waitTime;
-					timeout.progress = progress;
-					timeout.count = cnt;
+					exArg2.timeout.type = exArg2.isResponsive ? "item" : "metadata";
+					exArg2.timeout.waitTime = waitTime;
+					exArg2.timeout.progress = progress;
+					exArg2.timeout.count = cnt;
 				}
 				HostPrintUTF8(msg2);
 			}
@@ -5292,7 +5458,7 @@ class YTDLP
 		
 		if (output.find("FAILED") < 0)
 		{
-			if (showMsg)
+			if (showMsg && cfg.csl > 0)
 			{
 				HostPrintUTF8("\r\n[yt-dlp] \"yt-dlp.exe\" was forcibly terminated because it did not return control in time.\r\n");
 			}
@@ -5309,36 +5475,32 @@ YTDLP ytd;
 
 
 
-void timeoutThread(any @para)
+void TimeoutThread(any @para)
 {
 	// Terminate yt-dlp.exe forcibly after a specific number of seconds.
 	
-	dictionary threadArg;
-	if (para.retrieve(threadArg))
+	ExecArg execArg;
+	if (para.retrieve(execArg))
 	{
-		string options = string(threadArg["options"]);
-		if (!options.empty())
+		if (!execArg.options.empty())
 		{
 			int pid;
-			uint timeout = uint(threadArg["timeout"]);
-			uint unitTime = timeout >= 300000 ? 60000 : (timeout >= 90000 ? 30000 : 10000);
-			for (uint i = 0; i < timeout/unitTime + 1; i++)
+			uint unitTime = execArg.incTimeout >= 300000 ? 60000 : (execArg.incTimeout >= 90000 ? 30000 : 10000);
+			for (uint i = 0; i < execArg.incTimeout/unitTime + 1; i++)
 			{
 				HostIncTimeOut(unitTime);
 				HostSleep(unitTime);
 //HostPrintUTF8("unitTime: " + unitTime);
-				pid = ytd.getProcessId(options);
+				pid = ytd.getProcessId(execArg.options);
 				if (pid == 0) return;
 //HostPrintUTF8("yt-dlp.exe is still running...");
 			}
 			
 			if (ytd.terminate(pid, true))
 			{
-				string path = string(threadArg["url"]);
-				if (!path.empty())
+				if (!execArg.path.empty())
 				{
-					bool toAlbum = bool(threadArg["toAlbum"]);
-					hist.remove(path, toAlbum, 0);
+					hist.remove(execArg.path, execArg.toAlbum, execArg.startTime);
 				}
 			}
 		}
@@ -5711,10 +5873,15 @@ string _GetYoutubeChannelTab(string url)
 		if(url.substr(len, 1) == "/")
 		{
 			string tab = url.substr(len + 1);
-			if (tab.find("/") < 0)
+			if (!tab.empty() && tab.find("/") < 0)
 			{
-				tab.MakeLower();
-				return tab;
+				int pos = tab.find("?");
+				if (pos >= 0) tab = tab.Left(pos);
+				if (!tab.empty())
+				{
+					tab.MakeLower();
+					return tab;
+				}
 			}
 		}
 	}
@@ -5730,35 +5897,6 @@ bool _IsYoutubeTabPlaylistType(string url)
 		if (playlistTabs.find(tab) >= 0) return true;
 	}
 	return false;
-}
-
-
-array<string> _GetJsonListYoutubeChannelTop(string url)
-{
-	array<string> jsonList = {};
-	
-	if (_YoutubeChannel(url) == 2)	// channel top
-	{
-		array<string> tabs = {"videos", "streams", "shorts"};
-		
-		if (url.Right(1) != "/") url += "/";
-		ExecExarg1 exArg1;
-		exArg1.useFlatPlaylist = true;
-		exArg1.indexReverse = true;
-		
-		for (uint i = 0; i < tabs.length(); i++)
-		{
-			string _url = url + tabs[i];
-			if (i > 0) exArg1.noPrintLog = true;
-			array<string> _jsonList = ytd.exec1(_url, 0, exArg1);
-			if (_jsonList.length() == 1)
-			{
-				jsonList.insertLast(_jsonList[0]);
-			}
-		}
-	}
-	
-	return jsonList;
 }
 
 
@@ -5892,14 +6030,13 @@ void PlaylistCancel()
 	// Treat only online content
 	// Output is canceled, but the background process continues.
 //HostPrintUTF8("PlaylistCancel\r\n");
-	hist.cancelPlayitem();
 }
 
 void PlayitemCancel()
 {
 	// Treat only online content
-	// Output is canceled, but the background process continues.
 //HostPrintUTF8("PlayitemCancel\r\n");
+	
 	hist.cancelPlayitem();
 }
 
@@ -6081,43 +6218,6 @@ bool _IsUrlPlaylist(string url)
 }
 
 
-uint _RemoveEntryYoutubeTab(array<string> &jsonList)
-{
-	if (jsonList.length() == 0) return 0;
-	
-	uint cnt = 0;
-	for (int i = int(jsonList.length()) - 1; i >= 0; i--)
-	{
-		string url = jsn.getDirectValueString(jsonList[i], "webpage_url");
-		if (!_GetYoutubeChannelTab(url).empty())
-		{
-			// remove
-			jsonList.removeAt(i);
-			cnt++;
-		}
-	}
-	if (cnt > 0)
-	{
-		if (cfg.csl > 0)
-		{
-			string msg = "  remove tab items: " + cnt + "\r\n";
-			HostPrintUTF8(msg);
-		}
-	}
-	return cnt;
-}
-
-array<string> _MakeUrlListAll(array<string> jsonList)
-{
-	array<string> urlList = {};
-	for (uint i = 0; i < jsonList.length(); i++)
-	{
-		string url = jsn.getDirectValueString(jsonList[i], "webpage_url");
-		if (!url.empty()) urlList.insertLast(url);
-	}
-	return urlList;
-}
-
 uint _GetAllCount(array<string> jsonList)
 {
 	uint allCnt = 0;
@@ -6161,7 +6261,38 @@ array<string> _UrlListMissingData(array<dictionary> &MetaDataList, array<uint> &
 	return urlList;
 }
 
-uint _deleteNoTitle(array<dictionary> &MetaDataList)
+array<string> _MakeUrlListAll(array<string> &jsonList, uint &out removeCnt)
+{
+	// for YouTube
+	
+	array<string> urlList = {};
+	removeCnt = 0;
+	for (int i = 0; i < int(jsonList.length()); i++)
+	{
+		string url = jsn.getDirectValueString(jsonList[i], "webpage_url");
+		
+		if (_YoutubeChannel(url) > 0)
+		{
+			// Remove YoutubeTab
+			jsonList.removeAt(i);
+			removeCnt++;
+			i--; continue;
+		}
+		if (!url.empty())
+		{
+			urlList.insertLast(url);
+		}
+	}
+	if (removeCnt > 0 && cfg.csl > 0)
+	{
+		string msg = "  remove tab items: " + removeCnt + "\r\n";
+		HostPrintUTF8(msg);
+	}
+	return urlList;
+}
+
+
+uint _DeleteNoTitle(array<dictionary> &MetaDataList)
 {
 	// for YouTube
 	
@@ -6293,13 +6424,12 @@ string _GetPageTitle(string url)
 	string userAgent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:154.0) Gecko/20100101 Firefox/154.0";
 	string data = HostUrlGetString(url, userAgent);
 	string title = HostRegExpParse(data, "<title\\b.*?>(.*?)</title>");
-//HostPrintUTF8("page title: " + title);
 	if (!title.empty()) return title;
 	return "";
 }
 
 
-string _getWholePlaylistTitle(string inUrl, string extractor)
+string _GetWholePlaylistTitle(string inUrl, string extractor)
 {
 	string playlistTitle = _GetPageTitle(inUrl);
 	
@@ -6426,7 +6556,7 @@ bool _PlaylistParseDirect(string inUrl, array<dictionary> &MetaDataList, bool fo
 }
 
 
-class PLAYLIST_EXPNAD
+class PlaylistExpnad
 {
 	int force = 0;
 	int location;
@@ -6434,7 +6564,7 @@ class PLAYLIST_EXPNAD
 }
 
 
-array<dictionary> _PlaylistParse(const string &in path, uint startTime, PLAYLIST_EXPNAD &expandArg)
+array<dictionary> _PlaylistParse(const string &in path, uint startTime, PlaylistExpnad &expandArg)
 {
 	string inUrl = _ReviseUrl(path);
 	
@@ -6581,80 +6711,103 @@ array<dictionary> _PlaylistParse(const string &in path, uint startTime, PLAYLIST
 		}
 	}
 	
+	string nestedPlaylistTitle;
+	
 	ExecExarg1 exArg1;
+	{
+		exArg1.path = path;
+		exArg1.startTime = startTime;
+		exArg1.toAlbum = true;
+	}
 	if (jsonList1.length() == 0)
 	{
 		// Execute yt-dlp
-		if (noExpand == 0)	// playlistMode > 0
+		exArg1.useFlatPlaylist = true;
+		jsonList1 = ytd.exec1(inUrl, playlistMode == 0 ? 1 : playlistMode, exArg1);
+		
+		if (youtubeType > 1)
 		{
-			jsonList1 = ytd.exec1(inUrl, playlistMode, exArg1);
-			
+			uint removeCnt;
+			array<string> _urls = _MakeUrlListAll(jsonList1, removeCnt);
 			if (youtubeType == 2)
 			{
-				uint removeCnt = _RemoveEntryYoutubeTab(jsonList1);
 				naCnt += removeCnt;
 			}
-		}
-		else if (youtubeType == 0)
-		{
-			exArg1.useFlatPlaylist = true;
-			//exArg1.indexReverse = true;
-			jsonList1 = ytd.exec1(inUrl, 0, exArg1);
-		}
-		else
-		{
-			jsonList1 = _GetJsonListYoutubeChannelTop(inUrl);
-			if (jsonList1.length() > 0)
+			else if (youtubeType == 3)
 			{
-				noExpand = 2;
-				expandArg.noExpand = noExpand;
-			}
-			else if (youtubeType == 1)
-			{
-				exArg1.useFlatPlaylist = true;
-				exArg1.indexReverse = true;
-				jsonList1 = ytd.exec1(inUrl, 0, exArg1);
-			}
-			else
-			{
-				jsonList1 = ytd.exec1(inUrl, 1, exArg1);
-				
-				uint removeCnt = _RemoveEntryYoutubeTab(jsonList1);
-				
-				if (youtubeType == 2)
+				// Extract all nested playlists
+				if (_urls.length() > 0)
 				{
-					naCnt += removeCnt;
-				}
-				else if (youtubeType == 3)
-				{
-					// Extract all nested playlists
-					array<string> _urls = _MakeUrlListAll(jsonList1);
-					if (_urls.length() > 0)
+					for (uint i = 0; i < jsonList1.length(); i++)
 					{
-						ExecExarg2 _exArg2;
-						jsonList1 = ytd.exec2(_urls, 0, true, _exArg2);
-						
-						array<string> errIds = _exArg2.errIds;
-						naCnt += errIds.length();
+						nestedPlaylistTitle = jsn.getDirectValueString(jsonList1[i], "playlist_title");
+						if (!nestedPlaylistTitle.empty())
+						{
+							nestedPlaylistTitle = _ReviseWebString(nestedPlaylistTitle);
+							nestedPlaylistTitle = _CutOffString(nestedPlaylistTitle);
+							break;
+						}
+					}
+					
+					ExecExarg2 _exArg2;
+					{
+						_exArg2.path = path;
+						_exArg2.startTime = startTime;
+						_exArg2.toAlbum = true;
+					}
+					jsonList1 = ytd.exec2(_urls, noExpand > 0 ? 1 : 0, true, _exArg2);
+					
+					array<string> errIds = _exArg2.errIds;
+					naCnt += errIds.length();
+				}
+				if (jsonList1.length() > 0)
+				{
+					if (noExpand > 0)
+					{
+						noExpand = 2;
+						expandArg.noExpand = noExpand;
 					}
 				}
 			}
 		}
+		else if (_YoutubeChannel(inUrl) == 2)	// channel top
+		{
+			nestedPlaylistTitle = _GetWholePlaylistTitle(inUrl, "YouTube");
+		}
+		
 		if (jsonList1.length() == 0) return {};
 	}
 	
-	if (hist.checkCancel(path, true, startTime) == 2) return {};
+	if (hist.checkCancel(path, true, startTime) >= 2) return {};
 	
-	if (noExpand == 1)
+	if (noExpand > 0)
 	{
-		if (jsonList1.length() > 0)
+		dictionary MetaData0 = _ParseMetaData(jsonList1[0], false, true, inUrl, imgUrl);
+		if (MetaData0.empty()) return {};
+		
+		uint playlistSelfCount = 0;
+		if (noExpand == 2)
 		{
-			dictionary MetaData1 = _ParseMetaData(jsonList1[0], false, true, inUrl, imgUrl);
-			if (!MetaData1.empty())
+			for (uint i = 0; i < jsonList1.length(); i++)
 			{
-				MetaDataList1.insertLast(MetaData1);
+				playlistSelfCount += jsn.getDirectValueInt(jsonList1[i], "playlist_count");
 			}
 		}
+		else
+		{
+			playlistSelfCount = jsonList1.length();
+		}
+		MetaData0["playlistSelfCount"] = playlistSelfCount;
+		string playlistNote = _GetPlaylistNote(playlistSelfCount, string(MetaData0["originalAuthor"]), string(MetaData0["extractor"]));
+		MetaData0["playlistNote"] = playlistNote;
+		MetaData0["author"] = playlistNote;
+		
+		string thumb = ytd.getThumbnail(inUrl);
+		if (thumb.empty()) thumb = _GetPlaylistThumb();
+		MetaData0["thumbnail"] = thumb;
+		MetaData0["playUrl"] = thumb;
+		
+		MetaDataList1.insertLast(MetaData0);
 	}
 	else
 	{
@@ -6678,6 +6831,21 @@ array<dictionary> _PlaylistParse(const string &in path, uint startTime, PLAYLIST
 	
 	if (MetaDataList1.length() == 0) return {};
 	
+	if (youtubeType == 3 || _YoutubeChannel(inUrl) == 2)
+	{
+		if (noExpand > 0)
+		{
+			MetaDataList1[0]["title"] = nestedPlaylistTitle;
+		}
+		else
+		{
+			for (uint i = 0; i < MetaDataList1.length(); i++)
+			{
+				MetaDataList1[i]["playlistTitle"] = nestedPlaylistTitle;
+			}
+		}
+	}
+	
 	if (ext0 == "m3u8")
 	{
 		if (_CheckM3u8Hls(inUrl) > 0)
@@ -6698,7 +6866,7 @@ array<dictionary> _PlaylistParse(const string &in path, uint startTime, PLAYLIST
 	}
 	else if (youtubeType > 0)
 	{
-		naCnt += _deleteNoTitle(MetaDataList1);
+		naCnt += _DeleteNoTitle(MetaDataList1);
 		if (youtubeType == 2)
 		{
 			urls = _UrlListCheckPlaylist(MetaDataList1, idxList);
@@ -6715,22 +6883,25 @@ array<dictionary> _PlaylistParse(const string &in path, uint startTime, PLAYLIST
 	}
 	
 	ExecExarg2 exArg2;
+	{
+		exArg2.path = path;
+		exArg2.startTime = startTime;
+		exArg2.toAlbum = true;
+	}
 	
 	uint missingCnt = urls.length();
 	if (missingCnt > 0)
 	{
-		
 		// Need collecting more metadata.
 		array<string> jsonList2 = ytd.exec2(urls, youtubeType > 0 ? 1 : -1, flatPlaylist, exArg2);
 		
-		if (hist.checkCancel(path, true, startTime) == 2) return {};
+		if (hist.checkCancel(path, true, startTime) >= 2) return {};
 		
 		array<dictionary> MetaDataList2;
 		for (uint i = 0; i < jsonList2.length(); i++)
 		{
 			dictionary MetaData2 = _ParseMetaData(jsonList2[i], jsonList2.length() > 500, true, "", imgUrl);
 			MetaDataList2.insertLast(MetaData2);
-//HostPrintUTF8("idx: " + uint(MetaData2["playlistIndex"]) + "\twebUrl2: " + string(MetaData2["webUrl"]) + "\ttitle2: " + string(MetaData2["title"]));
 		}
 		
 		array<string> removeUrls;
@@ -6863,13 +7034,14 @@ array<dictionary> _PlaylistParse(const string &in path, uint startTime, PLAYLIST
 	if (MetaDataList1.length() > 0)
 	{
 		extractor = string(MetaDataList1[0]["extractor"]);
+		
 		if (noExpand > 0 && bool(MetaDataList1[0]["isSelfPlaylist"]))
 		{
 			isWholePlaylist = true;
 			playlistTitle = string(MetaDataList1[0]["title"]);
 			if (playlistTitle.empty())
 			{
-				playlistTitle = _getWholePlaylistTitle(inUrl, extractor);
+				playlistTitle = _GetWholePlaylistTitle(inUrl, extractor);
 				MetaDataList1[0]["title"] = playlistTitle;
 			}
 		}
@@ -6879,7 +7051,7 @@ array<dictionary> _PlaylistParse(const string &in path, uint startTime, PLAYLIST
 			playlistTitle = string(MetaDataList1[0]["playlistTitle"]);
 			if (playlistTitle.empty())
 			{
-				playlistTitle = _getWholePlaylistTitle(inUrl, extractor);
+				playlistTitle = _GetWholePlaylistTitle(inUrl, extractor);
 				for (uint i = 0; i < MetaDataList1.length(); i++)
 				{
 					MetaDataList1[i]["playlistTitle"] = playlistTitle;
@@ -6887,35 +7059,7 @@ array<dictionary> _PlaylistParse(const string &in path, uint startTime, PLAYLIST
 			}
 		}
 		
-		if (noExpand == 2)
-		{
-			uint cnt = 0;
-			for (uint i = 0; i < MetaDataList1.length(); i++)
-			{
-				cnt += uint(MetaDataList1[i]["playlistSelfCount"]);
-			}
-			MetaDataList1[0]["playlistSelfCount"] = cnt;
-			
-			string playlistUploader = string(MetaDataList1[0]["playlist_uploader"]);
-			string playlistNote = _GetPlaylistNote(cnt, playlistUploader, extractor);
-			MetaDataList1[0]["playlistNote"] = playlistNote;
-			MetaDataList1[0]["author"] = playlistNote;
-			
-			string thumb = ytd.getThumbnail(inUrl);
-			if (thumb.empty()) thumb = _GetPlaylistThumb();
-			MetaDataList1[0]["thumbnail"] = thumb;
-			MetaDataList1[0]["playUrl"] = thumb;
-			
-			MetaDataList1.removeRange(1, MetaDataList1.length() - 1);
-		}
-		else if (noExpand == 1)
-		{
-			string thumb = ytd.getThumbnail(inUrl);
-			if (thumb.empty()) thumb = _GetPlaylistThumb();
-			MetaDataList1[0]["thumbnail"] = thumb;
-			MetaDataList1[0]["playUrl"] = thumb;
-		}
-		else
+		if (noExpand == 0)
 		{
 			// Get items with missing playlist thumbnails
 			array<string> fillUrls, naUrls;
@@ -6935,10 +7079,15 @@ array<dictionary> _PlaylistParse(const string &in path, uint startTime, PLAYLIST
 			if (fillUrls.length() > 0)
 			{
 				ExecExarg2 ctArg2;
-				ctArg2.headMsg = "Collecting " + (fillUrls.length() == 1 ? "a thumbnail" : "thumbnails");
+				{
+					ctArg2.path = path;
+					ctArg2.startTime = startTime;
+					ctArg2.toAlbum = true;
+					ctArg2.headMsg = "Collecting " + (fillUrls.length() == 1 ? "a thumbnail" : "thumbnails");
+				}
 				array<string> ctJsonList = ytd.exec2(fillUrls, 1, false, ctArg2);
 				
-				if (hist.checkCancel(path, true, startTime) == 2) return {};
+				if (hist.checkCancel(path, true, startTime) >= 2) return {};
 				
 				// Timed-out items
 				if (ctArg2.timeout.type == "metadata")
@@ -7041,7 +7190,7 @@ array<dictionary> _PlaylistParse(const string &in path, uint startTime, PLAYLIST
 		}
 		ytd.backupExe();
 		
-		if (hist.checkCancel(path, true, startTime) == 2) return {};
+		if (hist.checkCancel(path, true, startTime) >= 2) return {};
 		
 		if (MetaDataList1.length() == 1)
 		{
@@ -7049,11 +7198,7 @@ array<dictionary> _PlaylistParse(const string &in path, uint startTime, PLAYLIST
 			{
 				cache.addJson(inUrl, jsonList1[0], string(MetaDataList1[0]["thumbnail"]));
 			}
-			else if (noExpand == 2)	// channel top playlist
-			{
-				cache.addPlayitem(inUrl, MetaDataList1[0], {});
-			}
-			else if (noExpand == 1)	// non-expanded playlist
+			else if (noExpand > 0)	// non-expanded playlist
 			{
 				//cache.addJson(inUrl, jsonList1[0], string(MetaDataList1[0]["thumbnail"]));
 				cache.addPlayitem(inUrl, MetaDataList1[0], {});
@@ -7152,7 +7297,7 @@ array<dictionary> PlaylistParse(const string &in path)
 	
 	if (cfg.csl > 0) HostOpenConsole();
 	
-	PLAYLIST_EXPNAD expandArg;
+	PlaylistExpnad expandArg;
 	expandArg.force = ytd.playlistForceExpand;
 	ytd.playlistForceExpand = 0;
 	
@@ -8528,11 +8673,11 @@ dictionary _ParseMetaDataStd(JsonValue &root, bool noExpand, string inUrl, strin
 		{
 			if (tx.findI(extractor, "youtube") >= 0)
 			{
-				if (cfg.getInt("YOUTUBE", "youtube_live") != 1)
+				int youtubeLive = cfg.getInt("YOUTUBE", "youtube_live");
+				if (youtubeLive != 1 && youtubeLive != 2)
 				{
 					// Pass through YouTube Live
 					MetaData["liveThrough"] = true;
-					
 					return MetaData;
 				}
 			}
@@ -8879,45 +9024,12 @@ string _PlayitemParse(const string &in path, dictionary &MetaData, array<diction
 	while (true)
 	{
 		uint prevStartTime = hist.getPrevStartTime(path, false, startTime, 0);
-		if (prevStartTime == 0)
-		{
-			break;
-		}
+		if (prevStartTime == 0) break;
 		
-		// The previous process is still running
-		uint prevExeStartTime = hist.getExeStartTime(path, false, prevStartTime);
-		if (prevExeStartTime > 0)
+		if (doubleTrigger > 0 && _IsUrlPlaylist(inUrl))
 		{
-			uint curTime = HostGetTickCount();
-			if (curTime >= prevExeStartTime && curTime - prevExeStartTime  >= 10000)
-			{
-				bool killed = false;
-				int pid = ytd.getProcessId(" -- " + inUrl);
-				if (pid > 0)
-				{
-					killed = ytd.terminate(pid, true);
-					HostSleep(200);
-				}
-				else
-				{
-					string joinedUrls = _ChangeUrlYoutubeChannelTop(inUrl);
-					if (!joinedUrls.empty())
-					{
-						pid = ytd.getProcessId(" -- " + joinedUrls);
-						if (pid > 0)
-						{
-							killed = ytd.terminate(pid, true);
-							HostSleep(200);
-						}
-					}
-				}
-				if (killed)
-				{
-					hist.remove(path, false, prevStartTime);
-					if (doubleTrigger > 0) break;
-					return "";
-				}
-			}
+			//hist.terminate(path, false, prevStartTime);
+			break;
 		}
 		
 //HostPrintUTF8("waiting...");
@@ -9032,20 +9144,23 @@ string _PlayitemParse(const string &in path, dictionary &MetaData, array<diction
 		
 		// Execute yt-dlp
 		ExecExarg1 exArg1;
-		if (doubleTrigger == 0)
 		{
-			exArg1.referer = _GetRefererFromPotHist(inUrl);
-			// Available only if the URL is a direct link (outUrl == inUrl).
+			exArg1.path = path;
+			exArg1.startTime = startTime;
+			exArg1.toAlbum = false;
+			if (doubleTrigger == 0)
+			{
+				exArg1.referer = _GetRefererFromPotHist(inUrl);
+				// Available only if the URL is a direct link (outUrl == inUrl).
+			}
 		}
-		hist.setExeStartTime(path, false, startTime);
 		array<string> jsonList = ytd.exec1(inUrl, 0, exArg1);
-		hist.resetExeStartTime(path, false, startTime);
 		
 		if (jsonList.length() == 0) return "";
 		json = jsonList[0];
 		
 		int cancelMode = hist.checkCancel(path, false, startTime);
-		if (cancelMode == 2) return "";
+		if (cancelMode >= 2) return "";
 		cache.addJson(inUrl, json, "", (@QualityList is null));
 		if (cancelMode == 1) return "";
 	}
@@ -9064,7 +9179,7 @@ string _PlayitemParse(const string &in path, dictionary &MetaData, array<diction
 	
 	if (isYoutube && _CheckLiveThrough(MetaData, inUrl))
 	{
-		if (hist.checkCancel(path, false, startTime) == 2) return "";
+		if (hist.checkCancel(path, false, startTime) >= 2) return "";
 		cache.addPlayitem(inUrl, MetaData, {});
 		return "";
 	}
@@ -9092,7 +9207,7 @@ string _PlayitemParse(const string &in path, dictionary &MetaData, array<diction
 		MetaData["playUrl"] = outUrl;
 		
 		int cancelMode = hist.checkCancel(path, false, startTime);
-		if (cancelMode == 2) return "";
+		if (cancelMode >= 2) return "";
 		cache.addPlayitem(inUrl, MetaData, {});
 		if (cancelMode == 1) return "";
 		
@@ -10005,7 +10120,7 @@ string _PlayitemParse(const string &in path, dictionary &MetaData, array<diction
 	ytd.backupExe();
 	
 	int cancelMode = hist.checkCancel(path, false, startTime);
-	if (cancelMode == 2) return "";
+	if (cancelMode >= 2) return "";
 	if (@QualityList !is null)
 	{
 		cache.addPlayitem(inUrl, MetaData, QualityList);
