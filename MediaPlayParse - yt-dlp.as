@@ -5,7 +5,7 @@
   Placed in \PotPlayer\Extension\Media\PlayParse\
 *************************************************************/
 
-string SCRIPT_VERSION = "260905";
+string SCRIPT_VERSION = "260906";
 
 
 string YTDLP_EXE = "yt-dlp.exe";
@@ -6513,6 +6513,61 @@ void _MergeMetaData(dictionary &MetaData1, dictionary &MetaData2)
 }
 
 
+void _PrintTitlePlayitem(dictionary &MetaData)
+{
+	string title = string(MetaData["title"]);
+	string url = string(MetaData["webUrl"]);
+	uint playlistSelfCount = uint(MetaData["playlistSelfCount"]);
+	
+	if (playlistSelfCount > 0)
+	{
+		if (!title.empty())
+		{
+			HostPrintUTF8("Playlist Title: " + title);
+		}
+		else
+		{
+			HostPrintUTF8("Playlist URL: " + url);
+		}
+		HostPrintUTF8("Playlist Count: " + playlistSelfCount);
+	}
+	else
+	{
+		if (!title.empty())
+		{
+			HostPrintUTF8("Title: " + title);
+		}
+		else
+		{
+			HostPrintUTF8("URL: " + url);
+		}
+	}
+	HostPrintUTF8("\r\n");
+}
+
+
+void _PrintTitlePlaylist(array<dictionary> &MetaDataList, string url)
+{
+	uint playlistCount = MetaDataList.length();
+	string playlistTitle;
+	for (uint i = 0; i < playlistCount; i++)
+	{
+		playlistTitle = string(MetaDataList[i]["playlistTitle"]);
+		if (!playlistTitle.empty()) break;
+	}
+	if (!playlistTitle.empty())
+	{
+		HostPrintUTF8("Playlist Title: " + playlistTitle);
+	}
+	else
+	{
+		HostPrintUTF8("Playlist URL: " + url);
+	}
+	HostPrintUTF8("Playlist Count: " + playlistCount);
+	HostPrintUTF8("\r\n");
+}
+
+
 bool _PlaylistParseDirect(string inUrl, array<dictionary> &MetaDataList, bool forceExpnad)
 {
 	MetaDataList = {};
@@ -6643,7 +6698,7 @@ array<dictionary> _PlaylistParse(const string &in path, uint startTime, Playlist
 			{
 				if (cfg.csl > 0)
 				{
-					HostPrintUTF8("[yt-dlp] Using playlist cache for adding items - " + tx.qt(inUrl) + "\r\n");
+					_PrintTitlePlaylist(MetaDataList1, inUrl);
 				}
 				return MetaDataList1;
 			}
@@ -6655,7 +6710,7 @@ array<dictionary> _PlaylistParse(const string &in path, uint startTime, Playlist
 			{
 				if (cfg.csl > 0)
 				{
-					HostPrintUTF8("[yt-dlp] Using metadata cache for adding the item - " + tx.qt(inUrl) + "\r\n");
+					_PrintTitlePlayitem(MetaData);
 				}
 				MetaDataList1.insertLast(MetaData);
 				return MetaDataList1;
@@ -7284,6 +7339,7 @@ array<dictionary> _PlaylistParse(const string &in path, uint startTime, Playlist
 		{
 			HostPrintUTF8("\r\n[yt-dlp] Extracting entries failed. - " + tx.qt(inUrl) +"\r\n");
 		}
+		HostPrintUTF8("\r\n");
 	}
 	
 	return MetaDataList1;
@@ -9053,7 +9109,7 @@ string _PlayitemParse(const string &in path, dictionary &MetaData, array<diction
 		{
 			if (cfg.csl > 0)
 			{
-				HostPrintUTF8("[yt-dlp] Using metadata cache for playback - " + tx.qt(inUrl) + "\r\n");
+				_PrintTitlePlayitem(MetaData);
 			}
 			HostSleep(DOUBLE_TRIGGER_INTERVAL_1);	// for waiting Double Trigger
 			return outUrl;
@@ -9066,7 +9122,8 @@ string _PlayitemParse(const string &in path, dictionary &MetaData, array<diction
 				{
 					if (cfg.csl > 0)
 					{
-						HostPrintUTF8("[yt-dlp] Using metadata cache for playback - " + tx.qt(inUrl) + "\r\n");
+						_PrintTitlePlayitem(MetaData);
+						
 						HostPrintUTF8("[yt-dlp] Expanding playlist... - " + tx.qt(inUrl) + "\r\n");
 					}
 					return outUrl;
@@ -9083,7 +9140,7 @@ string _PlayitemParse(const string &in path, dictionary &MetaData, array<diction
 			{
 				if (cfg.csl > 0)
 				{
-					HostPrintUTF8("[yt-dlp] Using metadata cache for playback - " + tx.qt(inUrl) + "\r\n");
+					_PrintTitlePlayitem(MetaData);
 				}
 				
 				return outUrl;
@@ -10137,6 +10194,8 @@ string _PlayitemParse(const string &in path, dictionary &MetaData, array<diction
 			msg += " - " + tx.qt(inUrl) + "\r\n";
 			HostPrintUTF8(msg);
 		}
+		
+		HostPrintUTF8("\r\n");
 	}
 	
 	return outUrl;
